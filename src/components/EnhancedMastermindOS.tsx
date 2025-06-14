@@ -24,7 +24,6 @@ interface User {
 export default function EnhancedMastermindOS() {
   const [activePanel, setActivePanel] = useState<ActivePanel>('nexus')
   const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -32,10 +31,6 @@ export default function EnhancedMastermindOS() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [])
-
-  const handleUserChange = (newUser: User | null) => {
-    setUser(newUser)
-  }
 
   const navigationItems = [
     { key: 'nexus', label: 'NEXUS', icon: Brain, description: 'Neural orchestration core' },
@@ -93,10 +88,10 @@ export default function EnhancedMastermindOS() {
               boxShadow: currentTheme.glowEffect
             }}>
               <p style={{ color: currentTheme.primaryColor, fontSize: '16px' }}>
-                🧠 Stack Auth integration active - {user ? `Welcome ${user.username}!` : 'Sign in to unlock features'}
+                🔐 Clerk authentication active - Sign in to unlock features
               </p>
               <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>
-                Enhanced user management • Authentication system • Dashboard access
+                Enhanced user management • Professional authentication • Dashboard access
               </p>
             </div>
           </div>
@@ -167,7 +162,7 @@ export default function EnhancedMastermindOS() {
               marginTop: '16px',
               fontFamily: 'Courier New, monospace'
             }}>
-              Stack Auth integration • User management • Enhanced authentication
+              Clerk authentication • User management • Enhanced security
             </p>
           </div>
         </div>
@@ -298,7 +293,7 @@ export default function EnhancedMastermindOS() {
               </nav>
 
               {/* User System */}
-              <UserSystem onUserChange={handleUserChange} />
+              <UserSystem />
             </div>
           </header>
 
