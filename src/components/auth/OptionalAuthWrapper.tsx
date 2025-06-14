@@ -2,21 +2,29 @@
 
 import { useUser } from '@stackframe/stack'
 import { isStackAuthEnabled } from '@/stack'
+import { useEffect, useState } from 'react'
 
 interface OptionalAuthWrapperProps {
   children: React.ReactNode
 }
 
 export default function OptionalAuthWrapper({ children }: OptionalAuthWrapperProps) {
-  // If Stack Auth is not enabled, just return children without trying to use hooks
-  if (!isStackAuthEnabled) {
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // If not mounted yet or Stack Auth disabled, just render children
+  if (!mounted || !isStackAuthEnabled) {
     return <>{children}</>
   }
 
-  // Always call hooks in the same order - no conditional hooks
+  // Only use Stack Auth hooks after mounting and when enabled
+  return <AuthEnabledWrapper>{children}</AuthEnabledWrapper>
+}
+
+function AuthEnabledWrapper({ children }: { children: React.ReactNode }) {
   const user = useUser()
-  
-  // Render children regardless of auth state
-  // This allows the app to work in both authenticated and guest modes
   return <>{children}</>
 }
