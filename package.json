@@ -1,0 +1,21 @@
+{
+  "name": "mastermind-os-v3-fresh",
+  "version": "3.0.0",
+  "description": "Fresh MasterMind OS v3 deployment - clean slate",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build", 
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "15.1.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "typescript": "^5"
+  }
+}
