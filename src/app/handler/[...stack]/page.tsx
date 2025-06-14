@@ -140,14 +140,18 @@ export default function Handler(props: any) {
     )
   }
 
-  // Stack Auth is ready - render handler
+  // Stack Auth is ready - render handler with proper Next.js 15 syntax
   try {
     const { StackHandler, StackProvider, StackTheme, stackServerApp } = stackComponents
     
     return (
       <StackProvider app={stackServerApp}>
         <StackTheme>
-          <StackHandler fullPage app={stackServerApp} {...props} />
+          <StackHandler 
+            fullPage 
+            app={stackServerApp} 
+            routeProps={props}
+          />
         </StackTheme>
       </StackProvider>
     )
