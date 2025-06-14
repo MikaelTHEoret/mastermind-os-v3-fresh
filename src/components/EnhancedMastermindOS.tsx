@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { Brain, Scroll, Database, BarChart3, Building2, Layout } from 'lucide-react'
+import EnhancedNexusBackground from './EnhancedNexusBackground'
+import NexusCoreSection from './sections/NexusCoreSection'
+import { getTheme } from '../lib/theme-config'
 
 type ActivePanel = 'nexus' | 'scrolls' | 'memory' | 'analytics' | 'enterprise' | 'dashboard'
 
@@ -25,202 +28,294 @@ export default function EnhancedMastermindOS() {
     { key: 'dashboard', label: 'DASHBOARD', icon: Layout, description: 'User control center' }
   ]
 
-  // Inline styles as fallback for cyberpunk aesthetic
-  const styles = {
-    container: {
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-      color: '#00ffff',
-      fontFamily: 'Courier New, monospace',
-      overflow: 'hidden'
-    },
-    header: {
-      height: '64px',
-      background: 'rgba(0, 0, 0, 0.8)',
-      backdropFilter: 'blur(8px)',
-      borderBottom: '1px solid rgba(0, 255, 255, 0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 24px'
-    },
-    title: {
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px'
-    },
-    navigation: {
-      display: 'flex',
-      gap: '4px'
-    },
-    navButton: {
-      padding: '8px 16px',
-      border: activePanel === 'nexus' ? '1px solid #00ffff' : '1px solid transparent',
-      background: activePanel === 'nexus' ? 'rgba(0, 255, 255, 0.2)' : 'transparent',
-      color: '#00ffff',
-      borderRadius: '8px',
-      cursor: 'pointer',
-      fontSize: '14px',
-      fontFamily: 'Courier New, monospace',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      transition: 'all 0.3s ease'
-    },
-    content: {
-      padding: '32px'
-    },
-    card: {
-      background: 'linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(255, 0, 255, 0.2) 100%)',
-      border: '1px solid rgba(0, 255, 255, 0.5)',
-      borderRadius: '8px',
-      padding: '24px',
-      marginBottom: '16px'
+  const renderActiveSection = () => {
+    const currentTheme = getTheme(activePanel)
+    
+    switch (activePanel) {
+      case 'nexus':
+        return <NexusCoreSection />
+      default:
+        return (
+          <div style={{
+            padding: '32px',
+            height: '100%',
+            background: currentTheme.backgroundGradient,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <h2 style={{ 
+              fontSize: '48px', 
+              color: currentTheme.primaryColor, 
+              fontWeight: 'bold', 
+              marginBottom: '16px',
+              fontFamily: 'Orbitron, monospace',
+              textAlign: 'center',
+              textShadow: `0 0 30px ${currentTheme.primaryColor}50`
+            }}>
+              🚀 {currentTheme.name}
+            </h2>
+            <p style={{ 
+              color: currentTheme.textColor, 
+              fontSize: '18px', 
+              marginBottom: '32px',
+              textAlign: 'center',
+              fontFamily: 'Rajdhani, sans-serif'
+            }}>
+              Enhanced Nexus Core Protocol v3.0 - {currentTheme.description}
+            </p>
+            <div style={{
+              background: currentTheme.cardBackground,
+              border: `1px solid ${currentTheme.borderColor}`,
+              borderRadius: '12px',
+              padding: '24px',
+              backdropFilter: 'blur(10px)',
+              textAlign: 'center',
+              boxShadow: currentTheme.glowEffect
+            }}>
+              <p style={{ color: currentTheme.primaryColor, fontSize: '16px' }}>
+                🧠 Enhanced background system active - Cyberpunk assets integrated
+              </p>
+              <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>
+                Sacred geometry • Circuit patterns • Mathematical constants • Energy fields
+              </p>
+            </div>
+          </div>
+        )
     }
   }
 
   if (isLoading) {
     return (
-      <div style={{
-        ...styles.container,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center', zIndex: 10 }}>
-          <Brain style={{ 
-            width: '64px', 
-            height: '64px', 
-            margin: '0 auto 24px',
-            color: '#00ffff',
-            animation: 'pulse 2s infinite'
-          }} />
-          <h1 style={{ 
-            fontSize: '36px', 
-            fontWeight: 'bold', 
-            color: '#00ffff', 
-            marginBottom: '16px',
-            fontFamily: 'Courier New, monospace'
-          }}>
-            MASTERMIND OS v3.0
-          </h1>
-          <p style={{ 
-            color: '#00ffff', 
-            fontSize: '18px',
-            fontFamily: 'Courier New, monospace'
-          }}>
-            🧠 Enhanced Nexus Core Protocol v3.0 Active...
-          </p>
-          <p style={{ 
-            color: 'rgba(0, 255, 255, 0.7)', 
-            fontSize: '14px',
-            marginTop: '16px',
-            fontFamily: 'Courier New, monospace'
-          }}>
-            Vector database intelligence loading...
-          </p>
+      <EnhancedNexusBackground>
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative'
+        }}>
+          <div style={{ textAlign: 'center', zIndex: 10 }}>
+            <Brain style={{ 
+              width: '64px', 
+              height: '64px', 
+              margin: '0 auto 24px',
+              color: '#00ffff',
+              animation: 'pulse 2s infinite'
+            }} />
+            <h1 style={{ 
+              fontSize: '48px', 
+              fontWeight: 'bold', 
+              color: '#00ffff', 
+              marginBottom: '16px',
+              fontFamily: 'Orbitron, monospace',
+              textShadow: '0 0 30px rgba(0, 255, 255, 0.8)'
+            }}>
+              MASTERMIND OS v3.0
+            </h1>
+            <p style={{ 
+              color: '#00ffff', 
+              fontSize: '18px',
+              fontFamily: 'Rajdhani, sans-serif',
+              marginBottom: '8px'
+            }}>
+              🧠 Enhanced Nexus Core Protocol v3.0 Initializing...
+            </p>
+            <div style={{
+              marginTop: '24px',
+              display: 'flex',
+              justifyContent: 'center'
+            }}>
+              <div style={{
+                width: '256px',
+                height: '4px',
+                background: 'rgba(0, 255, 255, 0.2)',
+                borderRadius: '2px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #00ffff, #ff00ff)',
+                  borderRadius: '2px',
+                  animation: 'pulse 2s infinite',
+                  width: '85%'
+                }} />
+              </div>
+            </div>
+            <p style={{ 
+              color: 'rgba(0, 255, 255, 0.7)', 
+              fontSize: '14px',
+              marginTop: '16px',
+              fontFamily: 'Courier New, monospace'
+            }}>
+              Enhanced cyberpunk backgrounds loading • Sacred geometry active • Circuit patterns initialized
+            </p>
+          </div>
         </div>
-      </div>
+      </EnhancedNexusBackground>
     )
   }
 
-  const renderActiveSection = () => {
-    switch (activePanel) {
-      case 'nexus':
-        return (
-          <div style={styles.content}>
-            <h2 style={{ fontSize: '32px', color: '#00ffff', fontWeight: 'bold', marginBottom: '24px' }}>
-              🧠 NEURAL ORCHESTRATION CORE
-            </h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
-              <div style={styles.card}>
-                <h3 style={{ fontSize: '20px', color: '#00ffff', fontWeight: 'bold', marginBottom: '8px' }}>Core Energy</h3>
-                <div style={{ fontSize: '32px', color: '#00ffff', fontFamily: 'Courier New, monospace' }}>87%</div>
-                <p style={{ color: '#00ffff', fontSize: '14px' }}>Neural networks active</p>
-              </div>
-              <div style={styles.card}>
-                <h3 style={{ fontSize: '20px', color: '#ff00ff', fontWeight: 'bold', marginBottom: '8px' }}>Active Nodes</h3>
-                <div style={{ fontSize: '32px', color: '#ff00ff', fontFamily: 'Courier New, monospace' }}>12</div>
-                <p style={{ color: '#ff00ff', fontSize: '14px' }}>Processing units online</p>
-              </div>
-              <div style={styles.card}>
-                <h3 style={{ fontSize: '20px', color: '#ffff00', fontWeight: 'bold', marginBottom: '8px' }}>Agents</h3>
-                <div style={{ fontSize: '32px', color: '#ffff00', fontFamily: 'Courier New, monospace' }}>8</div>
-                <p style={{ color: '#ffff00', fontSize: '14px' }}>AI orchestration active</p>
-              </div>
-            </div>
-          </div>
-        )
-      default:
-        return (
-          <div style={styles.content}>
-            <h2 style={{ fontSize: '32px', color: '#00ffff', fontWeight: 'bold', marginBottom: '16px' }}>
-              🚀 {navigationItems.find(item => item.key === activePanel)?.label}
-            </h2>
-            <p style={{ color: '#00ffff', fontSize: '18px', marginBottom: '32px' }}>
-              Enhanced Nexus Core Protocol v3.0 - {navigationItems.find(item => item.key === activePanel)?.description}
-            </p>
-            <div style={styles.card}>
-              <p style={{ color: '#00ffff' }}>🧠 Vector database intelligence active - Component ready for full migration</p>
-            </div>
-          </div>
-        )
-    }
-  }
-
   return (
-    <div style={styles.container}>
-      {/* Main Interface */}
-      <div style={{ position: 'relative', zIndex: 10, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-        {/* Header */}
-        <header style={styles.header}>
-          <div style={styles.title}>
-            <Brain style={{ width: '32px', height: '32px', color: '#00ffff' }} />
-            <h1 style={{ 
-              fontSize: '24px', 
-              fontWeight: 'bold', 
-              color: '#00ffff',
-              fontFamily: 'Courier New, monospace'
+    <EnhancedNexusBackground>
+      <div style={{
+        minHeight: '100vh',
+        position: 'relative',
+        overflow: 'hidden'
+      }}>
+        {/* Main Interface */}
+        <div style={{ 
+          position: 'relative', 
+          zIndex: 10, 
+          minHeight: '100vh', 
+          display: 'flex', 
+          flexDirection: 'column' 
+        }}>
+          {/* Header */}
+          <header style={{
+            height: '64px',
+            background: 'rgba(0, 0, 0, 0.8)',
+            backdropFilter: 'blur(8px)',
+            borderBottom: '1px solid rgba(0, 255, 255, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 24px',
+            position: 'relative',
+            zIndex: 20
+          }}>
+            {/* Logo */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Brain style={{ width: '32px', height: '32px', color: '#00ffff' }} />
+              <h1 style={{ 
+                fontSize: '24px', 
+                fontWeight: 'bold', 
+                color: '#00ffff',
+                fontFamily: 'Orbitron, monospace'
+              }}>
+                MASTERMIND OS
+              </h1>
+              <span style={{ 
+                color: 'rgba(0, 255, 255, 0.7)', 
+                fontSize: '14px', 
+                fontFamily: 'Courier New, monospace' 
+              }}>
+                v3.0
+              </span>
+            </div>
+            
+            {/* Navigation */}
+            <nav style={{ display: 'flex', gap: '4px' }}>
+              {navigationItems.map((item) => {
+                const Icon = item.icon
+                const isActive = activePanel === item.key
+                const currentTheme = getTheme(item.key)
+                
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => setActivePanel(item.key as ActivePanel)}
+                    style={{
+                      padding: '8px 16px',
+                      border: isActive ? `1px solid ${currentTheme.primaryColor}` : '1px solid transparent',
+                      background: isActive ? `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.2)` : 'transparent',
+                      color: isActive ? currentTheme.primaryColor : '#00ffff',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontFamily: 'Orbitron, monospace',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      transition: 'all 0.3s ease',
+                      textTransform: 'uppercase',
+                      position: 'relative'
+                    }}
+                    title={item.description}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.1)`
+                        e.currentTarget.style.color = currentTheme.primaryColor
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.color = '#00ffff'
+                      }
+                    }}
+                  >
+                    <Icon style={{ width: '16px', height: '16px' }} />
+                    <span>{item.label}</span>
+                    
+                    {/* Tooltip */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      marginTop: '8px',
+                      padding: '8px 12px',
+                      background: 'rgba(0, 0, 0, 0.9)',
+                      border: `1px solid ${currentTheme.primaryColor}30`,
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      color: currentTheme.primaryColor,
+                      whiteSpace: 'nowrap',
+                      opacity: 0,
+                      pointerEvents: 'none',
+                      transition: 'opacity 0.2s ease',
+                      zIndex: 30
+                    }}
+                    className="tooltip">
+                      {item.description}
+                    </div>
+                  </button>
+                )
+              })}
+            </nav>
+
+            <div style={{ 
+              color: '#00ffff', 
+              fontSize: '14px', 
+              fontFamily: 'Courier New, monospace',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
             }}>
-              MASTERMIND OS
-            </h1>
-            <span style={{ color: 'rgba(0, 255, 255, 0.7)', fontSize: '14px', fontFamily: 'Courier New, monospace' }}>
-              v3.0
-            </span>
-          </div>
+              <div style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                background: '#00ffaa',
+                boxShadow: '0 0 8px #00ffaa',
+                animation: 'pulse 2s infinite'
+              }} />
+              🧠 ENHANCED NEXUS ACTIVE
+            </div>
+          </header>
+
+          {/* Main Content Area */}
+          <main style={{ flex: 1, position: 'relative' }}>
+            <div style={{ height: 'calc(100vh - 64px)' }}>
+              {renderActiveSection()}
+            </div>
+          </main>
+        </div>
+
+        <style jsx>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+          }
           
-          {/* Navigation */}
-          <nav style={styles.navigation}>
-            {navigationItems.map((item) => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => setActivePanel(item.key as ActivePanel)}
-                  style={{
-                    ...styles.navButton,
-                    border: activePanel === item.key ? '1px solid #00ffff' : '1px solid transparent',
-                    background: activePanel === item.key ? 'rgba(0, 255, 255, 0.2)' : 'transparent'
-                  }}
-                  title={item.description}
-                >
-                  <Icon style={{ width: '16px', height: '16px' }} />
-                  <span>{item.label}</span>
-                </button>
-              )
-            })}
-          </nav>
-
-          <div style={{ color: '#00ffff', fontSize: '14px', fontFamily: 'Courier New, monospace' }}>
-            🧠 ENHANCED NEXUS ACTIVE
-          </div>
-        </header>
-
-        {/* Main Content Area */}
-        <main style={{ flex: 1, position: 'relative' }}>
-          {renderActiveSection()}
-        </main>
+          button:hover .tooltip {
+            opacity: 1 !important;
+          }
+        `}</style>
       </div>
-    </div>
+    </EnhancedNexusBackground>
   )
 }
