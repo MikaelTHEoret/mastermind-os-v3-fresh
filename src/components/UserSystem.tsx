@@ -86,22 +86,13 @@ function ClientSideUserSystem({
           return
         }
 
-        // Import Stack Auth components and create client-side app
+        // Import Stack Auth components
         const stackModule = await import('@stackframe/stack')
         
-        // Create client-side Stack App (no secret key required)
-        const stackApp = new stackModule.StackApp({
-          projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
-          publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
-        })
-        
         if (mounted) {
-          setStackComponents({
-            ...stackModule,
-            stackApp
-          })
+          setStackComponents(stackModule)
           setStackAuthStatus('enabled')
-          console.log('UserSystem: Stack Auth enabled - Client-side components loaded successfully')
+          console.log('UserSystem: Stack Auth enabled - Components loaded successfully')
         }
 
       } catch (error) {
