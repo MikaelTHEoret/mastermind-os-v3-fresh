@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-// Next.js 15 compatible page props interface - params and searchParams are now promises
+// Next.js 15 compatible page props interface
 interface PageProps {
   params: Promise<{ stack: string[] }>
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -60,25 +60,24 @@ export default function Handler(props: PageProps) {
 
   const loadStackAuth = async () => {
     try {
-      // Dynamic import to prevent build-time inclusion
-      const [stackModule, { getStackServerApp }] = await Promise.all([
-        import('@stackframe/stack'),
-        import('../../../stack')
-      ])
+      // Dynamic import Stack Auth - NO server app creation on client side
+      const stackModule = await import('@stackframe/stack')
       
-      const stackServerApp = await getStackServerApp()
+      // Create client-only Stack App
+      const stackApp = new stackModule.StackApp({
+        projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+        publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
+      })
       
-      if (stackServerApp) {
-        setStackComponents({
-          StackHandler: stackModule.StackHandler,
-          StackProvider: stackModule.StackProvider,
-          StackTheme: stackModule.StackTheme,
-          stackServerApp
-        })
-        setStackReady(true)
-      } else {
-        setError('Stack Auth server app failed to initialize')
-      }
+      setStackComponents({
+        StackHandler: stackModule.StackHandler,
+        StackProvider: stackModule.StackProvider,
+        StackTheme: stackModule.StackTheme,
+        stackApp
+      })
+      setStackReady(true)
+      console.log('Stack Auth loaded successfully for client-side authentication')
+      
     } catch (err) {
       console.error('Stack Auth loading error:', err)
       setError(err instanceof Error ? err.message : 'Unknown error loading Stack Auth')
@@ -171,16 +170,15 @@ export default function Handler(props: PageProps) {
     )
   }
 
-  // Stack Auth is ready - render handler with Next.js 15 compatible props
+  // Stack Auth is ready - render handler with client-side app
   try {
-    const { StackHandler, StackProvider, StackTheme, stackServerApp } = stackComponents
+    const { StackHandler, StackProvider, StackTheme, stackApp } = stackComponents
     
     return (
-      <StackProvider app={stackServerApp}>
+      <StackProvider app={stackApp}>
         <StackTheme>
           <StackHandler 
             fullPage 
-            app={stackServerApp} 
             routeProps={resolvedProps}
           />
         </StackTheme>
