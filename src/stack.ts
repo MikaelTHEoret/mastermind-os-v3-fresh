@@ -3,12 +3,26 @@
 
 let stackServerApp: any = null;
 
+// Check if Stack Auth is enabled via environment variables
+export function isStackAuthEnabled(): boolean {
+  return !!(
+    process.env.NEXT_PUBLIC_STACK_PROJECT_ID && 
+    process.env.STACK_SECRET_SERVER_KEY
+  );
+}
+
 export async function getStackServerApp() {
   if (stackServerApp) {
     return stackServerApp;
   }
 
   try {
+    // Only try to load Stack Auth if properly configured
+    if (!isStackAuthEnabled()) {
+      console.warn('Stack Auth environment variables not configured');
+      return null;
+    }
+
     // Dynamic import to prevent build-time inclusion
     const { StackServerApp } = await import('@stackframe/stack');
     
