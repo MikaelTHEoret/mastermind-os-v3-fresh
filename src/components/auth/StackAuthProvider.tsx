@@ -38,17 +38,17 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
         console.log('StackAuthProvider: Loading Stack Auth components...');
         const { StackProvider, StackTheme } = await import('@stackframe/stack');
 
-        // Create the app configuration
-        const app = await import('@/stack').then(module => module.getStackServerApp());
+        // Use getStackAuthConfig() instead of getStackServerApp() - CLIENT-SAFE!
+        const config = await import('@/stack').then(module => module.getStackAuthConfig());
         
-        if (!app) {
-          console.log('StackAuthProvider: Failed to create Stack App, falling back to guest mode');
+        if (!config) {
+          console.log('StackAuthProvider: Invalid config, falling back to guest mode');
           setHasValidConfig(false);
           setIsLoading(false);
           return;
         }
 
-        console.log('StackAuthProvider: Stack Auth initialized successfully');
+        console.log('StackAuthProvider: Stack Auth initialized successfully with config:', config);
         setStackComponents({ StackProvider, StackTheme });
         setHasValidConfig(true);
       } catch (error) {
