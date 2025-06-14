@@ -1,6 +1,5 @@
 'use client'
 
-import { useUser } from '@stackframe/stack'
 import { isStackAuthEnabled } from '@/stack'
 import { useEffect, useState } from 'react'
 
@@ -15,16 +14,41 @@ export default function OptionalAuthWrapper({ children }: OptionalAuthWrapperPro
     setMounted(true)
   }, [])
 
-  // If not mounted yet or Stack Auth disabled, just render children
-  if (!mounted || !isStackAuthEnabled) {
+  // During SSR or before mounting, just render children without any Stack Auth hooks
+  if (!mounted) {
     return <>{children}</>
   }
 
-  // Only use Stack Auth hooks after mounting and when enabled
-  return <AuthEnabledWrapper>{children}</AuthEnabledWrapper>
+  // After mounting, check if Stack Auth is enabled
+  if (!isStackAuthEnabled) {
+    return <>{children}</>
+  }
+
+  // Only import and use Stack Auth components when actually enabled and mounted
+  return <StackAuthEnabledWrapper>{children}</StackAuthEnabledWrapper>
 }
 
-function AuthEnabledWrapper({ children }: { children: React.ReactNode }) {
+// Separate component that only loads when Stack Auth is confirmed enabled
+function StackAuthEnabledWrapper({ children }: { children: React.ReactNode }) {
+  // Dynamically import to avoid loading Stack Auth hooks when not needed
+  const [StackComponents, setStackComponents] = useState<any>(null)
+  
+  useEffect(() => {
+    if (isStackAuthEnabled) {
+      import('@stackframe/stack').then((stackModule) => {
+        setStackComponents(stackModule)
+      })
+    }
+  }, [])
+
+  // While Stack Auth is loading, render children without hooks
+  if (!StackComponents) {
+    return <>{children}</>
+  }
+
+  // Now safely use Stack Auth
+  const { useUser } = StackComponents
   const user = useUser()
+  
   return <>{children}</>
 }

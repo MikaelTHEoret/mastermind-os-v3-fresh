@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useUser, UserButton } from '@stackframe/stack'
 import { User } from 'lucide-react'
 import { isStackAuthEnabled } from '@/stack'
 
@@ -22,10 +21,104 @@ interface UserSystemProps {
 }
 
 export default function UserSystem({ onUserChange }: UserSystemProps) {
+  const [mounted, setMounted] = useState(false)
   const [showUserDashboard, setShowUserDashboard] = useState(false)
-  
-  // Only use Stack Auth hooks if enabled
-  const stackUser = isStackAuthEnabled ? useUser() : null
+  const [stackUser, setStackUser] = useState<any>(null)
+  const [StackComponents, setStackComponents] = useState<any>(null)
+
+  useEffect(() => {
+    setMounted(true)
+    
+    // Only load Stack Auth if it's enabled
+    if (isStackAuthEnabled) {
+      import('@stackframe/stack').then((stackModule) => {
+        setStackComponents(stackModule)
+      })
+    }
+  }, [])
+
+  // Only render Stack Auth components after mounting and when enabled
+  if (!mounted || !isStackAuthEnabled) {
+    return (
+      <div style={{ position: 'relative' }}>
+        {/* Guest Sign In Button */}
+        <a
+          href="/handler/sign-in"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            background: 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))',
+            border: '2px solid rgba(0, 255, 255, 0.5)',
+            borderRadius: '25px',
+            color: '#00ffff',
+            fontSize: '12px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            backdropFilter: 'blur(10px)',
+            fontFamily: 'Orbitron, monospace',
+            textDecoration: 'none',
+            textTransform: 'uppercase'
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(255, 0, 255, 0.4))'
+            e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.5)'
+            e.currentTarget.style.transform = 'translateY(-2px)'
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))'
+            e.currentTarget.style.boxShadow = 'none'
+            e.currentTarget.style.transform = 'translateY(0)'
+          }}
+        >
+          <User style={{ width: '16px', height: '16px' }} />
+          <span>SIGN IN</span>
+        </a>
+      </div>
+    )
+  }
+
+  return (
+    <StackAuthUserSystem 
+      onUserChange={onUserChange}
+      StackComponents={StackComponents}
+    />
+  )
+}
+
+// Separate component that only loads when Stack Auth is available
+function StackAuthUserSystem({ 
+  onUserChange, 
+  StackComponents 
+}: { 
+  onUserChange?: (user: UserInterface | null) => void
+  StackComponents: any
+}) {
+  const [showUserDashboard, setShowUserDashboard] = useState(false)
+
+  // Don't render anything if Stack Auth components aren't loaded yet
+  if (!StackComponents) {
+    return (
+      <div style={{ position: 'relative' }}>
+        <div style={{
+          padding: '8px 16px',
+          background: 'rgba(0, 255, 255, 0.1)',
+          border: '1px solid rgba(0, 255, 255, 0.3)',
+          borderRadius: '25px',
+          color: '#00ffff',
+          fontSize: '12px',
+          fontFamily: 'Orbitron, monospace'
+        }}>
+          Loading...
+        </div>
+      </div>
+    )
+  }
+
+  const { useUser, UserButton } = StackComponents
+  const stackUser = useUser()
 
   // Convert Stack Auth user to our User interface
   const user: UserInterface | null = stackUser ? {
@@ -43,26 +136,6 @@ export default function UserSystem({ onUserChange }: UserSystemProps) {
   useEffect(() => {
     onUserChange?.(user)
   }, [user, onUserChange])
-
-  // If Stack Auth is not enabled, show setup message
-  if (!isStackAuthEnabled) {
-    return (
-      <div style={{
-        padding: '6px 12px',
-        background: 'rgba(255, 215, 0, 0.15)',
-        border: '1px solid rgba(255, 215, 0, 0.4)',
-        borderRadius: '15px',
-        color: '#ffd700',
-        fontSize: '11px',
-        fontWeight: '600',
-        fontFamily: 'Rajdhani, sans-serif',
-        cursor: 'pointer'
-      }}
-      onClick={() => window.location.href = '/handler/sign-in'}>
-        ⚙️ AUTH SETUP
-      </div>
-    )
-  }
 
   return (
     <>
