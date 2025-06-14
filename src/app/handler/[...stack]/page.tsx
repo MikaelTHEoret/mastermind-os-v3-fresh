@@ -2,16 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 
+// Props interface for Next.js 15 compatibility
+interface StackAuthHandlerProps {
+  params: Promise<{ stack: string[] }>;
+}
+
 // Handler for Stack Auth authentication pages
-export default function StackAuthHandler({ params }: { params: { stack: string[] } }) {
+export default function StackAuthHandler({ params }: StackAuthHandlerProps) {
   const [StackComponents, setStackComponents] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resolvedParams, setResolvedParams] = useState<{ stack: string[] } | null>(null);
 
   useEffect(() => {
     async function loadStackAuth() {
       try {
         console.log('Stack Auth Handler: Loading authentication components...');
+
+        // Await params for Next.js 15 compatibility
+        const awaitedParams = await params;
+        setResolvedParams(awaitedParams);
 
         // Check environment variables
         const projectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
@@ -41,7 +51,7 @@ export default function StackAuthHandler({ params }: { params: { stack: string[]
     }
 
     loadStackAuth();
-  }, []);
+  }, [params]);
 
   // Loading state
   if (isLoading) {
@@ -53,7 +63,7 @@ export default function StackAuthHandler({ params }: { params: { stack: string[]
   }
 
   // Error state
-  if (error || !StackComponents) {
+  if (error || !StackComponents || !resolvedParams) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-center">
@@ -82,7 +92,7 @@ export default function StackAuthHandler({ params }: { params: { stack: string[]
     >
       <StackTheme>
         <div className="min-h-screen bg-slate-950">
-          <StackHandler routeProps={{ params }} />
+          <StackHandler routeProps={{ params: resolvedParams }} />
         </div>
       </StackTheme>
     </StackProvider>
