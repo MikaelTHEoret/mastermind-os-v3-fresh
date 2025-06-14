@@ -1,35 +1,31 @@
 export default function Home() {
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      background: '#000', 
-      color: '#00ffff', 
-      padding: '2rem',
-      fontFamily: 'monospace'
-    }}>
-      <h1 style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-        🧠 MASTERMIND OS v3 - FRESH START!
+    <div className="min-h-screen bg-black text-cyan-400 p-8 font-mono">
+      <h1 className="text-4xl font-bold mb-4 text-cyan-400">
+        🧠 MASTERMIND OS v3 - INTELLIGENT MIGRATION!
       </h1>
-      <p style={{ fontSize: '1.5rem', color: '#00ff00' }}>
-        ✅ SUCCESS! This Next.js app is WORKING!
+      <p className="text-xl text-green-400 mb-4">
+        ✅ SUCCESS! Using Enhanced Nexus Core Protocol v3.0
       </p>
-      <p style={{ marginTop: '1rem', color: '#ffff00' }}>
-        Fresh repository, clean deployment, no more 404 madness!
+      <p className="text-lg text-yellow-400 mb-4">
+        🧠 Vector database knowledge applied for intelligent architecture migration
       </p>
-      <button 
-        style={{ 
-          marginTop: '2rem',
-          padding: '1rem 2rem',
-          background: '#00ffff',
-          color: '#000',
-          border: 'none',
-          borderRadius: '8px',
-          fontSize: '1rem',
-          cursor: 'pointer'
-        }}
-      >
-        Test Button - WORKING!
+      <p className="text-cyan-200 mb-8">
+        Phase 1: Tailwind CSS added successfully - Now building incrementally using Astra DB intelligence!
+      </p>
+      <button className="bg-cyan-500 text-black px-6 py-3 rounded-lg hover:bg-cyan-400 transition-colors font-semibold">
+        Enhanced Nexus Protocol ACTIVE!
       </button>
+      <div className="mt-8 p-4 border border-cyan-500 rounded-lg bg-cyan-500/10">
+        <h3 className="text-cyan-300 font-bold mb-2">🚀 Migration Progress:</h3>
+        <ul className="text-cyan-200 space-y-1">
+          <li>✅ Fresh repository baseline working</li>
+          <li>✅ Tailwind CSS integration complete</li>
+          <li>🔄 Next: Add EnhancedMastermindOS component</li>
+          <li>⏳ Then: Stack Auth integration</li>
+          <li>⏳ Finally: Full cyberpunk interface</li>
+        </ul>
+      </div>
     </div>
   )
 }
