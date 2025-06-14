@@ -1,12 +1,13 @@
 'use client'
 
-import { StackHandler, StackProvider, StackTheme } from '@stackframe/stack'
-import { stackServerApp } from '../../../stack'
 import { useEffect, useState } from 'react'
 
 export default function Handler(props: any) {
   const [mounted, setMounted] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [stackReady, setStackReady] = useState(false)
+  const [stackComponents, setStackComponents] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
   
   useEffect(() => {
     setMounted(true)
@@ -19,8 +20,42 @@ export default function Handler(props: any) {
       nodeEnv: process.env.NODE_ENV
     }
     setDebugInfo(debug)
-    console.log('Stack Auth Environment Debug:', debug)
+    console.log('Stack Auth Handler Environment Debug:', debug)
+    
+    // Check if Stack Auth is configured
+    const isStackAuthEnabled = !!(process.env.NEXT_PUBLIC_STACK_PROJECT_ID && process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY)
+    
+    if (isStackAuthEnabled) {
+      loadStackAuth()
+    }
   }, [])
+
+  const loadStackAuth = async () => {
+    try {
+      // Dynamic import to prevent build-time inclusion
+      const [stackModule, { getStackServerApp }] = await Promise.all([
+        import('@stackframe/stack'),
+        import('../../../stack')
+      ])
+      
+      const stackServerApp = await getStackServerApp()
+      
+      if (stackServerApp) {
+        setStackComponents({
+          StackHandler: stackModule.StackHandler,
+          StackProvider: stackModule.StackProvider,
+          StackTheme: stackModule.StackTheme,
+          stackServerApp
+        })
+        setStackReady(true)
+      } else {
+        setError('Stack Auth server app failed to initialize')
+      }
+    } catch (err) {
+      console.error('Stack Auth loading error:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error loading Stack Auth')
+    }
+  }
 
   // During SSR, show loading
   if (!mounted) {
@@ -68,17 +103,8 @@ export default function Handler(props: any) {
     )
   }
 
-  // Wrap StackHandler in its own StackProvider to ensure context is available
-  try {
-    return (
-      <StackProvider app={stackServerApp}>
-        <StackTheme>
-          <StackHandler fullPage app={stackServerApp} {...props} />
-        </StackTheme>
-      </StackProvider>
-    )
-  } catch (error) {
-    console.error('Stack Auth Handler Error:', error)
+  // If there was an error loading Stack Auth
+  if (error) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="max-w-md mx-auto p-8 border border-red-500/30 rounded-lg bg-black/50">
@@ -87,10 +113,55 @@ export default function Handler(props: any) {
             There was an error initializing the authentication system.
           </p>
           <div className="text-red-200 text-sm bg-red-900/20 p-3 rounded mb-4">
-            {error instanceof Error ? error.message : 'Unknown error'}
+            {error}
           </div>
           <div className="text-gray-400 text-xs bg-gray-900/50 p-2 rounded mb-4">
             Debug: {JSON.stringify(debugInfo, null, 2)}
+          </div>
+          <a 
+            href="/"
+            className="inline-block px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500 transition-colors"
+          >
+            Return to App
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  // If Stack Auth is loading
+  if (!stackReady || !stackComponents) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-cyan-400 text-xl font-mono animate-pulse">
+          Loading Authentication...
+        </div>
+      </div>
+    )
+  }
+
+  // Stack Auth is ready - render handler
+  try {
+    const { StackHandler, StackProvider, StackTheme, stackServerApp } = stackComponents
+    
+    return (
+      <StackProvider app={stackServerApp}>
+        <StackTheme>
+          <StackHandler fullPage app={stackServerApp} {...props} />
+        </StackTheme>
+      </StackProvider>
+    )
+  } catch (handlerError) {
+    console.error('Stack Auth Handler Runtime Error:', handlerError)
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="max-w-md mx-auto p-8 border border-red-500/30 rounded-lg bg-black/50">
+          <h1 className="text-xl font-bold text-red-400 mb-4">Authentication Handler Error</h1>
+          <p className="text-red-300 mb-4">
+            The authentication handler encountered an error.
+          </p>
+          <div className="text-red-200 text-sm bg-red-900/20 p-3 rounded mb-4">
+            {handlerError instanceof Error ? handlerError.message : 'Unknown handler error'}
           </div>
           <a 
             href="/"
