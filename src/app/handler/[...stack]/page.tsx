@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from 'react'
 
-export default function Handler(props: any) {
+// Define proper types for Next.js 15 page props
+interface PageProps {
+  params: { stack: string[] }
+  searchParams: { [key: string]: string | string[] | undefined }
+}
+
+export default function Handler(props: PageProps) {
   const [mounted, setMounted] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [stackReady, setStackReady] = useState(false)
@@ -140,18 +146,23 @@ export default function Handler(props: any) {
     )
   }
 
-  // Stack Auth is ready - render handler with proper Next.js 15 syntax
+  // Stack Auth is ready - render handler with completely isolated props
   try {
     const { StackHandler, StackProvider, StackTheme, stackServerApp } = stackComponents
+    
+    // Create clean props object to prevent React Error #482
+    const cleanHandlerProps = {
+      fullPage: true,
+      app: stackServerApp,
+      // Pass only the necessary route data
+      params: props.params,
+      searchParams: props.searchParams
+    }
     
     return (
       <StackProvider app={stackServerApp}>
         <StackTheme>
-          <StackHandler 
-            fullPage 
-            app={stackServerApp} 
-            routeProps={props}
-          />
+          <StackHandler {...cleanHandlerProps} />
         </StackTheme>
       </StackProvider>
     )
