@@ -74,21 +74,12 @@ function ClientSideUserSystem({
     
     const checkStackAuth = async () => {
       try {
-        // Check if Stack Auth environment variables exist
-        const hasProjectId = typeof window !== 'undefined' && 
-          (window as any).NEXT_PUBLIC_STACK_PROJECT_ID || 
-          process.env.NEXT_PUBLIC_STACK_PROJECT_ID
-
-        if (!hasProjectId) {
-          if (mounted) setStackAuthStatus('disabled')
-          return
-        }
-
-        // Try to import Stack Auth safely
-        const { isStackAuthEnabled } = await import('@/stack')
+        // Import and call the function properly
+        const { isStackAuthEnabledClient } = await import('@/stack')
         
-        if (!isStackAuthEnabled) {
+        if (!isStackAuthEnabledClient()) {
           if (mounted) setStackAuthStatus('disabled')
+          console.log('Stack Auth disabled: Environment variables not configured')
           return
         }
 
@@ -98,6 +89,7 @@ function ClientSideUserSystem({
         if (mounted) {
           setStackComponents(stackModule)
           setStackAuthStatus('enabled')
+          console.log('Stack Auth enabled: Components loaded successfully')
         }
 
       } catch (error) {
