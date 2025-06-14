@@ -23,22 +23,15 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
 
   const loadStackAuth = async () => {
     try {
-      // Dynamic import Stack Auth components - use client-side app
+      // Dynamic import Stack Auth components - use StackProvider directly
       const stackModule = await import('@stackframe/stack')
-      
-      // Create client-side Stack App (no secret key required)
-      const stackApp = new stackModule.StackApp({
-        projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
-        publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
-      })
       
       setStackComponents({
         StackProvider: stackModule.StackProvider,
-        StackTheme: stackModule.StackTheme,
-        stackApp
+        StackTheme: stackModule.StackTheme
       })
       setStackReady(true)
-      console.log('StackAuthProvider: Client-side Stack Auth loaded successfully')
+      console.log('StackAuthProvider: Stack Auth components loaded successfully')
       
     } catch (error) {
       console.log('StackAuthProvider: Stack Auth loading failed (safe mode):', error)
@@ -67,12 +60,15 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
     return <>{children}</>
   }
 
-  // Stack Auth is ready - render with client-side provider setup
+  // Stack Auth is ready - render with StackProvider using project config
   try {
-    const { StackProvider, StackTheme, stackApp } = stackComponents
+    const { StackProvider, StackTheme } = stackComponents
     
     return (
-      <StackProvider app={stackApp}>
+      <StackProvider 
+        projectId={process.env.NEXT_PUBLIC_STACK_PROJECT_ID!}
+        publishableClientKey={process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!}
+      >
         <StackTheme>
           {children}
         </StackTheme>
