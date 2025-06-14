@@ -60,18 +60,28 @@ export default function Handler(props: PageProps) {
 
   const loadStackAuth = async () => {
     try {
-      // Dynamic import Stack Auth - use client-side StackProvider directly
-      const stackModule = await import('@stackframe/stack')
+      // Import Stack Auth components
+      const [stackModule, { getStackAuthConfig }] = await Promise.all([
+        import('@stackframe/stack'),
+        import('@/stack')
+      ])
       
-      // For client-side authentication pages, we don't need to create an app instance
-      // The StackProvider will handle this automatically when we provide the project config
-      setStackComponents({
-        StackHandler: stackModule.StackHandler,
-        StackProvider: stackModule.StackProvider,
-        StackTheme: stackModule.StackTheme
-      })
+      // Get Stack Auth configuration
+      const config = getStackAuthConfig()
+      
+      if (config) {
+        setStackComponents({
+          StackHandler: stackModule.StackHandler,
+          StackProvider: stackModule.StackProvider,
+          StackTheme: stackModule.StackTheme,
+          config: config
+        })
+        console.log('Stack Auth Handler: Using config-based authentication')
+      } else {
+        setError('Stack Auth configuration not available')
+      }
+      
       setStackReady(true)
-      console.log('Stack Auth loaded successfully for client-side authentication')
       
     } catch (err) {
       console.error('Stack Auth loading error:', err)
@@ -165,14 +175,14 @@ export default function Handler(props: PageProps) {
     )
   }
 
-  // Stack Auth is ready - render handler with StackProvider using project config
+  // Stack Auth is ready - render handler with config-based provider
   try {
-    const { StackHandler, StackProvider, StackTheme } = stackComponents
+    const { StackHandler, StackProvider, StackTheme, config } = stackComponents
     
     return (
       <StackProvider 
-        projectId={process.env.NEXT_PUBLIC_STACK_PROJECT_ID!}
-        publishableClientKey={process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!}
+        projectId={config.projectId}
+        publishableClientKey={config.publishableClientKey}
       >
         <StackTheme>
           <StackHandler 
