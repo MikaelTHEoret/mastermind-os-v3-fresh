@@ -2,7 +2,6 @@
 
 import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
 import { User } from 'lucide-react'
-import { dark } from '@clerk/themes'
 
 export default function UserSystem() {
   return (
@@ -22,7 +21,6 @@ export default function UserSystem() {
               afterSignOutUrl="/"
               userProfileMode="modal"
               appearance={{
-                baseTheme: dark,
                 variables: {
                   colorPrimary: '#00ffff',
                   borderRadius: '15px'
