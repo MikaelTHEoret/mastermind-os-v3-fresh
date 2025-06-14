@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "name": "mastermind-os-v3-fresh",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "functions": {
+    "src/app/**/*.tsx": {
+      "maxDuration": 10
+    }
+  }
+}
