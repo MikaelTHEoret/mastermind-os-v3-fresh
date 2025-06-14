@@ -1,6 +1,6 @@
 {
   "name": "mastermind-os-v3-fresh",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "Fresh MasterMind OS v3 deployment - clean slate - Clerk authentication",
   "scripts": {
     "dev": "next dev",
@@ -9,7 +9,7 @@
     "clean": "rm -rf .next"
   },
   "dependencies": {
-    "next": "15.1.5",
+    "next": "15.2.3",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "@clerk/nextjs": "^6.7.0",
