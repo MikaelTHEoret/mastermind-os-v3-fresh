@@ -23,24 +23,25 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
 
   const loadStackAuth = async () => {
     try {
-      // Dynamic import Stack Auth components - following official docs pattern
-      const [stackModule, { getStackServerApp }] = await Promise.all([
-        import('@stackframe/stack'),
-        import('@/stack')
-      ])
+      // Dynamic import Stack Auth components - use client-side app
+      const stackModule = await import('@stackframe/stack')
       
-      const stackServerApp = await getStackServerApp()
+      // Create client-side Stack App (no secret key required)
+      const stackApp = new stackModule.StackApp({
+        projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+        publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
+      })
       
-      if (stackServerApp) {
-        setStackComponents({
-          StackProvider: stackModule.StackProvider,
-          StackTheme: stackModule.StackTheme,
-          stackServerApp
-        })
-        setStackReady(true)
-      }
+      setStackComponents({
+        StackProvider: stackModule.StackProvider,
+        StackTheme: stackModule.StackTheme,
+        stackApp
+      })
+      setStackReady(true)
+      console.log('StackAuthProvider: Client-side Stack Auth loaded successfully')
+      
     } catch (error) {
-      console.log('Stack Auth loading failed (safe mode):', error)
+      console.log('StackAuthProvider: Stack Auth loading failed (safe mode):', error)
       // Gracefully continue without Stack Auth
     }
   }
@@ -66,12 +67,12 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
     return <>{children}</>
   }
 
-  // Stack Auth is ready - render with full provider setup per official docs
+  // Stack Auth is ready - render with client-side provider setup
   try {
-    const { StackProvider, StackTheme, stackServerApp } = stackComponents
+    const { StackProvider, StackTheme, stackApp } = stackComponents
     
     return (
-      <StackProvider app={stackServerApp}>
+      <StackProvider app={stackApp}>
         <StackTheme>
           {children}
         </StackTheme>
@@ -79,7 +80,7 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
     )
   } catch (error) {
     // If Stack Auth fails to render, gracefully fall back
-    console.log('Stack Auth provider render failed (safe mode):', error)
+    console.log('StackAuthProvider: Provider render failed (safe mode):', error)
     return <>{children}</>
   }
 }
