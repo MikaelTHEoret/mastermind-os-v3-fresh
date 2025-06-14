@@ -1,28 +1,29 @@
 {
   "name": "mastermind-os-v3-fresh",
-  "version": "3.0.0",
-  "description": "Fresh MasterMind OS v3 deployment - clean slate",
+  "version": "3.0.3",
+  "description": "Fresh MasterMind OS v3 deployment - clean slate - Clerk authentication",
   "scripts": {
     "dev": "next dev",
     "build": "next build", 
-    "start": "next start"
+    "start": "next start",
+    "clean": "rm -rf .next"
   },
   "dependencies": {
     "next": "15.1.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "@stackframe/stack": "^2.6.10",
+    "@clerk/nextjs": "^6.7.0",
     "lucide-react": "^0.460.0",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^2.0.0"
+    "tailwind-merge": "^2.0.0",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8",
+    "autoprefixer": "^10"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "typescript": "^5",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8",
-    "autoprefixer": "^10"
+    "typescript": "^5"
   }
 }

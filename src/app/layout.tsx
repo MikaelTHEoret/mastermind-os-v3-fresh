@@ -1,5 +1,6 @@
 import './globals.css'
-import StackAuthProvider from '../components/auth/StackAuthProvider'
+import { ClerkProvider } from '@clerk/nextjs'
+import { clerkAppearance } from '@/lib/clerk-config'
 
 export const metadata = {
   title: 'MasterMind OS v3.0 - Enhanced Nexus Core Protocol',
@@ -12,12 +13,12 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>
-        <StackAuthProvider>
+    <ClerkProvider appearance={clerkAppearance}>
+      <html lang="en">
+        <body>
           {children}
-        </StackAuthProvider>
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
