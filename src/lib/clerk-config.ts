@@ -2,7 +2,6 @@
 // Enhanced Cyberpunk Theming for Clerk Authentication
 
 export const clerkAppearance = {
-  baseTheme: undefined,
   variables: {
     // Color Palette - Cyberpunk Dark Theme
     colorPrimary: '#00ffff',           // Electric cyan primary
@@ -21,21 +20,10 @@ export const clerkAppearance = {
     spacingUnit: '1rem',
     borderRadius: '0.75rem',           // Rounded corners
     
-    // Typography
+    // Typography - Simplified for compatibility
     fontFamily: '"Orbitron", "Rajdhani", monospace',
-    fontWeight: {
-      normal: 400,
-      medium: 500,
-      semibold: 600,
-      bold: 700,
-    },
-    fontSize: {
-      xs: '0.75rem',
-      sm: '0.875rem',
-      base: '1rem',
-      lg: '1.125rem',
-      xl: '1.25rem',
-    },
+    fontSize: '1rem',                  // Single font size value
+    fontWeight: '400',                 // Single font weight value
   },
   elements: {
     // Main Modal Container
