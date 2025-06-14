@@ -1,10 +1,10 @@
 {
   "name": "mastermind-os-v3-fresh",
-  "version": "3.0.1",
-  "description": "Fresh MasterMind OS v3 deployment - clean slate - force rebuild",
+  "version": "3.0.2",
+  "description": "Fresh MasterMind OS v3 deployment - clean slate - deployment fix",
   "scripts": {
     "dev": "next dev",
-    "build": "rm -rf .next && next build", 
+    "build": "next build", 
     "start": "next start",
     "clean": "rm -rf .next"
   },
