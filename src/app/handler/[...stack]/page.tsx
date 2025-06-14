@@ -2,28 +2,35 @@
 
 import { useEffect, useState } from 'react'
 
-// Define proper types for Next.js 15 page props
-interface PageProps {
-  params: { stack: string[] }
-  searchParams: { [key: string]: string | string[] | undefined }
-}
-
-export default function Handler(props: PageProps) {
+// Complete isolation approach - no prop dependencies
+export default function Handler() {
   const [mounted, setMounted] = useState(false)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [stackReady, setStackReady] = useState(false)
   const [stackComponents, setStackComponents] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [routeParams, setRouteParams] = useState<any>(null)
   
   useEffect(() => {
     setMounted(true)
+    
+    // Extract route params from URL (no props dependency)
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname
+      const searchParams = new URLSearchParams(window.location.search)
+      setRouteParams({
+        path,
+        searchParams: Object.fromEntries(searchParams.entries())
+      })
+    }
     
     // Debug environment variables
     const debug = {
       projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID || 'NOT_SET',
       publishableKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY ? 'SET' : 'NOT_SET',
       secretKey: process.env.STACK_SECRET_SERVER_KEY ? 'SET' : 'NOT_SET',
-      nodeEnv: process.env.NODE_ENV
+      nodeEnv: process.env.NODE_ENV,
+      url: typeof window !== 'undefined' ? window.location.href : 'SSR'
     }
     setDebugInfo(debug)
     console.log('Stack Auth Handler Environment Debug:', debug)
@@ -89,6 +96,7 @@ export default function Handler(props: PageProps) {
             <div>PUBLISHABLE_KEY: {debugInfo?.publishableKey === 'NOT_SET' ? '❌ NOT_SET' : '✅ SET'}</div>
             <div>SECRET_KEY: {debugInfo?.secretKey === 'NOT_SET' ? '❌ NOT_SET' : '✅ SET'}</div>
             <div>NODE_ENV: {debugInfo?.nodeEnv}</div>
+            <div>URL: {debugInfo?.url}</div>
           </div>
           <p className="text-cyan-300 mb-4 text-sm">
             Required Vercel environment variables:
@@ -146,23 +154,22 @@ export default function Handler(props: PageProps) {
     )
   }
 
-  // Stack Auth is ready - render handler with completely isolated props
+  // Stack Auth is ready - render handler with ZERO prop dependencies
   try {
     const { StackHandler, StackProvider, StackTheme, stackServerApp } = stackComponents
     
-    // Create clean props object to prevent React Error #482
-    const cleanHandlerProps = {
+    // Create minimal props object - no external dependencies
+    const handlerProps = {
       fullPage: true,
-      app: stackServerApp,
-      // Pass only the necessary route data
-      params: props.params,
-      searchParams: props.searchParams
+      app: stackServerApp
     }
     
     return (
       <StackProvider app={stackServerApp}>
         <StackTheme>
-          <StackHandler {...cleanHandlerProps} />
+          <div style={{ width: '100%', height: '100vh' }}>
+            <StackHandler {...handlerProps} />
+          </div>
         </StackTheme>
       </StackProvider>
     )
@@ -177,6 +184,9 @@ export default function Handler(props: PageProps) {
           </p>
           <div className="text-red-200 text-sm bg-red-900/20 p-3 rounded mb-4">
             {handlerError instanceof Error ? handlerError.message : 'Unknown handler error'}
+          </div>
+          <div className="text-gray-400 text-xs bg-gray-900/50 p-2 rounded mb-4">
+            Route: {JSON.stringify(routeParams, null, 2)}
           </div>
           <a 
             href="/"
