@@ -7,16 +7,16 @@ export const isStackAuthEnabled = !!(
 );
 
 export const stackServerApp = new StackServerApp({
-  tokenStore: "nextjs-cookie", // storing auth tokens in cookies
+  tokenStore: "nextjs-cookie",
+  projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID || "project_placeholder",
+  publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY || "key_placeholder",
+  secretServerKey: process.env.STACK_SECRET_SERVER_KEY || "secret_placeholder",
   urls: {
+    handler: "/handler",
     signIn: "/handler/sign-in",
-    signUp: "/handler/sign-up", 
-    emailVerification: "/handler/email-verification",
-    passwordReset: "/handler/password-reset",
-    // Removed passwordChange - no longer supported by Stack Auth API
-    home: "/",
+    signUp: "/handler/sign-up",
     afterSignIn: "/",
-    afterSignUp: "/", 
+    afterSignUp: "/",
     afterSignOut: "/",
   },
 });
