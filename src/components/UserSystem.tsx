@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useUser, UserButton } from '@stackframe/stack'
 import { User } from 'lucide-react'
+import { isStackAuthEnabled } from '@/stack'
 
 interface UserInterface {
   id: string
@@ -21,8 +22,10 @@ interface UserSystemProps {
 }
 
 export default function UserSystem({ onUserChange }: UserSystemProps) {
-  const stackUser = useUser()
   const [showUserDashboard, setShowUserDashboard] = useState(false)
+  
+  // Only use Stack Auth hooks if enabled
+  const stackUser = isStackAuthEnabled ? useUser() : null
 
   // Convert Stack Auth user to our User interface
   const user: UserInterface | null = stackUser ? {
@@ -40,6 +43,26 @@ export default function UserSystem({ onUserChange }: UserSystemProps) {
   useEffect(() => {
     onUserChange?.(user)
   }, [user, onUserChange])
+
+  // If Stack Auth is not enabled, show setup message
+  if (!isStackAuthEnabled) {
+    return (
+      <div style={{
+        padding: '6px 12px',
+        background: 'rgba(255, 215, 0, 0.15)',
+        border: '1px solid rgba(255, 215, 0, 0.4)',
+        borderRadius: '15px',
+        color: '#ffd700',
+        fontSize: '11px',
+        fontWeight: '600',
+        fontFamily: 'Rajdhani, sans-serif',
+        cursor: 'pointer'
+      }}
+      onClick={() => window.location.href = '/handler/sign-in'}>
+        ⚙️ AUTH SETUP
+      </div>
+    )
+  }
 
   return (
     <>
