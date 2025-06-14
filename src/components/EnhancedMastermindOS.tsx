@@ -25,23 +25,98 @@ export default function EnhancedMastermindOS() {
     { key: 'dashboard', label: 'DASHBOARD', icon: Layout, description: 'User control center' }
   ]
 
+  // Inline styles as fallback for cyberpunk aesthetic
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      color: '#00ffff',
+      fontFamily: 'Courier New, monospace',
+      overflow: 'hidden'
+    },
+    header: {
+      height: '64px',
+      background: 'rgba(0, 0, 0, 0.8)',
+      backdropFilter: 'blur(8px)',
+      borderBottom: '1px solid rgba(0, 255, 255, 0.3)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 24px'
+    },
+    title: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
+    },
+    navigation: {
+      display: 'flex',
+      gap: '4px'
+    },
+    navButton: {
+      padding: '8px 16px',
+      border: activePanel === 'nexus' ? '1px solid #00ffff' : '1px solid transparent',
+      background: activePanel === 'nexus' ? 'rgba(0, 255, 255, 0.2)' : 'transparent',
+      color: '#00ffff',
+      borderRadius: '8px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontFamily: 'Courier New, monospace',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      transition: 'all 0.3s ease'
+    },
+    content: {
+      padding: '32px'
+    },
+    card: {
+      background: 'linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(255, 0, 255, 0.2) 100%)',
+      border: '1px solid rgba(0, 255, 255, 0.5)',
+      borderRadius: '8px',
+      padding: '24px',
+      marginBottom: '16px'
+    }
+  }
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center">
-        <div className="text-center z-10">
-          <Brain className="h-16 w-16 mx-auto mb-6 text-cyan-400 animate-pulse" />
-          <h1 className="text-4xl font-bold text-cyan-400 mb-4 font-mono">
+      <div style={{
+        ...styles.container,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center', zIndex: 10 }}>
+          <Brain style={{ 
+            width: '64px', 
+            height: '64px', 
+            margin: '0 auto 24px',
+            color: '#00ffff',
+            animation: 'pulse 2s infinite'
+          }} />
+          <h1 style={{ 
+            fontSize: '36px', 
+            fontWeight: 'bold', 
+            color: '#00ffff', 
+            marginBottom: '16px',
+            fontFamily: 'Courier New, monospace'
+          }}>
             MASTERMIND OS v3.0
           </h1>
-          <p className="text-cyan-100 text-lg font-mono">
+          <p style={{ 
+            color: '#00ffff', 
+            fontSize: '18px',
+            fontFamily: 'Courier New, monospace'
+          }}>
             🧠 Enhanced Nexus Core Protocol v3.0 Active...
           </p>
-          <div className="mt-6 flex justify-center">
-            <div className="w-64 h-1 bg-cyan-500/20 rounded-full overflow-hidden">
-              <div className="h-full bg-cyan-400 rounded-full animate-pulse w-3/4"></div>
-            </div>
-          </div>
-          <p className="text-cyan-300/70 text-sm mt-4 font-mono">
+          <p style={{ 
+            color: 'rgba(0, 255, 255, 0.7)', 
+            fontSize: '14px',
+            marginTop: '16px',
+            fontFamily: 'Courier New, monospace'
+          }}>
             Vector database intelligence loading...
           </p>
         </div>
@@ -53,36 +128,40 @@ export default function EnhancedMastermindOS() {
     switch (activePanel) {
       case 'nexus':
         return (
-          <div className="p-8">
-            <h2 className="text-3xl text-cyan-400 font-bold mb-6">🧠 NEURAL ORCHESTRATION CORE</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-cyan-500/20 to-purple-500/20 border border-cyan-500/50 rounded-lg p-6">
-                <h3 className="text-xl text-cyan-300 font-bold mb-2">Core Energy</h3>
-                <div className="text-3xl text-cyan-400 font-mono">87%</div>
-                <p className="text-cyan-200 text-sm">Neural networks active</p>
+          <div style={styles.content}>
+            <h2 style={{ fontSize: '32px', color: '#00ffff', fontWeight: 'bold', marginBottom: '24px' }}>
+              🧠 NEURAL ORCHESTRATION CORE
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px' }}>
+              <div style={styles.card}>
+                <h3 style={{ fontSize: '20px', color: '#00ffff', fontWeight: 'bold', marginBottom: '8px' }}>Core Energy</h3>
+                <div style={{ fontSize: '32px', color: '#00ffff', fontFamily: 'Courier New, monospace' }}>87%</div>
+                <p style={{ color: '#00ffff', fontSize: '14px' }}>Neural networks active</p>
               </div>
-              <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/50 rounded-lg p-6">
-                <h3 className="text-xl text-purple-300 font-bold mb-2">Active Nodes</h3>
-                <div className="text-3xl text-purple-400 font-mono">12</div>
-                <p className="text-purple-200 text-sm">Processing units online</p>
+              <div style={styles.card}>
+                <h3 style={{ fontSize: '20px', color: '#ff00ff', fontWeight: 'bold', marginBottom: '8px' }}>Active Nodes</h3>
+                <div style={{ fontSize: '32px', color: '#ff00ff', fontFamily: 'Courier New, monospace' }}>12</div>
+                <p style={{ color: '#ff00ff', fontSize: '14px' }}>Processing units online</p>
               </div>
-              <div className="bg-gradient-to-br from-pink-500/20 to-cyan-500/20 border border-pink-500/50 rounded-lg p-6">
-                <h3 className="text-xl text-pink-300 font-bold mb-2">Agents</h3>
-                <div className="text-3xl text-pink-400 font-mono">8</div>
-                <p className="text-pink-200 text-sm">AI orchestration active</p>
+              <div style={styles.card}>
+                <h3 style={{ fontSize: '20px', color: '#ffff00', fontWeight: 'bold', marginBottom: '8px' }}>Agents</h3>
+                <div style={{ fontSize: '32px', color: '#ffff00', fontFamily: 'Courier New, monospace' }}>8</div>
+                <p style={{ color: '#ffff00', fontSize: '14px' }}>AI orchestration active</p>
               </div>
             </div>
           </div>
         )
       default:
         return (
-          <div className="p-8">
-            <h2 className="text-3xl text-cyan-400 font-bold mb-4">🚀 {navigationItems.find(item => item.key === activePanel)?.label}</h2>
-            <p className="text-cyan-200 text-lg">
+          <div style={styles.content}>
+            <h2 style={{ fontSize: '32px', color: '#00ffff', fontWeight: 'bold', marginBottom: '16px' }}>
+              🚀 {navigationItems.find(item => item.key === activePanel)?.label}
+            </h2>
+            <p style={{ color: '#00ffff', fontSize: '18px', marginBottom: '32px' }}>
               Enhanced Nexus Core Protocol v3.0 - {navigationItems.find(item => item.key === activePanel)?.description}
             </p>
-            <div className="mt-8 p-6 border border-cyan-500/30 rounded-lg bg-cyan-500/10">
-              <p className="text-cyan-300">🧠 Vector database intelligence active - Component ready for full migration</p>
+            <div style={styles.card}>
+              <p style={{ color: '#00ffff' }}>🧠 Vector database intelligence active - Component ready for full migration</p>
             </div>
           </div>
         )
@@ -90,59 +169,56 @@ export default function EnhancedMastermindOS() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 overflow-hidden">
-      {/* Animated background grid */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 via-transparent to-purple-500/20 animate-pulse"></div>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_24%,rgba(0,255,255,0.1)_25%,rgba(0,255,255,0.1)_26%,transparent_27%,transparent_74%,rgba(255,0,255,0.1)_75%,rgba(255,0,255,0.1)_76%,transparent_77%)] bg-[length:4rem_4rem]"></div>
-      </div>
-      
+    <div style={styles.container}>
       {/* Main Interface */}
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div style={{ position: 'relative', zIndex: 10, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
-        <header className="h-16 bg-black/80 backdrop-blur-sm border-b border-cyan-500/30 flex items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <Brain className="h-8 w-8 text-cyan-400" />
-            <h1 className="text-2xl font-bold text-cyan-400 font-mono">
+        <header style={styles.header}>
+          <div style={styles.title}>
+            <Brain style={{ width: '32px', height: '32px', color: '#00ffff' }} />
+            <h1 style={{ 
+              fontSize: '24px', 
+              fontWeight: 'bold', 
+              color: '#00ffff',
+              fontFamily: 'Courier New, monospace'
+            }}>
               MASTERMIND OS
             </h1>
-            <span className="text-cyan-400/70 text-sm font-mono">v3.0</span>
+            <span style={{ color: 'rgba(0, 255, 255, 0.7)', fontSize: '14px', fontFamily: 'Courier New, monospace' }}>
+              v3.0
+            </span>
           </div>
           
           {/* Navigation */}
-          <nav className="flex space-x-1">
+          <nav style={styles.navigation}>
             {navigationItems.map((item) => {
               const Icon = item.icon
               return (
                 <button
                   key={item.key}
                   onClick={() => setActivePanel(item.key as ActivePanel)}
-                  className={`group relative px-4 py-2 rounded-lg text-sm font-mono transition-all duration-300 ${
-                    activePanel === item.key
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-lg shadow-cyan-500/20'
-                      : 'text-cyan-400/70 hover:text-cyan-300 hover:bg-cyan-500/10'
-                  }`}
+                  style={{
+                    ...styles.navButton,
+                    border: activePanel === item.key ? '1px solid #00ffff' : '1px solid transparent',
+                    background: activePanel === item.key ? 'rgba(0, 255, 255, 0.2)' : 'transparent'
+                  }}
                   title={item.description}
                 >
-                  <div className="flex items-center gap-2">
-                    <Icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </div>
+                  <Icon style={{ width: '16px', height: '16px' }} />
+                  <span>{item.label}</span>
                 </button>
               )
             })}
           </nav>
 
-          <div className="text-cyan-400 text-sm font-mono">
+          <div style={{ color: '#00ffff', fontSize: '14px', fontFamily: 'Courier New, monospace' }}>
             🧠 ENHANCED NEXUS ACTIVE
           </div>
         </header>
 
         {/* Main Content Area */}
-        <main className="flex-1 relative">
-          <div className="h-full">
-            {renderActiveSection()}
-          </div>
+        <main style={{ flex: 1, position: 'relative' }}>
+          {renderActiveSection()}
         </main>
       </div>
     </div>

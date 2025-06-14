@@ -1,3 +1,32 @@
 @tailwind base;
-@tailwind components;
+@tailwind components;  
 @tailwind utilities;
+
+/* Enhanced Nexus Core Protocol v3.0 - Custom Cyberpunk Styles */
+body {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #00ffff;
+  font-family: 'Courier New', monospace;
+}
+
+/* Cyberpunk glow effects */
+.nexus-glow {
+  text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+}
+
+.nexus-border {
+  border: 1px solid #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.nexus-button {
+  background: linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2));
+  border: 1px solid #00ffff;
+  color: #00ffff;
+  transition: all 0.3s ease;
+}
+
+.nexus-button:hover {
+  background: linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(255, 0, 255, 0.4));
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+}

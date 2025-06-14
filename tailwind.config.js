@@ -6,7 +6,16 @@ module.exports = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        'nexus-cyan': '#00ffff',
+        'nexus-magenta': '#ff00ff', 
+        'nexus-yellow': '#ffff00',
+      },
+      fontFamily: {
+        'mono': ['Courier New', 'monospace'],
+      },
+    },
   },
   plugins: [],
 }
