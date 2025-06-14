@@ -71,37 +71,21 @@ export async function getUser() {
   }
 }
 
-// Client-side Stack Auth app creation
-export async function createClientStackApp() {
+// Check if client-side Stack Auth is properly configured
+export function getStackAuthConfig() {
   if (typeof window === 'undefined') {
-    console.log('createClientStackApp: Server-side detected, returning null');
     return null;
   }
 
-  try {
-    if (!isStackAuthEnabledClient()) {
-      console.log('createClientStackApp: Environment variables not configured');
-      return null;
-    }
-
-    const { StackApp } = await import('@stackframe/stack');
-    
-    if (!StackApp) {
-      console.log('createClientStackApp: StackApp not available, using StackProvider directly');
-      return null;
-    }
-
-    const clientApp = new StackApp({
-      projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
-      publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
-    });
-
-    console.log('createClientStackApp: Client app created successfully');
-    return clientApp;
-  } catch (error) {
-    console.log('createClientStackApp: Failed to create client app:', error);
+  if (!isStackAuthEnabledClient()) {
+    console.log('getStackAuthConfig: Environment variables not configured');
     return null;
   }
+
+  return {
+    projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+    publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
+  };
 }
 
 export default getStackServerApp;
