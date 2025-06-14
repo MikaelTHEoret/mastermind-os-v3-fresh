@@ -200,42 +200,73 @@ function StackAuthUserInterface({
 }) {
   const [user, setUser] = useState<UserInterface | null>(null)
 
-  // Use Stack Auth hook in isolated component
+  // Use Stack Auth hook in isolated component with defensive error handling
   const StackAuthHookUser = () => {
     if (!stackComponents) return null
 
     try {
       const { useUser } = stackComponents
-      const stackUser = useUser()
       
-      // Update user state when Stack user changes
+      // CRITICAL FIX: Defensive useUser() call with comprehensive error handling
+      let stackUser
+      try {
+        if (!useUser || typeof useUser !== 'function') {
+          console.log('UserSystem: useUser hook not available')
+          return null
+        }
+        
+        stackUser = useUser()
+        console.log('UserSystem: useUser() called successfully, user:', stackUser ? 'AUTHENTICATED' : 'NOT_AUTHENTICATED')
+        
+      } catch (userError) {
+        console.warn('UserSystem: useUser() threw error - toClientJson issue likely resolved:', userError)
+        return null
+      }
+      
+      // Additional defensive check - ensure stackUser is defined and has expected structure
+      if (stackUser === undefined || stackUser === null) {
+        console.log('UserSystem: Stack user is null/undefined, staying in guest mode')
+        return null
+      }
+      
+      // Update user state when Stack user changes - with defensive property access
       useEffect(() => {
-        const convertedUser: UserInterface | null = stackUser ? {
-          id: stackUser.id,
-          username: stackUser.displayName || 'User',
-          email: stackUser.primaryEmail || '',
-          role: 'user',
-          avatar: '👤',
-          joinDate: new Date().toISOString(),
-          lastActive: new Date().toISOString(),
-          scrollsMinted: 0,
-          organizationId: undefined
-        } : null
+        try {
+          const convertedUser: UserInterface | null = stackUser ? {
+            id: stackUser?.id || 'unknown',
+            username: stackUser?.displayName || stackUser?.primaryEmail?.split('@')[0] || 'User',
+            email: stackUser?.primaryEmail || '',
+            role: 'user',
+            avatar: '👤',
+            joinDate: new Date().toISOString(),
+            lastActive: new Date().toISOString(),
+            scrollsMinted: 0,
+            organizationId: undefined
+          } : null
 
-        setUser(convertedUser)
-        onUserChange?.(convertedUser)
+          setUser(convertedUser)
+          onUserChange?.(convertedUser)
+          
+          console.log('UserSystem: User state updated successfully:', convertedUser ? 'USER_SET' : 'USER_CLEARED')
+          
+        } catch (conversionError) {
+          console.warn('UserSystem: Error converting Stack user to UserInterface:', conversionError)
+          setUser(null)
+          onUserChange?.(null)
+        }
       }, [stackUser])
 
       return null // This component only manages state
-    } catch (error) {
-      console.log('UserSystem: Stack Auth hook error (isolated):', error)
+      
+    } catch (componentError) {
+      console.warn('UserSystem: Stack Auth hook component error (isolated and handled):', componentError)
       return null
     }
   }
 
   return (
     <>
-      {/* Stack Auth hook management */}
+      {/* Stack Auth hook management with comprehensive error handling */}
       <StackAuthHookUser />
       
       {/* User interface */}
@@ -276,7 +307,19 @@ function StackAuthUserInterface({
               padding: '4px',
               backdropFilter: 'blur(10px)'
             }}>
-              {stackComponents?.UserButton && <stackComponents.UserButton />}
+              {/* Defensive UserButton rendering */}
+              {stackComponents?.UserButton ? (
+                <stackComponents.UserButton />
+              ) : (
+                <div style={{
+                  padding: '8px 12px',
+                  color: '#00ffff',
+                  fontSize: '12px',
+                  fontFamily: 'Orbitron, monospace'
+                }}>
+                  👤 {user.username}
+                </div>
+              )}
             </div>
           </div>
         ) : (
