@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { User } from 'lucide-react'
-import { isStackAuthEnabled } from '@/stack'
 
 interface UserInterface {
   id: string
@@ -28,52 +27,27 @@ export default function UserSystem({ onUserChange }: UserSystemProps) {
     setMounted(true)
   }, [])
 
-  // If Stack Auth is disabled, always show guest interface
-  if (!mounted || !isStackAuthEnabled) {
+  // Only render after mounting to prevent SSR issues
+  if (!mounted) {
     return (
       <div style={{ position: 'relative' }}>
-        {/* Guest Sign In Button */}
-        <a
-          href="/handler/sign-in"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            background: 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))',
-            border: '2px solid rgba(0, 255, 255, 0.5)',
-            borderRadius: '25px',
-            color: '#00ffff',
-            fontSize: '12px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            transition: 'all 0.3s ease',
-            backdropFilter: 'blur(10px)',
-            fontFamily: 'Orbitron, monospace',
-            textDecoration: 'none',
-            textTransform: 'uppercase'
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(255, 0, 255, 0.4))'
-            e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.5)'
-            e.currentTarget.style.transform = 'translateY(-2px)'
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))'
-            e.currentTarget.style.boxShadow = 'none'
-            e.currentTarget.style.transform = 'translateY(0)'
-          }}
-        >
-          <User style={{ width: '16px', height: '16px' }} />
-          <span>SIGN IN</span>
-        </a>
+        <div style={{
+          padding: '8px 16px',
+          background: 'rgba(0, 255, 255, 0.1)',
+          border: '1px solid rgba(0, 255, 255, 0.3)',
+          borderRadius: '25px',
+          color: '#00ffff',
+          fontSize: '12px',
+          fontFamily: 'Orbitron, monospace'
+        }}>
+          LOADING...
+        </div>
       </div>
     )
   }
 
-  // Only render Stack Auth when absolutely confirmed to be enabled and available
   return (
-    <SafeStackAuthUserSystem 
+    <ClientSideUserSystem 
       onUserChange={onUserChange}
       showUserDashboard={showUserDashboard}
       setShowUserDashboard={setShowUserDashboard}
@@ -81,8 +55,8 @@ export default function UserSystem({ onUserChange }: UserSystemProps) {
   )
 }
 
-// Completely isolated Stack Auth component that never calls hooks unless fully initialized
-function SafeStackAuthUserSystem({ 
+// Completely client-side component that never runs on server
+function ClientSideUserSystem({ 
   onUserChange,
   showUserDashboard,
   setShowUserDashboard
@@ -91,81 +65,72 @@ function SafeStackAuthUserSystem({
   showUserDashboard: boolean
   setShowUserDashboard: (show: boolean) => void
 }) {
-  const [stackReady, setStackReady] = useState(false)
+  const [stackAuthStatus, setStackAuthStatus] = useState<'checking' | 'enabled' | 'disabled'>('checking')
   const [stackUser, setStackUser] = useState<any>(null)
-  const [StackComponents, setStackComponents] = useState<any>(null)
-  const [useUserHook, setUseUserHook] = useState<any>(null)
+  const [stackComponents, setStackComponents] = useState<any>(null)
 
   useEffect(() => {
     let mounted = true
-
-    // Dynamic import and initialization check
-    const initializeStack = async () => {
+    
+    const checkStackAuth = async () => {
       try {
-        // Import the Stack Auth module
+        // Check if Stack Auth environment variables exist
+        const hasProjectId = typeof window !== 'undefined' && 
+          (window as any).NEXT_PUBLIC_STACK_PROJECT_ID || 
+          process.env.NEXT_PUBLIC_STACK_PROJECT_ID
+
+        if (!hasProjectId) {
+          if (mounted) setStackAuthStatus('disabled')
+          return
+        }
+
+        // Try to import Stack Auth safely
+        const { isStackAuthEnabled } = await import('@/stack')
+        
+        if (!isStackAuthEnabled) {
+          if (mounted) setStackAuthStatus('disabled')
+          return
+        }
+
+        // Import Stack Auth components
         const stackModule = await import('@stackframe/stack')
         
-        if (!mounted) return
-
-        // Set components but don't call hooks yet
-        setStackComponents(stackModule)
-        
-        // Create a safe hook wrapper that only calls when ready
-        const safeUseUser = () => {
-          try {
-            return stackModule.useUser?.()
-          } catch (error) {
-            console.log('Stack Auth useUser hook error (safe mode):', error)
-            return null
-          }
+        if (mounted) {
+          setStackComponents(stackModule)
+          setStackAuthStatus('enabled')
         }
-        
-        setUseUserHook(() => safeUseUser)
-        setStackReady(true)
 
       } catch (error) {
-        console.log('Stack Auth initialization error (safe mode):', error)
-        // Fall back to guest mode
-        setStackReady(false)
+        console.log('Stack Auth check failed (safe mode):', error)
+        if (mounted) setStackAuthStatus('disabled')
       }
     }
 
-    initializeStack()
+    checkStackAuth()
 
     return () => {
       mounted = false
     }
   }, [])
 
-  // Update user state when Stack is ready
+  // Only try to use Stack Auth hooks if everything is confirmed working
   useEffect(() => {
-    if (stackReady && useUserHook) {
+    if (stackAuthStatus === 'enabled' && stackComponents) {
       try {
-        const user = useUserHook()
-        setStackUser(user)
+        const { useUser } = stackComponents
         
-        // Convert to our interface
-        const convertedUser: UserInterface | null = user ? {
-          id: user.id,
-          username: user.displayName || 'User',
-          email: user.primaryEmail || '',
-          role: 'user',
-          avatar: '👤',
-          joinDate: new Date().toISOString(),
-          lastActive: new Date().toISOString(),
-          scrollsMinted: 0,
-          organizationId: undefined
-        } : null
-
-        onUserChange?.(convertedUser)
+        // This is where we would call useUser, but we need to do it in a separate component
+        // to avoid the hooks-of-hooks rule
+        
       } catch (error) {
-        console.log('Stack Auth user conversion error (safe mode):', error)
+        console.log('Stack Auth hook error (safe mode):', error)
+        setStackAuthStatus('disabled')
       }
     }
-  }, [stackReady, useUserHook, onUserChange])
+  }, [stackAuthStatus, stackComponents])
 
-  // Show loading state while Stack Auth initializes
-  if (!stackReady || !StackComponents) {
+  // Render based on Stack Auth status
+  if (stackAuthStatus === 'checking') {
     return (
       <div style={{ position: 'relative' }}>
         <div style={{
@@ -183,15 +148,121 @@ function SafeStackAuthUserSystem({
     )
   }
 
-  const { UserButton } = StackComponents
+  if (stackAuthStatus === 'disabled') {
+    return (
+      <GuestUserInterface />
+    )
+  }
+
+  // Stack Auth is enabled and ready
+  return (
+    <StackAuthUserInterface 
+      onUserChange={onUserChange}
+      showUserDashboard={showUserDashboard}
+      setShowUserDashboard={setShowUserDashboard}
+      stackComponents={stackComponents}
+    />
+  )
+}
+
+// Guest user interface (no Stack Auth)
+function GuestUserInterface() {
+  return (
+    <div style={{ position: 'relative' }}>
+      <a
+        href="/handler/sign-in"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 16px',
+          background: 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))',
+          border: '2px solid rgba(0, 255, 255, 0.5)',
+          borderRadius: '25px',
+          color: '#00ffff',
+          fontSize: '12px',
+          fontWeight: '600',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          backdropFilter: 'blur(10px)',
+          fontFamily: 'Orbitron, monospace',
+          textDecoration: 'none',
+          textTransform: 'uppercase'
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(255, 0, 255, 0.4))'
+          e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.5)'
+          e.currentTarget.style.transform = 'translateY(-2px)'
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))'
+          e.currentTarget.style.boxShadow = 'none'
+          e.currentTarget.style.transform = 'translateY(0)'
+        }}
+      >
+        <User style={{ width: '16px', height: '16px' }} />
+        <span>SIGN IN</span>
+      </a>
+    </div>
+  )
+}
+
+// Stack Auth user interface (only loaded when Stack Auth is confirmed working)
+function StackAuthUserInterface({ 
+  onUserChange,
+  showUserDashboard,
+  setShowUserDashboard,
+  stackComponents
+}: { 
+  onUserChange?: (user: UserInterface | null) => void
+  showUserDashboard: boolean
+  setShowUserDashboard: (show: boolean) => void
+  stackComponents: any
+}) {
+  const [user, setUser] = useState<UserInterface | null>(null)
+
+  // Use Stack Auth hook in isolated component
+  const StackAuthHookUser = () => {
+    if (!stackComponents) return null
+
+    try {
+      const { useUser } = stackComponents
+      const stackUser = useUser()
+      
+      // Update user state when Stack user changes
+      useEffect(() => {
+        const convertedUser: UserInterface | null = stackUser ? {
+          id: stackUser.id,
+          username: stackUser.displayName || 'User',
+          email: stackUser.primaryEmail || '',
+          role: 'user',
+          avatar: '👤',
+          joinDate: new Date().toISOString(),
+          lastActive: new Date().toISOString(),
+          scrollsMinted: 0,
+          organizationId: undefined
+        } : null
+
+        setUser(convertedUser)
+        onUserChange?.(convertedUser)
+      }, [stackUser])
+
+      return null // This component only manages state
+    } catch (error) {
+      console.log('Stack Auth hook error (isolated):', error)
+      return null
+    }
+  }
 
   return (
     <>
-      {/* User Authentication Interface */}
+      {/* Stack Auth hook management */}
+      <StackAuthHookUser />
+      
+      {/* User interface */}
       <div style={{ position: 'relative' }}>
-        {stackUser ? (
+        {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {/* User Dashboard Button */}
             <button
               onClick={() => setShowUserDashboard(true)}
               style={{
@@ -219,7 +290,6 @@ function SafeStackAuthUserSystem({
               📊 DASHBOARD
             </button>
 
-            {/* Stack Auth UserButton with Custom Styling */}
             <div style={{
               background: 'rgba(0, 255, 255, 0.15)',
               border: '2px solid rgba(0, 255, 255, 0.4)',
@@ -227,62 +297,18 @@ function SafeStackAuthUserSystem({
               padding: '4px',
               backdropFilter: 'blur(10px)'
             }}>
-              {UserButton && <UserButton />}
+              {stackComponents?.UserButton && <stackComponents.UserButton />}
             </div>
           </div>
         ) : (
-          // Sign In Button - Stack Auth will handle the routing
-          <a
-            href="/handler/sign-in"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              background: 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))',
-              border: '2px solid rgba(0, 255, 255, 0.5)',
-              borderRadius: '25px',
-              color: '#00ffff',
-              fontSize: '12px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-              backdropFilter: 'blur(10px)',
-              fontFamily: 'Orbitron, monospace',
-              textDecoration: 'none',
-              textTransform: 'uppercase'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(255, 0, 255, 0.4))'
-              e.currentTarget.style.boxShadow = '0 0 20px rgba(0, 255, 255, 0.5)'
-              e.currentTarget.style.transform = 'translateY(-2px)'
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = 'linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2))'
-              e.currentTarget.style.boxShadow = 'none'
-              e.currentTarget.style.transform = 'translateY(0)'
-            }}
-          >
-            <User style={{ width: '16px', height: '16px' }} />
-            <span>SIGN IN</span>
-          </a>
+          <GuestUserInterface />
         )}
       </div>
 
       {/* User Dashboard Modal */}
-      {showUserDashboard && stackUser && (
+      {showUserDashboard && user && (
         <UserDashboard 
-          user={{
-            id: stackUser.id,
-            username: stackUser.displayName || 'User',
-            email: stackUser.primaryEmail || '',
-            role: 'user',
-            avatar: '👤',
-            joinDate: new Date().toISOString(),
-            lastActive: new Date().toISOString(),
-            scrollsMinted: 0,
-            organizationId: undefined
-          }}
+          user={user}
           onClose={() => setShowUserDashboard(false)}
         />
       )}
@@ -400,7 +426,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </div>
         </div>
 
-        {/* User Stats Grid */}
+        {/* User Stats */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -432,32 +458,6 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
             </div>
             <div style={{ fontSize: '12px', color: '#888' }}>KBT Tokens</div>
           </div>
-
-          <div style={{
-            background: 'rgba(255, 0, 255, 0.1)',
-            border: '1px solid rgba(255, 0, 255, 0.3)',
-            borderRadius: '10px',
-            padding: '15px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#ff00ff' }}>
-              {Math.floor(Math.random() * 100 + 50)}
-            </div>
-            <div style={{ fontSize: '12px', color: '#888' }}>Reputation</div>
-          </div>
-
-          <div style={{
-            background: 'rgba(0, 255, 255, 0.1)',
-            border: '1px solid rgba(0, 255, 255, 0.3)',
-            borderRadius: '10px',
-            padding: '15px',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '24px', fontWeight: '700', color: '#00ffff' }}>
-              {Math.floor((Date.now() - new Date(user.joinDate).getTime()) / (1000 * 60 * 60 * 24))}
-            </div>
-            <div style={{ fontSize: '12px', color: '#888' }}>Days Active</div>
-          </div>
         </div>
 
         {/* Action Buttons */}
@@ -478,7 +478,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
             cursor: 'pointer',
             fontFamily: 'Rajdhani, sans-serif'
           }}>
-            🔧 Account Settings
+            🔧 Settings
           </button>
           
           <button style={{
@@ -493,7 +493,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
             cursor: 'pointer',
             fontFamily: 'Rajdhani, sans-serif'
           }}>
-            📜 View Scrolls
+            📜 Scrolls
           </button>
         </div>
       </div>
