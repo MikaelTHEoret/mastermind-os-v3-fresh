@@ -5,9 +5,24 @@ let stackServerApp: any = null;
 
 // Check if Stack Auth is enabled via environment variables
 export function isStackAuthEnabled(): boolean {
+  // Check both client-side and server-side environment variables
+  const hasProjectId = !!(
+    (typeof window !== 'undefined' ? process.env.NEXT_PUBLIC_STACK_PROJECT_ID : process.env.NEXT_PUBLIC_STACK_PROJECT_ID) ||
+    (typeof window === 'undefined' ? process.env.STACK_SECRET_SERVER_KEY : false)
+  );
+  
+  const hasPublishableKey = !!process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY;
+  
+  return hasProjectId && hasPublishableKey;
+}
+
+// Client-side specific check
+export function isStackAuthEnabledClient(): boolean {
+  if (typeof window === 'undefined') return false;
+  
   return !!(
     process.env.NEXT_PUBLIC_STACK_PROJECT_ID && 
-    process.env.STACK_SECRET_SERVER_KEY
+    process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
   );
 }
 
