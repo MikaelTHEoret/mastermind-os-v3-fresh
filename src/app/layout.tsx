@@ -1,6 +1,5 @@
 import './globals.css'
 import { ClerkProvider } from '@clerk/nextjs'
-import { dark } from '@clerk/themes'
 
 export const metadata = {
   title: 'MasterMind OS v3.0 - Enhanced Nexus Core Protocol',
@@ -15,7 +14,6 @@ export default function RootLayout({
   return (
     <ClerkProvider
       appearance={{
-        baseTheme: dark,
         variables: {
           colorPrimary: '#00ffff',
           colorDanger: '#ff4444', 
