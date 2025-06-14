@@ -1,297 +1,339 @@
-// Clerk Configuration - MasterMind OS Cyberpunk Theme
-// Enhanced Nexus Core Protocol v3.0
+// src/lib/clerk-config.ts
+// Enhanced Cyberpunk Theming for Clerk Authentication
 
 export const clerkAppearance = {
+  baseTheme: undefined,
   variables: {
-    // Color scheme - Cyberpunk colors
-    colorPrimary: '#00ffff',
-    colorDanger: '#ff4444',
-    colorSuccess: '#00ffaa',
-    colorWarning: '#ffd700',
-    colorNeutral: '#888888',
+    // Color Palette - Cyberpunk Dark Theme
+    colorPrimary: '#00ffff',           // Electric cyan primary
+    colorPrimaryText: '#000000',       // Black text on cyan buttons
+    colorBackground: '#0f0322',        // Deep purple background
+    colorInputBackground: '#1a0b3d',   // Dark purple inputs
+    colorInputText: '#ffffff',         // White input text
+    colorText: '#ffffff',              // White primary text
+    colorTextSecondary: '#b0c4de',     // Light blue secondary text
+    colorSuccess: '#00ffaa',           // Neon green success
+    colorDanger: '#ff4444',            // Red danger/error
+    colorWarning: '#ffd700',           // Gold warning
+    colorNeutral: '#666666',           // Gray neutral
     
-    // Background colors
-    colorBackground: 'rgba(10, 5, 30, 0.95)',
-    colorInputBackground: 'rgba(0, 255, 255, 0.1)',
-    colorInputText: '#00ffff',
-    
-    // Border and spacing
-    borderRadius: '15px',
+    // Spacing and Layout
     spacingUnit: '1rem',
+    borderRadius: '0.75rem',           // Rounded corners
     
     // Typography
     fontFamily: '"Orbitron", "Rajdhani", monospace',
-    fontFamilyButtons: '"Orbitron", monospace',
-    fontSize: '14px',
     fontWeight: {
       normal: 400,
-      medium: 600,
+      medium: 500,
+      semibold: 600,
       bold: 700,
-    }
+    },
+    fontSize: {
+      xs: '0.75rem',
+      sm: '0.875rem',
+      base: '1rem',
+      lg: '1.125rem',
+      xl: '1.25rem',
+    },
   },
   elements: {
-    // Modal and card styling
+    // Main Modal Container
     modalContent: {
-      background: 'linear-gradient(145deg, rgba(10, 5, 30, 0.98) 0%, rgba(20, 10, 40, 0.98) 100%)',
-      border: '2px solid rgba(0, 255, 255, 0.4)',
-      borderRadius: '20px',
-      backdropFilter: 'blur(20px)',
+      background: 'linear-gradient(135deg, #0f0322 0%, #1a0b3d 50%, #2d1b69 100%)',
+      border: '2px solid #00ffff',
+      borderRadius: '1rem',
       boxShadow: '0 0 50px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1)',
-      color: '#00ffff'
-    },
-    modalCloseButton: {
-      color: '#ff4444',
-      background: 'rgba(255, 68, 68, 0.2)',
-      border: '1px solid rgba(255, 68, 68, 0.3)',
-      borderRadius: '50%',
-      width: '32px',
-      height: '32px',
-      '&:hover': {
-        background: 'rgba(255, 68, 68, 0.4)',
-        boxShadow: '0 0 12px rgba(255, 68, 68, 0.5)'
-      }
+      backdropFilter: 'blur(20px)',
+      color: '#ffffff',
     },
     
-    // Form elements
-    card: {
-      background: 'linear-gradient(145deg, rgba(10, 5, 30, 0.95) 0%, rgba(20, 10, 40, 0.95) 100%)',
-      border: '2px solid rgba(0, 255, 255, 0.4)',
-      borderRadius: '20px',
-      backdropFilter: 'blur(20px)',
-      boxShadow: '0 0 30px rgba(0, 255, 255, 0.2)'
+    // Modal Backdrop
+    modalBackdrop: {
+      background: 'rgba(15, 3, 34, 0.95)',
+      backdropFilter: 'blur(10px)',
     },
+    
+    // Header/Title Styling
     headerTitle: {
       color: '#00ffff',
       fontFamily: '"Orbitron", monospace',
-      fontSize: '24px',
+      fontSize: '1.75rem',
       fontWeight: '700',
-      textAlign: 'center',
-      marginBottom: '20px'
+      textShadow: '0 0 10px rgba(0, 255, 255, 0.8)',
+      marginBottom: '1.5rem',
     },
+    
     headerSubtitle: {
-      color: '#888',
+      color: '#b0c4de',
       fontFamily: '"Rajdhani", sans-serif',
-      fontSize: '16px',
-      textAlign: 'center'
+      fontSize: '1rem',
+      marginBottom: '1rem',
     },
     
-    // Input fields
-    formFieldInput: {
-      background: 'rgba(0, 255, 255, 0.1)',
-      border: '1px solid rgba(0, 255, 255, 0.3)',
-      borderRadius: '12px',
-      color: '#00ffff',
-      padding: '12px 16px',
-      fontSize: '14px',
-      fontFamily: '"Rajdhani", sans-serif',
-      '&:focus': {
-        borderColor: 'rgba(0, 255, 255, 0.6)',
-        boxShadow: '0 0 12px rgba(0, 255, 255, 0.3)',
-        outline: 'none'
-      },
-      '&::placeholder': {
-        color: 'rgba(0, 255, 255, 0.5)'
-      }
-    },
-    formFieldLabel: {
-      color: '#00ffff',
-      fontFamily: '"Rajdhani", sans-serif',
-      fontSize: '14px',
-      fontWeight: '600',
-      marginBottom: '8px'
-    },
-    
-    // Buttons
+    // Form Elements
     formButtonPrimary: {
-      background: 'linear-gradient(45deg, rgba(0, 255, 255, 0.3), rgba(255, 0, 255, 0.3))',
-      border: '2px solid rgba(0, 255, 255, 0.5)',
-      borderRadius: '25px',
-      color: '#00ffff',
-      fontSize: '14px',
+      background: 'linear-gradient(135deg, #00ffff 0%, #0099cc 100%)',
+      color: '#000000',
+      border: 'none',
+      borderRadius: '0.75rem',
+      padding: '0.875rem 2rem',
+      fontSize: '1rem',
       fontWeight: '600',
       fontFamily: '"Orbitron", monospace',
-      padding: '12px 24px',
       textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      boxShadow: '0 4px 15px rgba(0, 255, 255, 0.4)',
+      '&:hover': {
+        background: 'linear-gradient(135deg, #00ccff 0%, #0077aa 100%)',
+        boxShadow: '0 6px 25px rgba(0, 255, 255, 0.6)',
+        transform: 'translateY(-2px)',
+      },
+      '&:active': {
+        transform: 'translateY(0)',
+      },
+    },
+    
+    formButtonSecondary: {
+      background: 'transparent',
+      color: '#00ffff',
+      border: '2px solid #00ffff',
+      borderRadius: '0.75rem',
+      padding: '0.875rem 2rem',
+      fontSize: '1rem',
+      fontWeight: '600',
+      fontFamily: '"Orbitron", monospace',
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
       cursor: 'pointer',
       transition: 'all 0.3s ease',
       '&:hover': {
-        background: 'linear-gradient(45deg, rgba(0, 255, 255, 0.5), rgba(255, 0, 255, 0.5))',
+        background: 'rgba(0, 255, 255, 0.1)',
         boxShadow: '0 0 20px rgba(0, 255, 255, 0.5)',
-        transform: 'translateY(-2px)'
       },
+    },
+    
+    // Input Fields
+    formFieldInput: {
+      background: 'rgba(26, 11, 61, 0.8)',
+      border: '2px solid #4a5568',
+      borderRadius: '0.75rem',
+      color: '#ffffff',
+      padding: '1rem 1.25rem',
+      fontSize: '1rem',
+      fontFamily: '"Rajdhani", sans-serif',
+      transition: 'all 0.3s ease',
       '&:focus': {
         outline: 'none',
-        boxShadow: '0 0 20px rgba(0, 255, 255, 0.7)'
-      }
-    },
-    formButtonSecondary: {
-      background: 'rgba(136, 136, 136, 0.2)',
-      border: '1px solid rgba(136, 136, 136, 0.4)',
-      borderRadius: '15px',
-      color: '#888',
-      fontSize: '14px',
-      fontFamily: '"Rajdhani", sans-serif',
-      padding: '10px 20px',
-      '&:hover': {
-        background: 'rgba(136, 136, 136, 0.3)',
-        color: '#aaa'
-      }
+        borderColor: '#00ffff',
+        boxShadow: '0 0 0 3px rgba(0, 255, 255, 0.2), 0 0 15px rgba(0, 255, 255, 0.3)',
+        background: 'rgba(26, 11, 61, 1)',
+      },
+      '&::placeholder': {
+        color: '#9ca3af',
+      },
     },
     
-    // UserButton styling
-    userButtonBox: {
-      width: '36px',
-      height: '36px'
-    },
-    userButtonAvatarBox: {
-      width: '32px',
-      height: '32px',
-      border: '2px solid rgba(0, 255, 255, 0.4)',
-      borderRadius: '50%'
-    },
-    userButtonPopoverCard: {
-      background: 'linear-gradient(145deg, rgba(10, 5, 30, 0.98) 0%, rgba(20, 10, 40, 0.98) 100%)',
-      border: '2px solid rgba(0, 255, 255, 0.4)',
-      borderRadius: '15px',
-      backdropFilter: 'blur(20px)',
-      boxShadow: '0 0 30px rgba(0, 255, 255, 0.3)',
-      padding: '15px'
-    },
-    userButtonPopoverActionButton: {
+    // Input Labels
+    formFieldLabel: {
       color: '#00ffff',
-      background: 'rgba(0, 255, 255, 0.1)',
-      border: '1px solid rgba(0, 255, 255, 0.3)',
-      borderRadius: '10px',
-      padding: '10px 15px',
-      fontSize: '13px',
-      fontFamily: '"Rajdhani", sans-serif',
-      margin: '3px 0',
-      '&:hover': {
-        background: 'rgba(0, 255, 255, 0.2)',
-        boxShadow: '0 0 12px rgba(0, 255, 255, 0.4)',
-        transform: 'translateX(3px)'
-      }
-    },
-    userButtonPopoverActionButtonText: {
-      color: '#00ffff'
-    },
-    userButtonPopoverActionButtonIcon: {
-      color: '#00ffff'
-    },
-    
-    // User profile modal (dashboard)
-    userProfileModal: {
-      background: 'linear-gradient(145deg, rgba(10, 5, 30, 0.98) 0%, rgba(20, 10, 40, 0.98) 100%)',
-      border: '2px solid rgba(0, 255, 255, 0.4)',
-      borderRadius: '20px',
-      backdropFilter: 'blur(20px)',
-      boxShadow: '0 0 50px rgba(0, 255, 255, 0.3)'
-    },
-    userProfile: {
-      background: 'linear-gradient(145deg, rgba(10, 5, 30, 0.98) 0%, rgba(20, 10, 40, 0.98) 100%)',
-      color: '#00ffff'
-    },
-    profileSectionTitle: {
-      color: '#00ffff',
+      fontSize: '0.875rem',
+      fontWeight: '600',
       fontFamily: '"Orbitron", monospace',
-      fontSize: '18px',
-      fontWeight: '700',
-      borderBottom: '1px solid rgba(0, 255, 255, 0.3)',
-      paddingBottom: '10px',
-      marginBottom: '15px'
-    },
-    profileSectionContent: {
-      background: 'rgba(0, 255, 255, 0.05)',
-      border: '1px solid rgba(0, 255, 255, 0.2)',
-      borderRadius: '12px',
-      padding: '15px'
+      textTransform: 'uppercase',
+      letterSpacing: '0.05em',
+      marginBottom: '0.5rem',
     },
     
-    // Links and text
-    link: {
+    // Error Messages
+    formFieldErrorText: {
+      color: '#ff4444',
+      fontSize: '0.875rem',
+      fontFamily: '"Rajdhani", sans-serif',
+      marginTop: '0.5rem',
+    },
+    
+    // Links
+    formFieldAction: {
       color: '#00ffff',
       textDecoration: 'none',
+      fontSize: '0.875rem',
+      fontFamily: '"Rajdhani", sans-serif',
+      transition: 'all 0.3s ease',
       '&:hover': {
-        color: '#00ffaa',
-        textShadow: '0 0 8px rgba(0, 255, 170, 0.5)'
-      }
+        color: '#00ccff',
+        textShadow: '0 0 5px rgba(0, 255, 255, 0.8)',
+      },
     },
-    text: {
-      color: '#00ffff',
-      fontFamily: '"Rajdhani", sans-serif'
+    
+    // Social Buttons (OAuth)
+    socialButtonsBlockButton: {
+      background: 'rgba(26, 11, 61, 0.8)',
+      border: '2px solid #4a5568',
+      borderRadius: '0.75rem',
+      color: '#ffffff',
+      padding: '0.875rem 1.5rem',
+      fontSize: '1rem',
+      fontFamily: '"Rajdhani", sans-serif',
+      transition: 'all 0.3s ease',
+      '&:hover': {
+        borderColor: '#00ffff',
+        background: 'rgba(26, 11, 61, 1)',
+        boxShadow: '0 0 15px rgba(0, 255, 255, 0.3)',
+      },
     },
     
     // Footer
     footer: {
-      background: 'rgba(0, 0, 0, 0.3)',
+      background: 'transparent',
       borderTop: '1px solid rgba(0, 255, 255, 0.2)',
-      color: '#888'
+      paddingTop: '1.5rem',
+      marginTop: '2rem',
     },
+    
     footerActionText: {
-      color: '#888'
+      color: '#b0c4de',
+      fontSize: '0.875rem',
+      fontFamily: '"Rajdhani", sans-serif',
     },
+    
     footerActionLink: {
       color: '#00ffff',
+      textDecoration: 'none',
+      fontWeight: '600',
+      transition: 'all 0.3s ease',
       '&:hover': {
-        color: '#00ffaa'
-      }
+        color: '#00ccff',
+        textShadow: '0 0 5px rgba(0, 255, 255, 0.8)',
+      },
     },
     
-    // Dividers and separators
+    // Divider
     dividerLine: {
       background: 'rgba(0, 255, 255, 0.3)',
-      height: '1px'
+      height: '1px',
     },
+    
     dividerText: {
-      color: '#888',
-      fontSize: '12px'
+      color: '#b0c4de',
+      fontSize: '0.875rem',
+      fontFamily: '"Rajdhani", sans-serif',
+      textTransform: 'uppercase',
+      letterSpacing: '0.1em',
     },
     
-    // Alert and error messages
-    alertText: {
-      color: '#ff4444',
-      fontSize: '13px',
-      fontFamily: '"Rajdhani", sans-serif'
-    },
-    
-    // Loading states
-    spinner: {
-      color: '#00ffff',
-      width: '20px',
-      height: '20px'
-    },
-    
-    // Form validation
-    formFieldInputShowPasswordButton: {
-      color: '#888',
+    // User Button (when signed in)
+    userButtonAvatarBox: {
+      width: '40px',
+      height: '40px',
+      borderRadius: '50%',
+      border: '2px solid #00ffff',
+      boxShadow: '0 0 15px rgba(0, 255, 255, 0.5)',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
       '&:hover': {
-        color: '#00ffff'
-      }
+        boxShadow: '0 0 25px rgba(0, 255, 255, 0.8)',
+        transform: 'scale(1.05)',
+      },
     },
-    formFieldSuccessText: {
-      color: '#00ffaa'
+    
+    // User Button Popover
+    userButtonPopoverCard: {
+      background: 'linear-gradient(135deg, #0f0322 0%, #1a0b3d 50%, #2d1b69 100%)',
+      border: '2px solid #00ffff',
+      borderRadius: '1rem',
+      boxShadow: '0 0 30px rgba(0, 255, 255, 0.4), inset 0 0 20px rgba(0, 255, 255, 0.1)',
+      backdropFilter: 'blur(20px)',
+      color: '#ffffff',
+      padding: '1.5rem',
     },
-    formFieldErrorText: {
-      color: '#ff4444'
+    
+    userButtonPopoverActionButton: {
+      background: 'rgba(26, 11, 61, 0.6)',
+      border: '1px solid rgba(0, 255, 255, 0.3)',
+      borderRadius: '0.5rem',
+      color: '#ffffff',
+      padding: '0.75rem 1rem',
+      fontSize: '0.875rem',
+      fontFamily: '"Rajdhani", sans-serif',
+      width: '100%',
+      textAlign: 'left',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      marginBottom: '0.5rem',
+      '&:hover': {
+        background: 'rgba(0, 255, 255, 0.1)',
+        borderColor: '#00ffff',
+        boxShadow: '0 0 10px rgba(0, 255, 255, 0.3)',
+      },
     },
-    formFieldWarningText: {
-      color: '#ffd700'
-    }
-  }
-}
+    
+    // Profile Page (when clicking "Manage account")
+    profilePage: {
+      background: 'linear-gradient(135deg, #0f0322 0%, #1a0b3d 50%, #2d1b69 100%)',
+      color: '#ffffff',
+      fontFamily: '"Rajdhani", sans-serif',
+    },
+    
+    profileSectionTitle: {
+      color: '#00ffff',
+      fontFamily: '"Orbitron", monospace',
+      fontSize: '1.5rem',
+      fontWeight: '700',
+      textShadow: '0 0 10px rgba(0, 255, 255, 0.8)',
+      marginBottom: '1rem',
+    },
+    
+    // Navigation in Profile
+    navbar: {
+      background: 'rgba(26, 11, 61, 0.8)',
+      border: '1px solid rgba(0, 255, 255, 0.3)',
+      borderRadius: '0.75rem',
+    },
+    
+    navbarButton: {
+      color: '#ffffff',
+      fontFamily: '"Rajdhani", sans-serif',
+      padding: '0.75rem 1rem',
+      borderRadius: '0.5rem',
+      transition: 'all 0.3s ease',
+      '&:hover': {
+        background: 'rgba(0, 255, 255, 0.1)',
+        color: '#00ffff',
+      },
+      '&[data-active]': {
+        background: 'rgba(0, 255, 255, 0.2)',
+        color: '#00ffff',
+        fontWeight: '600',
+      },
+    },
+    
+    // Cards in Profile
+    card: {
+      background: 'rgba(26, 11, 61, 0.6)',
+      border: '1px solid rgba(0, 255, 255, 0.3)',
+      borderRadius: '0.75rem',
+      padding: '1.5rem',
+      marginBottom: '1rem',
+      boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
+    },
+  },
+  layout: {
+    socialButtonsPlacement: 'bottom',
+    socialButtonsVariant: 'blockButton',
+    logoPlacement: 'inside',
+  },
+};
 
-// Environment configuration helper
-export function getClerkConfig() {
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-  const secretKey = process.env.CLERK_SECRET_KEY
-  
-  if (!publishableKey) {
-    throw new Error('Missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY')
-  }
-  
-  return {
-    publishableKey,
-    secretKey,
-    appearance: clerkAppearance
-  }
-}
+// User Button styling for the main app
+export const userButtonAppearance = {
+  elements: {
+    userButtonAvatarBox: 'border-2 border-cyan-400 rounded-full shadow-lg shadow-cyan-500/50 hover:shadow-cyan-500/80 hover:scale-105 transition-all duration-300',
+    userButtonPopoverCard: 'bg-gradient-to-br from-indigo-950 via-purple-900 to-purple-950 border-2 border-cyan-400 rounded-xl shadow-2xl shadow-cyan-500/30 backdrop-blur-xl',
+    userButtonPopoverActionButton: 'text-white hover:bg-cyan-500/20 hover:text-cyan-300 rounded-lg transition-all duration-200 font-rajdhani',
+    userButtonPopoverActionButtonIcon: 'text-cyan-400',
+    userButtonPopoverFooter: 'border-t border-cyan-500/30 pt-4 mt-4',
+  },
+};
