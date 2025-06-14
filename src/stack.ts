@@ -7,7 +7,7 @@ export const stackServerApp = new StackServerApp({
     signUp: "/handler/sign-up", 
     emailVerification: "/handler/email-verification",
     passwordReset: "/handler/password-reset",
-    passwordChange: "/handler/password-change",
+    // passwordChange removed - no longer supported in Stack Auth API
     home: "/",
     afterSignIn: "/",
     afterSignUp: "/", 
