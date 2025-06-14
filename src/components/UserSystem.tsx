@@ -65,6 +65,14 @@ function ClientSideUserSystem({
   showUserDashboard: boolean
   setShowUserDashboard: (show: boolean) => void
 }) {
+  // TEMPORARY: Force guest mode to eliminate Stack Auth toClientJson errors
+  console.log('UserSystem: TEMPORARILY DISABLING Stack Auth - using guest mode only')
+  console.log('UserSystem: Stack Auth will be re-enabled after internal errors are resolved')
+  
+  return <GuestUserInterface />
+
+  /* ORIGINAL CODE - RE-ENABLE AFTER STACK AUTH FIXES:
+  
   const [stackAuthStatus, setStackAuthStatus] = useState<'checking' | 'enabled' | 'disabled'>('checking')
   const [stackUser, setStackUser] = useState<any>(null)
   const [stackComponents, setStackComponents] = useState<any>(null)
@@ -142,6 +150,8 @@ function ClientSideUserSystem({
       stackComponents={stackComponents}
     />
   )
+  
+  */
 }
 
 // Guest user interface (no Stack Auth)
@@ -185,6 +195,8 @@ function GuestUserInterface() {
     </div>
   )
 }
+
+/* STACK AUTH CODE - RE-ENABLE AFTER FIXES:
 
 // Stack Auth user interface (only loaded when Stack Auth is confirmed working)
 function StackAuthUserInterface({ 
@@ -266,10 +278,10 @@ function StackAuthUserInterface({
 
   return (
     <>
-      {/* Stack Auth hook management with comprehensive error handling */}
+      {/# Stack Auth hook management with comprehensive error handling #/}
       <StackAuthHookUser />
       
-      {/* User interface */}
+      {/# User interface #/}
       <div style={{ position: 'relative' }}>
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -307,7 +319,7 @@ function StackAuthUserInterface({
               padding: '4px',
               backdropFilter: 'blur(10px)'
             }}>
-              {/* Defensive UserButton rendering */}
+              {/# Defensive UserButton rendering #/}
               {stackComponents?.UserButton ? (
                 <stackComponents.UserButton />
               ) : (
@@ -327,7 +339,7 @@ function StackAuthUserInterface({
         )}
       </div>
 
-      {/* User Dashboard Modal */}
+      {/# User Dashboard Modal #/}
       {showUserDashboard && user && (
         <UserDashboard 
           user={user}
@@ -366,7 +378,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
         maxHeight: '80vh',
         overflowY: 'auto'
       }}>
-        {/* Header */}
+        {/# Header #/}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -400,7 +412,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </button>
         </div>
 
-        {/* User Info */}
+        {/# User Info #/}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -448,7 +460,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </div>
         </div>
 
-        {/* User Stats */}
+        {/# User Stats #/}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -482,7 +494,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </div>
         </div>
 
-        {/* Action Buttons */}
+        {/# Action Buttons #/}
         <div style={{
           display: 'flex',
           gap: '10px',
@@ -522,3 +534,5 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
     </div>
   )
 }
+
+*/
