@@ -4,13 +4,27 @@ import { useState, useEffect } from 'react'
 import { Brain, Scroll, Database, BarChart3, Building2, Layout } from 'lucide-react'
 import EnhancedNexusBackground from './EnhancedNexusBackground'
 import NexusCoreSection from './sections/NexusCoreSection'
+import UserSystem from './UserSystem'
 import { getTheme } from '../lib/theme-config'
 
 type ActivePanel = 'nexus' | 'scrolls' | 'memory' | 'analytics' | 'enterprise' | 'dashboard'
 
+interface User {
+  id: string
+  username: string
+  email: string
+  role: 'admin' | 'developer' | 'user'
+  avatar?: string
+  joinDate: string
+  lastActive: string
+  scrollsMinted: number
+  organizationId?: string
+}
+
 export default function EnhancedMastermindOS() {
   const [activePanel, setActivePanel] = useState<ActivePanel>('nexus')
   const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -18,6 +32,10 @@ export default function EnhancedMastermindOS() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [])
+
+  const handleUserChange = (newUser: User | null) => {
+    setUser(newUser)
+  }
 
   const navigationItems = [
     { key: 'nexus', label: 'NEXUS', icon: Brain, description: 'Neural orchestration core' },
@@ -75,10 +93,10 @@ export default function EnhancedMastermindOS() {
               boxShadow: currentTheme.glowEffect
             }}>
               <p style={{ color: currentTheme.primaryColor, fontSize: '16px' }}>
-                🧠 Enhanced background system active - Cyberpunk assets integrated
+                🧠 Stack Auth integration active - {user ? `Welcome ${user.username}!` : 'Sign in to unlock features'}
               </p>
               <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>
-                Sacred geometry • Circuit patterns • Mathematical constants • Energy fields
+                Enhanced user management • Authentication system • Dashboard access
               </p>
             </div>
           </div>
@@ -139,7 +157,7 @@ export default function EnhancedMastermindOS() {
                   background: 'linear-gradient(90deg, #00ffff, #ff00ff)',
                   borderRadius: '2px',
                   animation: 'pulse 2s infinite',
-                  width: '85%'
+                  width: '90%'
                 }} />
               </div>
             </div>
@@ -149,7 +167,7 @@ export default function EnhancedMastermindOS() {
               marginTop: '16px',
               fontFamily: 'Courier New, monospace'
             }}>
-              Enhanced cyberpunk backgrounds loading • Sacred geometry active • Circuit patterns initialized
+              Stack Auth integration • User management • Enhanced authentication
             </p>
           </div>
         </div>
@@ -205,95 +223,82 @@ export default function EnhancedMastermindOS() {
               </span>
             </div>
             
-            {/* Navigation */}
-            <nav style={{ display: 'flex', gap: '4px' }}>
-              {navigationItems.map((item) => {
-                const Icon = item.icon
-                const isActive = activePanel === item.key
-                const currentTheme = getTheme(item.key)
-                
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => setActivePanel(item.key as ActivePanel)}
-                    style={{
-                      padding: '8px 16px',
-                      border: isActive ? `1px solid ${currentTheme.primaryColor}` : '1px solid transparent',
-                      background: isActive ? `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.2)` : 'transparent',
-                      color: isActive ? currentTheme.primaryColor : '#00ffff',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontFamily: 'Orbitron, monospace',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      transition: 'all 0.3s ease',
-                      textTransform: 'uppercase',
-                      position: 'relative'
-                    }}
-                    title={item.description}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.background = `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.1)`
-                        e.currentTarget.style.color = currentTheme.primaryColor
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        e.currentTarget.style.background = 'transparent'
-                        e.currentTarget.style.color = '#00ffff'
-                      }
-                    }}
-                  >
-                    <Icon style={{ width: '16px', height: '16px' }} />
-                    <span>{item.label}</span>
-                    
-                    {/* Tooltip */}
-                    <div style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      marginTop: '8px',
-                      padding: '8px 12px',
-                      background: 'rgba(0, 0, 0, 0.9)',
-                      border: `1px solid ${currentTheme.primaryColor}30`,
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      color: currentTheme.primaryColor,
-                      whiteSpace: 'nowrap',
-                      opacity: 0,
-                      pointerEvents: 'none',
-                      transition: 'opacity 0.2s ease',
-                      zIndex: 30
-                    }}
-                    className="tooltip">
-                      {item.description}
-                    </div>
-                  </button>
-                )
-              })}
-            </nav>
+            {/* Navigation and Auth Container */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+              {/* Navigation */}
+              <nav style={{ display: 'flex', gap: '4px' }}>
+                {navigationItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = activePanel === item.key
+                  const currentTheme = getTheme(item.key)
+                  
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => setActivePanel(item.key as ActivePanel)}
+                      style={{
+                        padding: '8px 16px',
+                        border: isActive ? `1px solid ${currentTheme.primaryColor}` : '1px solid transparent',
+                        background: isActive ? `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.2)` : 'transparent',
+                        color: isActive ? currentTheme.primaryColor : '#00ffff',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontFamily: 'Orbitron, monospace',
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        transition: 'all 0.3s ease',
+                        textTransform: 'uppercase',
+                        position: 'relative'
+                      }}
+                      title={item.description}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.1)`
+                          e.currentTarget.style.color = currentTheme.primaryColor
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.background = 'transparent'
+                          e.currentTarget.style.color = '#00ffff'
+                        }
+                      }}
+                    >
+                      <Icon style={{ width: '16px', height: '16px' }} />
+                      <span>{item.label}</span>
+                      
+                      {/* Tooltip */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        background: 'rgba(0, 0, 0, 0.9)',
+                        border: `1px solid ${currentTheme.primaryColor}30`,
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        color: currentTheme.primaryColor,
+                        whiteSpace: 'nowrap',
+                        opacity: 0,
+                        pointerEvents: 'none',
+                        transition: 'opacity 0.2s ease',
+                        zIndex: 30
+                      }}
+                      className="tooltip">
+                        {item.description}
+                      </div>
+                    </button>
+                  )
+                })}
+              </nav>
 
-            <div style={{ 
-              color: '#00ffff', 
-              fontSize: '14px', 
-              fontFamily: 'Courier New, monospace',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: '#00ffaa',
-                boxShadow: '0 0 8px #00ffaa',
-                animation: 'pulse 2s infinite'
-              }} />
-              🧠 ENHANCED NEXUS ACTIVE
+              {/* User System */}
+              <UserSystem onUserChange={handleUserChange} />
             </div>
           </header>
 
