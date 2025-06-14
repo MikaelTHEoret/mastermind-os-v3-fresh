@@ -74,26 +74,38 @@ function ClientSideUserSystem({
     
     const checkStackAuth = async () => {
       try {
-        // Import and call the function properly
-        const { isStackAuthEnabledClient } = await import('@/stack')
+        // Check if Stack Auth environment variables are present
+        const isStackAuthEnabled = !!(
+          process.env.NEXT_PUBLIC_STACK_PROJECT_ID && 
+          process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
+        )
         
-        if (!isStackAuthEnabledClient()) {
+        if (!isStackAuthEnabled) {
           if (mounted) setStackAuthStatus('disabled')
-          console.log('Stack Auth disabled: Environment variables not configured')
+          console.log('UserSystem: Stack Auth disabled - Environment variables not configured')
           return
         }
 
-        // Import Stack Auth components
+        // Import Stack Auth components and create client-side app
         const stackModule = await import('@stackframe/stack')
         
+        // Create client-side Stack App (no secret key required)
+        const stackApp = new stackModule.StackApp({
+          projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+          publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
+        })
+        
         if (mounted) {
-          setStackComponents(stackModule)
+          setStackComponents({
+            ...stackModule,
+            stackApp
+          })
           setStackAuthStatus('enabled')
-          console.log('Stack Auth enabled: Components loaded successfully')
+          console.log('UserSystem: Stack Auth enabled - Client-side components loaded successfully')
         }
 
       } catch (error) {
-        console.log('Stack Auth check failed (safe mode):', error)
+        console.log('UserSystem: Stack Auth check failed (safe mode):', error)
         if (mounted) setStackAuthStatus('disabled')
       }
     }
@@ -104,22 +116,6 @@ function ClientSideUserSystem({
       mounted = false
     }
   }, [])
-
-  // Only try to use Stack Auth hooks if everything is confirmed working
-  useEffect(() => {
-    if (stackAuthStatus === 'enabled' && stackComponents) {
-      try {
-        const { useUser } = stackComponents
-        
-        // This is where we would call useUser, but we need to do it in a separate component
-        // to avoid the hooks-of-hooks rule
-        
-      } catch (error) {
-        console.log('Stack Auth hook error (safe mode):', error)
-        setStackAuthStatus('disabled')
-      }
-    }
-  }, [stackAuthStatus, stackComponents])
 
   // Render based on Stack Auth status
   if (stackAuthStatus === 'checking') {
@@ -241,7 +237,7 @@ function StackAuthUserInterface({
 
       return null // This component only manages state
     } catch (error) {
-      console.log('Stack Auth hook error (isolated):', error)
+      console.log('UserSystem: Stack Auth hook error (isolated):', error)
       return null
     }
   }
