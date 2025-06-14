@@ -23,21 +23,12 @@ interface UserSystemProps {
 export default function UserSystem({ onUserChange }: UserSystemProps) {
   const [mounted, setMounted] = useState(false)
   const [showUserDashboard, setShowUserDashboard] = useState(false)
-  const [stackUser, setStackUser] = useState<any>(null)
-  const [StackComponents, setStackComponents] = useState<any>(null)
 
   useEffect(() => {
     setMounted(true)
-    
-    // Only load Stack Auth if it's enabled
-    if (isStackAuthEnabled) {
-      import('@stackframe/stack').then((stackModule) => {
-        setStackComponents(stackModule)
-      })
-    }
   }, [])
 
-  // Only render Stack Auth components after mounting and when enabled
+  // If Stack Auth is disabled, always show guest interface
   if (!mounted || !isStackAuthEnabled) {
     return (
       <div style={{ position: 'relative' }}>
@@ -80,26 +71,101 @@ export default function UserSystem({ onUserChange }: UserSystemProps) {
     )
   }
 
+  // Only render Stack Auth when absolutely confirmed to be enabled and available
   return (
-    <StackAuthUserSystem 
+    <SafeStackAuthUserSystem 
       onUserChange={onUserChange}
-      StackComponents={StackComponents}
+      showUserDashboard={showUserDashboard}
+      setShowUserDashboard={setShowUserDashboard}
     />
   )
 }
 
-// Separate component that only loads when Stack Auth is available
-function StackAuthUserSystem({ 
-  onUserChange, 
-  StackComponents 
+// Completely isolated Stack Auth component that never calls hooks unless fully initialized
+function SafeStackAuthUserSystem({ 
+  onUserChange,
+  showUserDashboard,
+  setShowUserDashboard
 }: { 
   onUserChange?: (user: UserInterface | null) => void
-  StackComponents: any
+  showUserDashboard: boolean
+  setShowUserDashboard: (show: boolean) => void
 }) {
-  const [showUserDashboard, setShowUserDashboard] = useState(false)
+  const [stackReady, setStackReady] = useState(false)
+  const [stackUser, setStackUser] = useState<any>(null)
+  const [StackComponents, setStackComponents] = useState<any>(null)
+  const [useUserHook, setUseUserHook] = useState<any>(null)
 
-  // Don't render anything if Stack Auth components aren't loaded yet
-  if (!StackComponents) {
+  useEffect(() => {
+    let mounted = true
+
+    // Dynamic import and initialization check
+    const initializeStack = async () => {
+      try {
+        // Import the Stack Auth module
+        const stackModule = await import('@stackframe/stack')
+        
+        if (!mounted) return
+
+        // Set components but don't call hooks yet
+        setStackComponents(stackModule)
+        
+        // Create a safe hook wrapper that only calls when ready
+        const safeUseUser = () => {
+          try {
+            return stackModule.useUser?.()
+          } catch (error) {
+            console.log('Stack Auth useUser hook error (safe mode):', error)
+            return null
+          }
+        }
+        
+        setUseUserHook(() => safeUseUser)
+        setStackReady(true)
+
+      } catch (error) {
+        console.log('Stack Auth initialization error (safe mode):', error)
+        // Fall back to guest mode
+        setStackReady(false)
+      }
+    }
+
+    initializeStack()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  // Update user state when Stack is ready
+  useEffect(() => {
+    if (stackReady && useUserHook) {
+      try {
+        const user = useUserHook()
+        setStackUser(user)
+        
+        // Convert to our interface
+        const convertedUser: UserInterface | null = user ? {
+          id: user.id,
+          username: user.displayName || 'User',
+          email: user.primaryEmail || '',
+          role: 'user',
+          avatar: '👤',
+          joinDate: new Date().toISOString(),
+          lastActive: new Date().toISOString(),
+          scrollsMinted: 0,
+          organizationId: undefined
+        } : null
+
+        onUserChange?.(convertedUser)
+      } catch (error) {
+        console.log('Stack Auth user conversion error (safe mode):', error)
+      }
+    }
+  }, [stackReady, useUserHook, onUserChange])
+
+  // Show loading state while Stack Auth initializes
+  if (!stackReady || !StackComponents) {
     return (
       <div style={{ position: 'relative' }}>
         <div style={{
@@ -111,37 +177,19 @@ function StackAuthUserSystem({
           fontSize: '12px',
           fontFamily: 'Orbitron, monospace'
         }}>
-          Loading...
+          AUTH...
         </div>
       </div>
     )
   }
 
-  const { useUser, UserButton } = StackComponents
-  const stackUser = useUser()
-
-  // Convert Stack Auth user to our User interface
-  const user: UserInterface | null = stackUser ? {
-    id: stackUser.id,
-    username: stackUser.displayName || 'User',
-    email: stackUser.primaryEmail || '',
-    role: 'user', // Default role, could be enhanced with custom user metadata
-    avatar: '👤',
-    joinDate: new Date().toISOString(), // Could be enhanced with actual join date
-    lastActive: new Date().toISOString(),
-    scrollsMinted: 0, // Could be enhanced with actual data
-    organizationId: undefined
-  } : null
-
-  useEffect(() => {
-    onUserChange?.(user)
-  }, [user, onUserChange])
+  const { UserButton } = StackComponents
 
   return (
     <>
-      {/* User Authentication */}
+      {/* User Authentication Interface */}
       <div style={{ position: 'relative' }}>
-        {user ? (
+        {stackUser ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {/* User Dashboard Button */}
             <button
@@ -179,7 +227,7 @@ function StackAuthUserSystem({
               padding: '4px',
               backdropFilter: 'blur(10px)'
             }}>
-              <UserButton />
+              {UserButton && <UserButton />}
             </div>
           </div>
         ) : (
@@ -222,9 +270,19 @@ function StackAuthUserSystem({
       </div>
 
       {/* User Dashboard Modal */}
-      {showUserDashboard && user && (
+      {showUserDashboard && stackUser && (
         <UserDashboard 
-          user={user}
+          user={{
+            id: stackUser.id,
+            username: stackUser.displayName || 'User',
+            email: stackUser.primaryEmail || '',
+            role: 'user',
+            avatar: '👤',
+            joinDate: new Date().toISOString(),
+            lastActive: new Date().toISOString(),
+            scrollsMinted: 0,
+            organizationId: undefined
+          }}
           onClose={() => setShowUserDashboard(false)}
         />
       )}
