@@ -1,6 +1,9 @@
 import { StackServerApp } from "@stackframe/stack";
 
-export const stackServerApp = new StackServerApp({
+// Check if Stack Auth environment variables are available
+const hasStackAuth = process.env.NEXT_PUBLIC_STACK_PROJECT_ID && process.env.STACK_SECRET_SERVER_KEY;
+
+export const stackServerApp = hasStackAuth ? new StackServerApp({
   tokenStore: "nextjs-cookie", // storing auth tokens in cookies
   urls: {
     signIn: "/handler/sign-in",
@@ -13,4 +16,7 @@ export const stackServerApp = new StackServerApp({
     afterSignUp: "/", 
     afterSignOut: "/",
   },
-});
+}) : null;
+
+// Export flag for components to check Stack Auth availability
+export const isStackAuthEnabled = hasStackAuth;
