@@ -2,7 +2,6 @@
 // Enhanced Nexus Core Protocol v3.0
 
 export const clerkAppearance = {
-  baseTheme: 'dark' as const,
   variables: {
     // Color scheme - Cyberpunk colors
     colorPrimary: '#00ffff',
