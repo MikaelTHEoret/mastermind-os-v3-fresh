@@ -1,6 +1,6 @@
 'use client'
 
-import { StackProvider } from '@stackframe/stack'
+import { StackProvider, StackTheme } from '@stackframe/stack'
 import { isStackAuthEnabled } from '@/stack'
 
 export default function StackAuthProvider({ children }: { children: React.ReactNode }) {
@@ -11,12 +11,16 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
 
   return (
     <StackProvider
-      appId={process.env.NEXT_PUBLIC_STACK_PROJECT_ID!}
-      publishableClientKey={process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!}
-      appUrl={process.env.NEXT_PUBLIC_APP_URL || 'https://mastermind-os-v3-fresh.vercel.app'}
-      tokenStore="nextjs-cookie"
+      app={{
+        tokenStore: "nextjs-cookie",
+        projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+        publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
+        baseUrl: process.env.NEXT_PUBLIC_APP_URL || 'https://mastermind-os-v3-fresh.vercel.app',
+      }}
     >
-      {children}
+      <StackTheme>
+        {children}
+      </StackTheme>
     </StackProvider>
   )
 }
