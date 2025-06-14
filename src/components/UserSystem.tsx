@@ -65,16 +65,7 @@ function ClientSideUserSystem({
   showUserDashboard: boolean
   setShowUserDashboard: (show: boolean) => void
 }) {
-  // TEMPORARY: Force guest mode to eliminate Stack Auth toClientJson errors
-  console.log('UserSystem: TEMPORARILY DISABLING Stack Auth - using guest mode only')
-  console.log('UserSystem: Stack Auth will be re-enabled after internal errors are resolved')
-  
-  return <GuestUserInterface />
-
-  /* ORIGINAL CODE - RE-ENABLE AFTER STACK AUTH FIXES:
-  
   const [stackAuthStatus, setStackAuthStatus] = useState<'checking' | 'enabled' | 'disabled'>('checking')
-  const [stackUser, setStackUser] = useState<any>(null)
   const [stackComponents, setStackComponents] = useState<any>(null)
 
   useEffect(() => {
@@ -136,9 +127,7 @@ function ClientSideUserSystem({
   }
 
   if (stackAuthStatus === 'disabled') {
-    return (
-      <GuestUserInterface />
-    )
+    return <GuestUserInterface />
   }
 
   // Stack Auth is enabled and ready
@@ -150,8 +139,6 @@ function ClientSideUserSystem({
       stackComponents={stackComponents}
     />
   )
-  
-  */
 }
 
 // Guest user interface (no Stack Auth)
@@ -196,9 +183,7 @@ function GuestUserInterface() {
   )
 }
 
-/* STACK AUTH CODE - RE-ENABLE AFTER FIXES:
-
-// Stack Auth user interface (only loaded when Stack Auth is confirmed working)
+// Stack Auth user interface with YOUR DEFENSIVE PATTERNS
 function StackAuthUserInterface({ 
   onUserChange,
   showUserDashboard,
@@ -212,76 +197,66 @@ function StackAuthUserInterface({
 }) {
   const [user, setUser] = useState<UserInterface | null>(null)
 
-  // Use Stack Auth hook in isolated component with defensive error handling
+  // YOUR EXACT DEFENSIVE PATTERN - Enhanced useUser() with debugging
   const StackAuthHookUser = () => {
-    if (!stackComponents) return null
+    if (!stackComponents) {
+      console.log('UserSystem: No stack components available')
+      return null
+    }
 
     try {
       const { useUser } = stackComponents
       
-      // CRITICAL FIX: Defensive useUser() call with comprehensive error handling
-      let stackUser
-      try {
-        if (!useUser || typeof useUser !== 'function') {
-          console.log('UserSystem: useUser hook not available')
-          return null
-        }
-        
-        stackUser = useUser()
-        console.log('UserSystem: useUser() called successfully, user:', stackUser ? 'AUTHENTICATED' : 'NOT_AUTHENTICATED')
-        
-      } catch (userError) {
-        console.warn('UserSystem: useUser() threw error - toClientJson issue likely resolved:', userError)
-        return null
-      }
+      // YOUR RECOMMENDED DEFENSIVE useUser CALL
+      console.log('UserSystem: About to call useUser, type:', typeof useUser)
+      const stackUser = typeof useUser === 'function' ? useUser() : null
       
-      // Additional defensive check - ensure stackUser is defined and has expected structure
-      if (stackUser === undefined || stackUser === null) {
-        console.log('UserSystem: Stack user is null/undefined, staying in guest mode')
-        return null
-      }
+      // YOUR DEBUGGING LOGS
+      console.log('Stack User:', stackUser)
+      console.log('Stack User type:', typeof stackUser)
+      console.log('Stack User defined:', stackUser !== undefined && stackUser !== null)
       
-      // Update user state when Stack user changes - with defensive property access
       useEffect(() => {
-        try {
-          const convertedUser: UserInterface | null = stackUser ? {
-            id: stackUser?.id || 'unknown',
-            username: stackUser?.displayName || stackUser?.primaryEmail?.split('@')[0] || 'User',
-            email: stackUser?.primaryEmail || '',
-            role: 'user',
-            avatar: '👤',
-            joinDate: new Date().toISOString(),
-            lastActive: new Date().toISOString(),
-            scrollsMinted: 0,
-            organizationId: undefined
-          } : null
-
-          setUser(convertedUser)
-          onUserChange?.(convertedUser)
-          
-          console.log('UserSystem: User state updated successfully:', convertedUser ? 'USER_SET' : 'USER_CLEARED')
-          
-        } catch (conversionError) {
-          console.warn('UserSystem: Error converting Stack user to UserInterface:', conversionError)
+        if (!stackUser) {
+          console.log('UserSystem: No stack user, staying in guest mode')
           setUser(null)
           onUserChange?.(null)
+          return
         }
+        
+        // YOUR ENHANCED DEFENSIVE PROPERTY ACCESS
+        const convertedUser: UserInterface = {
+          id: stackUser.id ?? 'unknown',
+          username: stackUser.displayName ?? stackUser.primaryEmail?.split('@')[0] ?? 'User',
+          email: stackUser.primaryEmail ?? '',
+          role: 'user',
+          avatar: '👤',
+          joinDate: new Date().toISOString(),
+          lastActive: new Date().toISOString(),
+          scrollsMinted: 0,
+          organizationId: undefined
+        }
+
+        console.log('UserSystem: Setting converted user:', convertedUser)
+        setUser(convertedUser)
+        onUserChange?.(convertedUser)
+        
       }, [stackUser])
 
       return null // This component only manages state
       
-    } catch (componentError) {
-      console.warn('UserSystem: Stack Auth hook component error (isolated and handled):', componentError)
+    } catch (error) {
+      console.error('UserSystem: Error using useUser()', error)
       return null
     }
   }
 
   return (
     <>
-      {/# Stack Auth hook management with comprehensive error handling #/}
+      {/* Stack Auth hook management with YOUR DEFENSIVE PATTERN */}
       <StackAuthHookUser />
       
-      {/# User interface #/}
+      {/* User interface */}
       <div style={{ position: 'relative' }}>
         {user ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -319,19 +294,18 @@ function StackAuthUserInterface({
               padding: '4px',
               backdropFilter: 'blur(10px)'
             }}>
-              {/# Defensive UserButton rendering #/}
-              {stackComponents?.UserButton ? (
-                <stackComponents.UserButton />
-              ) : (
-                <div style={{
-                  padding: '8px 12px',
-                  color: '#00ffff',
-                  fontSize: '12px',
-                  fontFamily: 'Orbitron, monospace'
-                }}>
-                  👤 {user.username}
-                </div>
-              )}
+              {/* YOUR RECOMMENDATION: Comment out UserButton to test if it's the toClientJson source */}
+              {/* {stackComponents?.UserButton && <stackComponents.UserButton />} */}
+              
+              {/* TEMPORARY SAFE FALLBACK instead of UserButton */}
+              <div style={{
+                padding: '8px 12px',
+                color: '#00ffff',
+                fontSize: '12px',
+                fontFamily: 'Orbitron, monospace'
+              }}>
+                👤 {user.username}
+              </div>
             </div>
           </div>
         ) : (
@@ -339,7 +313,7 @@ function StackAuthUserInterface({
         )}
       </div>
 
-      {/# User Dashboard Modal #/}
+      {/* User Dashboard Modal */}
       {showUserDashboard && user && (
         <UserDashboard 
           user={user}
@@ -378,7 +352,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
         maxHeight: '80vh',
         overflowY: 'auto'
       }}>
-        {/# Header #/}
+        {/* Header */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -412,7 +386,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </button>
         </div>
 
-        {/# User Info #/}
+        {/* User Info */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -460,7 +434,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </div>
         </div>
 
-        {/# User Stats #/}
+        {/* User Stats */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
@@ -494,7 +468,7 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
           </div>
         </div>
 
-        {/# Action Buttons #/}
+        {/* Action Buttons */}
         <div style={{
           display: 'flex',
           gap: '10px',
@@ -534,5 +508,3 @@ function UserDashboard({ user, onClose }: { user: UserInterface; onClose: () => 
     </div>
   )
 }
-
-*/
