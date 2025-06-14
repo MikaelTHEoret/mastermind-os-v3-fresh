@@ -15,13 +15,9 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
   const [stackComponents, setStackComponents] = useState<StackAuthComponents | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasValidConfig, setHasValidConfig] = useState(false);
-  const [initializationAttempted, setInitializationAttempted] = useState(false);
 
   useEffect(() => {
     async function initializeStackAuth() {
-      if (initializationAttempted) return;
-      setInitializationAttempted(true);
-
       try {
         // Check if we have the required environment variables
         const projectId = process.env.NEXT_PUBLIC_STACK_PROJECT_ID;
@@ -32,21 +28,12 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
         console.log('Publishable Key:', publishableKey ? 'SET' : 'NOT_SET');
 
         if (!projectId || !publishableKey) {
-          console.log('StackAuthProvider: Environment variables not configured, using guest mode permanently');
+          console.log('StackAuthProvider: Environment variables not configured, using guest mode');
           setHasValidConfig(false);
           setIsLoading(false);
           return;
         }
 
-        // TEMPORARY DISABLE: Skip Stack Auth entirely to eliminate toClientJson errors
-        console.log('StackAuthProvider: TEMPORARILY DISABLING Stack Auth to resolve toClientJson errors');
-        console.log('StackAuthProvider: Using guest mode until Stack Auth internal errors are resolved');
-        setHasValidConfig(false);
-        setIsLoading(false);
-        return;
-
-        /* ORIGINAL CODE - RE-ENABLE AFTER Stack AUTH FIXES:
-        
         // Try to dynamically import Stack Auth components
         console.log('StackAuthProvider: Loading Stack Auth components...');
         const { StackProvider, StackTheme } = await import('@stackframe/stack');
@@ -65,8 +52,6 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
         setStackComponents({ StackProvider, StackTheme });
         setHasValidConfig(true);
         
-        */
-        
       } catch (error) {
         console.log('StackAuthProvider: Error loading Stack Auth, falling back to guest mode:', error);
         setHasValidConfig(false);
@@ -76,7 +61,7 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
     }
 
     initializeStackAuth();
-  }, [initializationAttempted]);
+  }, []);
 
   // Show loading state
   if (isLoading) {
@@ -87,13 +72,6 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
     );
   }
 
-  // TEMPORARY: Always use guest mode to eliminate toClientJson errors
-  // TODO: Re-enable Stack Auth after internal errors are resolved
-  console.log('StackAuthProvider: Running in guest mode (Stack Auth temporarily disabled)');
-  return <>{children}</>;
-
-  /* ORIGINAL CODE - RE-ENABLE AFTER STACK AUTH FIXES:
-  
   // If Stack Auth is available and configured, use it
   if (hasValidConfig && stackComponents) {
     const { StackProvider, StackTheme } = stackComponents;
@@ -115,6 +93,4 @@ export function StackAuthProvider({ children }: StackAuthProviderProps) {
   // Fallback to guest mode without any Stack Auth components
   console.log('StackAuthProvider: Running in guest mode');
   return <>{children}</>;
-  
-  */
 }
