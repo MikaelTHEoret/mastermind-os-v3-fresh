@@ -60,20 +60,15 @@ export default function Handler(props: PageProps) {
 
   const loadStackAuth = async () => {
     try {
-      // Dynamic import Stack Auth - NO server app creation on client side
+      // Dynamic import Stack Auth - use client-side StackProvider directly
       const stackModule = await import('@stackframe/stack')
       
-      // Create client-only Stack App
-      const stackApp = new stackModule.StackApp({
-        projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
-        publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
-      })
-      
+      // For client-side authentication pages, we don't need to create an app instance
+      // The StackProvider will handle this automatically when we provide the project config
       setStackComponents({
         StackHandler: stackModule.StackHandler,
         StackProvider: stackModule.StackProvider,
-        StackTheme: stackModule.StackTheme,
-        stackApp
+        StackTheme: stackModule.StackTheme
       })
       setStackReady(true)
       console.log('Stack Auth loaded successfully for client-side authentication')
@@ -170,12 +165,15 @@ export default function Handler(props: PageProps) {
     )
   }
 
-  // Stack Auth is ready - render handler with client-side app
+  // Stack Auth is ready - render handler with StackProvider using project config
   try {
-    const { StackHandler, StackProvider, StackTheme, stackApp } = stackComponents
+    const { StackHandler, StackProvider, StackTheme } = stackComponents
     
     return (
-      <StackProvider app={stackApp}>
+      <StackProvider 
+        projectId={process.env.NEXT_PUBLIC_STACK_PROJECT_ID!}
+        publishableClientKey={process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!}
+      >
         <StackTheme>
           <StackHandler 
             fullPage 
