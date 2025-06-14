@@ -26,45 +26,30 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
   const loadStackAuth = async () => {
     try {
       // Import Stack Auth and create proper client app
-      const [stackModule, { getStackServerApp }] = await Promise.all([
+      const [stackModule, { createClientStackApp }] = await Promise.all([
         import('@stackframe/stack'),
         import('@/stack')
       ])
       
-      // Try to get the server app for SSR compatibility
-      const stackServerApp = await getStackServerApp()
+      // Try to create client app
+      const clientApp = await createClientStackApp()
       
-      if (stackServerApp) {
-        // Use server app if available (for full-stack setup)
+      if (clientApp) {
+        // Use client app configuration
         setStackComponents({
           StackProvider: stackModule.StackProvider,
           StackTheme: stackModule.StackTheme,
-          app: stackServerApp
+          app: clientApp
         })
-        console.log('StackAuthProvider: Using server app configuration')
+        console.log('StackAuthProvider: Using client app configuration')
       } else {
-        // Create client app if server app not available
-        const stackClientApp = stackModule.StackApp ? new stackModule.StackApp({
-          projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
-          publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
-        }) : null
-        
-        if (stackClientApp) {
-          setStackComponents({
-            StackProvider: stackModule.StackProvider,
-            StackTheme: stackModule.StackTheme,
-            app: stackClientApp
-          })
-          console.log('StackAuthProvider: Using client app configuration')
-        } else {
-          // Fallback: Use StackProvider without app (if supported)
-          setStackComponents({
-            StackProvider: stackModule.StackProvider,
-            StackTheme: stackModule.StackTheme,
-            app: null
-          })
-          console.log('StackAuthProvider: Using provider-only configuration')
-        }
+        // Fallback: Use StackProvider without app (config-based)
+        setStackComponents({
+          StackProvider: stackModule.StackProvider,
+          StackTheme: stackModule.StackTheme,
+          app: null
+        })
+        console.log('StackAuthProvider: Using config-based provider (no app)')
       }
       
       setStackReady(true)
@@ -101,7 +86,7 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
     const { StackProvider, StackTheme, app } = stackComponents
     
     if (app) {
-      // Use app-based provider (preferred)
+      // Use app-based provider (preferred when client app available)
       return (
         <StackProvider app={app}>
           <StackTheme>
@@ -110,7 +95,7 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
         </StackProvider>
       )
     } else {
-      // Use config-based provider (fallback)
+      // Use config-based provider (fallback when no app available)
       return (
         <StackProvider 
           projectId={process.env.NEXT_PUBLIC_STACK_PROJECT_ID!}
