@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react'
 
-// Define proper Next.js 15 page props interface
+// Next.js 15 compatible page props interface - params and searchParams are now promises
 interface PageProps {
-  params: { stack: string[] }
-  searchParams: { [key: string]: string | string[] | undefined }
+  params: Promise<{ stack: string[] }>
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export default function Handler(props: PageProps) {
@@ -14,30 +14,49 @@ export default function Handler(props: PageProps) {
   const [stackReady, setStackReady] = useState(false)
   const [stackComponents, setStackComponents] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
+  const [resolvedProps, setResolvedProps] = useState<any>(null)
   
   useEffect(() => {
     setMounted(true)
     
-    // Debug environment variables
-    const debug = {
-      projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID || 'NOT_SET',
-      publishableKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY ? 'SET' : 'NOT_SET',
-      secretKey: process.env.STACK_SECRET_SERVER_KEY ? 'SET' : 'NOT_SET',
-      nodeEnv: process.env.NODE_ENV,
-      url: typeof window !== 'undefined' ? window.location.href : 'SSR',
-      params: props.params,
-      searchParams: props.searchParams
+    // Resolve the promise-based props for Next.js 15
+    const resolveProps = async () => {
+      try {
+        const [params, searchParams] = await Promise.all([
+          props.params,
+          props.searchParams
+        ])
+        
+        const resolved = { params, searchParams }
+        setResolvedProps(resolved)
+        
+        // Debug environment variables
+        const debug = {
+          projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID || 'NOT_SET',
+          publishableKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY ? 'SET' : 'NOT_SET',
+          secretKey: process.env.STACK_SECRET_SERVER_KEY ? 'SET' : 'NOT_SET',
+          nodeEnv: process.env.NODE_ENV,
+          url: typeof window !== 'undefined' ? window.location.href : 'SSR',
+          params: params,
+          searchParams: searchParams
+        }
+        setDebugInfo(debug)
+        console.log('Stack Auth Handler Environment Debug:', debug)
+        
+        // Check if Stack Auth is configured
+        const isStackAuthEnabled = !!(process.env.NEXT_PUBLIC_STACK_PROJECT_ID && process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY)
+        
+        if (isStackAuthEnabled) {
+          loadStackAuth()
+        }
+      } catch (err) {
+        console.error('Error resolving props:', err)
+        setError('Failed to resolve page props')
+      }
     }
-    setDebugInfo(debug)
-    console.log('Stack Auth Handler Environment Debug:', debug)
     
-    // Check if Stack Auth is configured
-    const isStackAuthEnabled = !!(process.env.NEXT_PUBLIC_STACK_PROJECT_ID && process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY)
-    
-    if (isStackAuthEnabled) {
-      loadStackAuth()
-    }
-  }, [props.params, props.searchParams])
+    resolveProps()
+  }, [props])
 
   const loadStackAuth = async () => {
     try {
@@ -66,8 +85,8 @@ export default function Handler(props: PageProps) {
     }
   }
 
-  // During SSR, show loading
-  if (!mounted) {
+  // During SSR or while resolving props, show loading
+  if (!mounted || !resolvedProps) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-cyan-400 text-xl font-mono">Loading...</div>
@@ -152,7 +171,7 @@ export default function Handler(props: PageProps) {
     )
   }
 
-  // Stack Auth is ready - render handler with OFFICIAL ROUTEPROPS PATTERN
+  // Stack Auth is ready - render handler with Next.js 15 compatible props
   try {
     const { StackHandler, StackProvider, StackTheme, stackServerApp } = stackComponents
     
@@ -162,7 +181,7 @@ export default function Handler(props: PageProps) {
           <StackHandler 
             fullPage 
             app={stackServerApp} 
-            routeProps={props}
+            routeProps={resolvedProps}
           />
         </StackTheme>
       </StackProvider>
@@ -180,7 +199,7 @@ export default function Handler(props: PageProps) {
             {handlerError instanceof Error ? handlerError.message : 'Unknown handler error'}
           </div>
           <div className="text-gray-400 text-xs bg-gray-900/50 p-2 rounded mb-4">
-            Props: {JSON.stringify({ params: props.params, searchParams: props.searchParams }, null, 2)}
+            Props: {JSON.stringify(resolvedProps, null, 2)}
           </div>
           <a 
             href="/"
