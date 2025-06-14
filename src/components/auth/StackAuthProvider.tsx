@@ -25,31 +25,25 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
 
   const loadStackAuth = async () => {
     try {
-      // Import Stack Auth and create proper client app
-      const [stackModule, { createClientStackApp }] = await Promise.all([
+      // Import Stack Auth components
+      const [stackModule, { getStackAuthConfig }] = await Promise.all([
         import('@stackframe/stack'),
         import('@/stack')
       ])
       
-      // Try to create client app
-      const clientApp = await createClientStackApp()
+      // Get Stack Auth configuration
+      const config = getStackAuthConfig()
       
-      if (clientApp) {
-        // Use client app configuration
+      if (config) {
+        // Use config-based Stack Auth setup
         setStackComponents({
           StackProvider: stackModule.StackProvider,
           StackTheme: stackModule.StackTheme,
-          app: clientApp
+          config: config
         })
-        console.log('StackAuthProvider: Using client app configuration')
+        console.log('StackAuthProvider: Using config-based Stack Auth')
       } else {
-        // Fallback: Use StackProvider without app (config-based)
-        setStackComponents({
-          StackProvider: stackModule.StackProvider,
-          StackTheme: stackModule.StackTheme,
-          app: null
-        })
-        console.log('StackAuthProvider: Using config-based provider (no app)')
+        console.log('StackAuthProvider: Stack Auth configuration not available')
       }
       
       setStackReady(true)
@@ -81,21 +75,24 @@ export default function StackAuthProvider({ children }: { children: React.ReactN
     return <>{children}</>
   }
 
-  // Stack Auth is ready - render with appropriate provider setup
+  // Stack Auth is ready - render with config-based provider
   try {
-    const { StackProvider, StackTheme, app } = stackComponents
+    const { StackProvider, StackTheme, config } = stackComponents
     
-    if (app) {
-      // Use app-based provider (preferred when client app available)
+    if (config) {
+      // Use config-based provider
       return (
-        <StackProvider app={app}>
+        <StackProvider 
+          projectId={config.projectId}
+          publishableClientKey={config.publishableClientKey}
+        >
           <StackTheme>
             {children}
           </StackTheme>
         </StackProvider>
       )
     } else {
-      // Use config-based provider (fallback when no app available)
+      // Direct environment variable fallback
       return (
         <StackProvider 
           projectId={process.env.NEXT_PUBLIC_STACK_PROJECT_ID!}
