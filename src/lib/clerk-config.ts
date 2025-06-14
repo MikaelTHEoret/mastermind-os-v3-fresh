@@ -321,9 +321,9 @@ export const clerkAppearance = {
     },
   },
   layout: {
-    socialButtonsPlacement: 'bottom',
-    socialButtonsVariant: 'blockButton',
-    logoPlacement: 'inside',
+    socialButtonsPlacement: 'bottom' as const,
+    socialButtonsVariant: 'blockButton' as const,
+    logoPlacement: 'inside' as const,
   },
 };
 
