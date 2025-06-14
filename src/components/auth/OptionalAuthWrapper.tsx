@@ -1,6 +1,5 @@
 'use client'
 
-import { isStackAuthEnabled } from '@/stack'
 import { useEffect, useState } from 'react'
 
 interface OptionalAuthWrapperProps {
@@ -9,18 +8,39 @@ interface OptionalAuthWrapperProps {
 
 export default function OptionalAuthWrapper({ children }: OptionalAuthWrapperProps) {
   const [mounted, setMounted] = useState(false)
+  const [stackAuthStatus, setStackAuthStatus] = useState<'checking' | 'enabled' | 'disabled'>('checking')
   
   useEffect(() => {
     setMounted(true)
+    
+    const checkStackAuth = async () => {
+      try {
+        // Import and call the function properly
+        const { isStackAuthEnabledClient } = await import('@/stack')
+        
+        if (isStackAuthEnabledClient()) {
+          setStackAuthStatus('enabled')
+          console.log('OptionalAuthWrapper: Stack Auth enabled')
+        } else {
+          setStackAuthStatus('disabled')
+          console.log('OptionalAuthWrapper: Stack Auth disabled - environment variables not configured')
+        }
+      } catch (error) {
+        console.log('OptionalAuthWrapper: Stack Auth check failed:', error)
+        setStackAuthStatus('disabled')
+      }
+    }
+    
+    checkStackAuth()
   }, [])
 
   // During SSR or before mounting, just render children without any Stack Auth hooks
-  if (!mounted) {
+  if (!mounted || stackAuthStatus === 'checking') {
     return <>{children}</>
   }
 
   // After mounting, check if Stack Auth is enabled
-  if (!isStackAuthEnabled) {
+  if (stackAuthStatus === 'disabled') {
     return <>{children}</>
   }
 
@@ -43,22 +63,13 @@ function SafeStackAuthWrapper({ children }: { children: React.ReactNode }) {
         
         if (!mounted) return
         
-        // Create a safe user hook that handles errors
-        const getUserSafely = () => {
-          try {
-            return stackModule.useUser?.()
-          } catch (error) {
-            console.log('Stack Auth useUser error (safe wrapper):', error)
-            return null
-          }
-        }
-        
         // For now, just mark as ready - actual user state will be managed
         // by UserSystem component which has proper hook isolation
         setStackReady(true)
+        console.log('SafeStackAuthWrapper: Stack Auth modules loaded successfully')
         
       } catch (error) {
-        console.log('Stack Auth initialization error (safe wrapper):', error)
+        console.log('SafeStackAuthWrapper: Stack Auth initialization error:', error)
       }
     }
     
