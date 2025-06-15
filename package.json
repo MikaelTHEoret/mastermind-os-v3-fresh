@@ -1,29 +1,36 @@
 {
   "name": "mastermind-os-v3-fresh",
-  "version": "3.0.4",
+  "version": "3.0.3",
   "description": "Fresh MasterMind OS v3 deployment - clean slate - Clerk authentication",
   "scripts": {
     "dev": "next dev",
     "build": "next build", 
     "start": "next start",
-    "clean": "rm -rf .next"
+    "clean": "rm -rf .next",
+    "lint": "next lint"
   },
   "dependencies": {
-    "next": "15.2.3",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "@clerk/nextjs": "^6.7.0",
+    "next": "^15.2.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@clerk/nextjs": "^6.22.0",
     "lucide-react": "^0.460.0",
+    "framer-motion": "^11.11.17",
     "clsx": "^2.0.0",
     "tailwind-merge": "^2.0.0",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8",
-    "autoprefixer": "^10"
+    "@radix-ui/react-slot": "^1.0.2",
+    "@radix-ui/react-label": "^2.0.2",
+    "class-variance-authority": "^0.7.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "typescript": "^5"
+    "typescript": "^5",
+    "tailwindcss": "^3.4.1",
+    "postcss": "^8",
+    "autoprefixer": "^10",
+    "eslint": "^8",
+    "eslint-config-next": "^15.2.3"
   }
 }
