@@ -127,6 +127,13 @@ interface ConfiguredSource {
   isCustom?: boolean;
 }
 
+interface EnvProcessingResult {
+  success: boolean;
+  message: string;
+  variables: { [key: string]: string };
+  addedSources: number;
+}
+
 export default function SourcesConfigDashboard() {
   const { user } = useUser();
   const [configuredSources, setConfiguredSources] = useState<ConfiguredSource[]>([]);
@@ -138,9 +145,9 @@ export default function SourcesConfigDashboard() {
   const [loading, setLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [envProcessingResult, setEnvProcessingResult] = useState(null);
+  const [envProcessingResult, setEnvProcessingResult] = useState<EnvProcessingResult | null>(null);
   const [expandedSources, setExpandedSources] = useState<{ [key: string]: boolean }>({});
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add custom scrollbar styles
   useEffect(() => {
@@ -488,7 +495,7 @@ export default function SourcesConfigDashboard() {
           });
           
           setTimeout(() => setEnvProcessingResult(null), 7000);
-        } catch (error) {
+        } catch (error: any) {
           setEnvProcessingResult({
             success: false,
             message: `Error processing file: ${error.message}`,
