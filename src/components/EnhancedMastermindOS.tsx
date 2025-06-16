@@ -246,8 +246,8 @@ export default function EnhancedMastermindOS() {
                 top: '100%',
                 left: '0',
                 marginTop: '12px',
-                width: '350px',
-                padding: '16px',
+                width: '450px', // Increased width to accommodate larger logo
+                padding: '20px', // Increased padding
                 background: 'rgba(0, 0, 0, 0.95)',
                 border: '2px solid #00ffff',
                 borderRadius: '12px',
@@ -341,22 +341,22 @@ export default function EnhancedMastermindOS() {
                   <p style={{ 
                     color: 'rgba(255, 255, 255, 0.9)', 
                     fontSize: '10px', 
-                    margin: '0 0 8px 0',
+                    margin: '0 0 12px 0',
                     fontFamily: 'Inter, sans-serif'
                   }}>
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Author:</span> Mikael Theoret
                   </p>
                   
-                  {/* Affiliation with Logo - Adjusted height to fit between lines */}
+                  {/* Affiliation with Large Logo */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between',
-                    marginTop: '8px',
+                    marginTop: '12px',
                     position: 'relative',
-                    minHeight: '32px' // Ensure enough space for the logo
+                    minHeight: '80px' // More space for the larger logo
                   }}>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <span style={{ color: '#00ffff', fontWeight: '600', fontSize: '10px' }}>Affiliation:</span>
                       <br />
                       <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '10px' }}>Global Science League</span>
@@ -365,18 +365,23 @@ export default function EnhancedMastermindOS() {
                       position: 'relative',
                       zIndex: 200,
                       display: 'flex',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      marginLeft: '20px'
                     }}>
                       <img 
                         src="/logo/global_science_league.png" 
                         alt="Global Science League" 
                         style={{ 
-                          height: '32px', // Increased from 24px to fill the space better
-                          width: 'auto',
+                          height: '70px', // Much larger logo!
+                          width: '70px', // Square aspect for better visibility
+                          objectFit: 'contain', // Ensure proper scaling
                           filter: 'brightness(1.2) contrast(1.1)',
                           opacity: 0.9,
                           position: 'relative',
-                          zIndex: 300
+                          zIndex: 300,
+                          border: '1px solid rgba(0, 255, 255, 0.2)', // Subtle border
+                          borderRadius: '8px', // Rounded corners
+                          padding: '4px' // Internal padding
                         }}
                         onLoad={(e) => {
                           console.log('Global Science League logo loaded successfully');
@@ -391,7 +396,7 @@ export default function EnhancedMastermindOS() {
                 </div>
 
                 <div style={{ 
-                  marginTop: '12px', 
+                  marginTop: '16px', 
                   paddingTop: '12px', 
                   borderTop: '1px solid rgba(0, 255, 255, 0.3)',
                   textAlign: 'center'
