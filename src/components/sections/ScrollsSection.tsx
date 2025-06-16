@@ -424,7 +424,9 @@ export default function ScrollsSection() {
       } else {
         addTerminalLine(`⚠️ No CID - upload to IPFS first for blockchain minting`);
       }
-      addTerminalLine(`🔗 Content hash: ${extractedMetadata.keccakHash.substring(0, 20)}...`);
+      if (extractedMetadata.keccakHash && typeof extractedMetadata.keccakHash === 'string') {
+        addTerminalLine(`🔗 Content hash: ${extractedMetadata.keccakHash.substring(0, 20)}...`);
+      }
       
     } catch (error: any) {
       console.error('Error auto-filling minter:', error);
@@ -449,9 +451,9 @@ export default function ScrollsSection() {
         }));
         
         addTerminalLine(`⚡ Used fallback metadata for ${file.name}`);
-      if (extractedMetadata.keccakHash && typeof extractedMetadata.keccakHash === 'string') {
-        addTerminalLine(`🔗 Content hash: ${extractedMetadata.keccakHash.substring(0, 20)}...`);
-      }
+        if (fallbackMetadata.keccakHash && typeof fallbackMetadata.keccakHash === 'string') {
+          addTerminalLine(`🔗 Content hash: ${fallbackMetadata.keccakHash.substring(0, 20)}...`);
+        }
       } catch (fallbackError) {
         addTerminalLine(`❌ Complete failure to process ${file.name}`);
       }
