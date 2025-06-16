@@ -57,13 +57,6 @@ interface MintingData {
   isValidData: boolean;
 }
 
-interface WalletState {
-  connected: boolean;
-  address: string;
-  chainId: string;
-  balance: string;
-}
-
 export default function ScrollsSection() {
   const { user, isLoaded } = useUser();
   const { isSignedIn } = useAuth();
@@ -100,14 +93,6 @@ export default function ScrollsSection() {
   const [maxStorage] = useState(100 * 1024 * 1024);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeEditorTab, setActiveEditorTab] = useState<string | null>(null);
-  
-  // Wallet state - now managed by context
-  // const [walletState, setWalletState] = useState<WalletState>({
-  //   connected: false,
-  //   address: '',
-  //   chainId: '',
-  //   balance: ''
-  // });
   
   // Minting state
   const [mintingData, setMintingData] = useState<MintingData>({
@@ -466,16 +451,10 @@ export default function ScrollsSection() {
         const ethereum = (window as any).ethereum;
         const accounts = await ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
-          const chainId = await ethereum.request({ method: 'eth_chainId' });
-          setWalletState({
-            connected: true,
-            address: accounts[0],
-            chainId,
-            balance: '0'
-          });
+          // No longer calling setWalletState - wallet state is managed by useWallet context
           addTerminalLine(`🔗 Wallet connected: ${accounts[0].substring(0, 8)}...`);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error checking wallet connection:', { message: error?.message, error });
       }
     }
