@@ -347,13 +347,14 @@ export default function EnhancedMastermindOS() {
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Author:</span> Mikael Theoret
                   </p>
                   
-                  {/* Affiliation with Logo - Fixed with correct filename */}
+                  {/* Affiliation with Logo - Adjusted height to fit between lines */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between',
                     marginTop: '8px',
-                    position: 'relative'
+                    position: 'relative',
+                    minHeight: '32px' // Ensure enough space for the logo
                   }}>
                     <div>
                       <span style={{ color: '#00ffff', fontWeight: '600', fontSize: '10px' }}>Affiliation:</span>
@@ -370,7 +371,7 @@ export default function EnhancedMastermindOS() {
                         src="/logo/global_science_league.png" 
                         alt="Global Science League" 
                         style={{ 
-                          height: '24px',
+                          height: '32px', // Increased from 24px to fill the space better
                           width: 'auto',
                           filter: 'brightness(1.2) contrast(1.1)',
                           opacity: 0.9,
