@@ -99,6 +99,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (error.code === 4902) {
         // Chain not added to wallet, try to add it
         try {
+          const ethereum = (window as any).ethereum;
           await ethereum.request({
             method: 'wallet_addEthereumChain',
             params: [getNetworkConfig(chainId)],
