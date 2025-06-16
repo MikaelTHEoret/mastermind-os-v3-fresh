@@ -1,14 +1,73 @@
 "use client"
 
 import { SignInButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs'
-import { User } from 'lucide-react'
-import { dark } from '@clerk/themes'
+import { User, Wallet } from 'lucide-react'
+import { useWallet } from '@/context/WalletContext'
 
 export default function UserSystem() {
+  const { walletState, connectWallet, disconnectWallet } = useWallet();
+
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         
+        {/* Web3 Wallet Icon */}
+        <div style={{
+          background: walletState.connected 
+            ? 'rgba(0, 255, 170, 0.15)' 
+            : 'rgba(138, 43, 226, 0.15)',
+          border: walletState.connected 
+            ? '2px solid rgba(0, 255, 170, 0.4)' 
+            : '2px solid rgba(138, 43, 226, 0.4)',
+          borderRadius: '25px',
+          padding: '6px',
+          backdropFilter: 'blur(10px)',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          position: 'relative'
+        }}
+        onClick={walletState.connected ? disconnectWallet : connectWallet}
+        onMouseOver={(e) => {
+          e.currentTarget.style.background = walletState.connected 
+            ? 'rgba(0, 255, 170, 0.25)' 
+            : 'rgba(138, 43, 226, 0.25)';
+          e.currentTarget.style.boxShadow = walletState.connected 
+            ? '0 0 15px rgba(0, 255, 170, 0.4)' 
+            : '0 0 15px rgba(138, 43, 226, 0.4)';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.background = walletState.connected 
+            ? 'rgba(0, 255, 170, 0.15)' 
+            : 'rgba(138, 43, 226, 0.15)';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+        title={walletState.connected 
+          ? `Connected: ${walletState.address.substring(0, 8)}...${walletState.address.substring(36)}` 
+          : 'Connect Web3 Wallet'
+        }
+        >
+          <Wallet style={{ 
+            width: '18px', 
+            height: '18px', 
+            color: walletState.connected ? '#00ffaa' : '#8a2be2'
+          }} />
+          
+          {/* Connection Status Indicator */}
+          <div style={{
+            position: 'absolute',
+            top: '-2px',
+            right: '-2px',
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: walletState.connected ? '#00ffaa' : '#8a2be2',
+            border: '2px solid rgba(0, 0, 0, 0.8)',
+            boxShadow: walletState.connected 
+              ? '0 0 8px rgba(0, 255, 170, 0.6)' 
+              : '0 0 8px rgba(138, 43, 226, 0.6)'
+          }} />
+        </div>
+
         {/* When user is signed in */}
         <SignedIn>
           <div style={{
@@ -22,7 +81,6 @@ export default function UserSystem() {
               afterSignOutUrl="/"
               userProfileMode="modal"
               appearance={{
-                baseTheme: dark,
                 variables: {
                   colorPrimary: '#00ffff',
                   borderRadius: '15px'

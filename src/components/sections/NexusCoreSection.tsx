@@ -44,15 +44,17 @@ export default function NexusCoreSection() {
       
       <div style={{
         height: '100%',
-        background: 'rgba(0, 0, 0, 0.7)',
-        backdropFilter: 'blur(8px)',
+        background: 'transparent',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
         overflow: 'hidden',
-        padding: '2rem'
+        padding: '0',
+        paddingTop: '0',
+        marginTop: '-30px',
+        marginLeft: '15px'
       }}>
         {/* Energy Field Background */}
         <div style={{
@@ -71,8 +73,8 @@ export default function NexusCoreSection() {
 
         {/* Main Nexus Core */}
         <div style={{
-          width: '300px',
-          height: '300px',
+          width: '530px',
+          height: '530px',
           borderRadius: '50%',
           background: `
             radial-gradient(circle at center,
@@ -84,12 +86,14 @@ export default function NexusCoreSection() {
           `,
           border: `3px solid ${theme.primaryColor}`,
           position: 'relative',
-          animation: `coreRotate ${20 - (coreEnergy * 0.1)}s linear infinite`,
+          animation: `coreRotate 20s linear infinite`,
           boxShadow: `
             0 0 80px ${theme.primaryColor}${Math.floor(coreEnergy).toString(16).padStart(2, '0')},
             inset 0 0 50px ${theme.secondaryColor}50
           `,
-          cursor: 'pointer'
+          cursor: 'pointer',
+          flexShrink: 0,
+          transform: 'translateY(-40px)'
         }}
         onClick={() => setCoreActive(!coreActive)}
         >
@@ -98,7 +102,7 @@ export default function NexusCoreSection() {
             position: 'absolute',
             top: '50%',
             left: '50%',
-            transform: 'translate(-50%, -50%)',
+            transform: 'translate(-50%, -65%)',
             width: '120px',
             height: '120px',
             borderRadius: '50%',
@@ -110,7 +114,7 @@ export default function NexusCoreSection() {
                 ${theme.accentColor}40 100%
               )
             `,
-            animation: `coreRotate ${15 - (coreEnergy * 0.05)}s linear infinite reverse`,
+            animation: `coreRotate 15s linear infinite reverse`,
             boxShadow: `0 0 40px rgba(255, 255, 255, ${coreActive ? 0.8 : 0.4})`
           }}>
             {/* Core Center */}
@@ -131,7 +135,7 @@ export default function NexusCoreSection() {
           {/* Connection Nodes */}
           {[...Array(connectionNodes)].map((_, i) => {
             const angle = (360 / connectionNodes) * i
-            const radius = 140
+            const radius = 245
             const x = Math.cos((angle * Math.PI) / 180) * radius
             const y = Math.sin((angle * Math.PI) / 180) * radius
             
@@ -166,7 +170,7 @@ export default function NexusCoreSection() {
                   top: '50%',
                   left: '50%',
                   width: '1px',
-                  height: '140px',
+                  height: '245px',
                   background: `linear-gradient(transparent, ${theme.primaryColor}50, transparent)`,
                   transformOrigin: 'top center',
                   transform: `rotate(${angle}deg)`,
@@ -178,126 +182,46 @@ export default function NexusCoreSection() {
           })}
         </div>
 
-        {/* System Status Display */}
+        {/* Development Status Message */}
         <div style={{
-          marginTop: '40px',
-          textAlign: 'center',
-          zIndex: 2
+          position: 'fixed',
+          bottom: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 2,
+          textAlign: 'center'
         }}>
-          <h2 style={{
-            fontSize: '32px',
-            color: theme.textColor,
-            marginBottom: '30px',
-            textShadow: `0 0 20px ${theme.primaryColor}`,
-            fontFamily: 'Orbitron, monospace',
-            fontWeight: '700'
-          }}>
-            🧠 {theme.name} ORCHESTRATION
-          </h2>
-          
           <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '30px',
-            marginBottom: '30px'
+            background: 'rgba(0, 0, 0, 0.85)',
+            border: `2px solid ${theme.primaryColor}`,
+            borderRadius: '12px',
+            padding: '20px 40px',
+            boxShadow: `
+              0 0 25px ${theme.primaryColor}60,
+              inset 0 0 15px rgba(0, 0, 0, 0.7)
+            `,
+            backdropFilter: 'blur(10px)'
           }}>
             <div style={{
-              ...commonStyles.card,
-              textAlign: 'center',
-              padding: '20px',
-              minWidth: '120px'
+              fontSize: '18px',
+              fontWeight: '600',
+              color: theme.primaryColor,
+              fontFamily: 'Orbitron, monospace',
+              textShadow: `0 0 10px ${theme.primaryColor}80`,
+              letterSpacing: '1px'
             }}>
-              <div style={{
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: theme.primaryColor,
-                marginBottom: '5px'
-              }}>
-                {Math.round(coreEnergy)}%
-              </div>
-              <div style={{ fontSize: '12px', color: '#888' }}>
-                CORE ENERGY
-              </div>
+              Nexus Core : Inter Planetary Knowledge System Gateway
             </div>
-
             <div style={{
-              ...commonStyles.card,
-              textAlign: 'center',
-              padding: '20px',
-              borderColor: `${theme.secondaryColor}50`,
-              minWidth: '120px'
+              fontSize: '14px',
+              color: theme.secondaryColor,
+              marginTop: '8px',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontStyle: 'italic',
+              opacity: 0.9
             }}>
-              <div style={{
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: theme.secondaryColor,
-                marginBottom: '5px'
-              }}>
-                {connectionNodes}
-              </div>
-              <div style={{ fontSize: '12px', color: '#888' }}>
-                ACTIVE NODES
-              </div>
+              ( in development )
             </div>
-
-            <div style={{
-              ...commonStyles.card,
-              textAlign: 'center',
-              padding: '20px',
-              borderColor: `${getStatusColor('active')}50`,
-              minWidth: '120px'
-            }}>
-              <div style={{
-                fontSize: '24px',
-                fontWeight: 'bold',
-                color: getStatusColor('active'),
-                marginBottom: '5px'
-              }}>
-                {activeAgents}
-              </div>
-              <div style={{ fontSize: '12px', color: '#888' }}>
-                AGENTS
-              </div>
-            </div>
-          </div>
-
-          {/* Control Buttons */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '15px' }}>
-            <button
-              onClick={() => setCoreActive(!coreActive)}
-              style={{
-                ...commonStyles.primaryButton,
-                background: coreActive 
-                  ? `linear-gradient(45deg, ${getStatusColor('error')}50, ${getStatusColor('error')}30)`
-                  : `linear-gradient(45deg, ${getStatusColor('active')}50, ${getStatusColor('active')}30)`,
-                borderColor: coreActive ? getStatusColor('error') : getStatusColor('active'),
-                color: coreActive ? getStatusColor('error') : getStatusColor('active')
-              }}
-            >
-              {coreActive ? '⏸️ DISABLE CORE' : '▶️ ACTIVATE CORE'}
-            </button>
-
-            <button
-              style={{
-                ...commonStyles.primaryButton,
-                borderColor: theme.accentColor,
-                color: theme.accentColor,
-                background: `linear-gradient(45deg, ${theme.accentColor}30, ${theme.accentColor}20)`
-              }}
-            >
-              ⚡ OPTIMIZE MATRIX
-            </button>
-
-            <button
-              style={{
-                ...commonStyles.primaryButton,
-                borderColor: theme.secondaryColor,
-                color: theme.secondaryColor,
-                background: `linear-gradient(45deg, ${theme.secondaryColor}30, ${theme.secondaryColor}20)`
-              }}
-            >
-              🔄 NEURAL SYNC
-            </button>
           </div>
         </div>
       </div>

@@ -1,9 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Brain, Scroll, Database, BarChart3, Building2, Layout } from 'lucide-react'
+import { Scroll, Database, BarChart3, Building2, Layout } from 'lucide-react'
 import EnhancedNexusBackground from './EnhancedNexusBackground'
 import NexusCoreSection from './sections/NexusCoreSection'
+import ScrollsSection from './sections/ScrollsSection'
+import MemorySection from './sections/MemorySection'
+import AnalyticsSection from './sections/AnalyticsSection'
+import EnterpriseSection from './sections/EnterpriseSection'
+import DashboardSection from './sections/DashboardSection'
 import UserSystem from './UserSystem'
 import { getTheme } from '../lib/theme-config'
 
@@ -24,7 +29,6 @@ interface User {
 export default function EnhancedMastermindOS() {
   const [activePanel, setActivePanel] = useState<ActivePanel>('nexus')
   const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -33,12 +37,8 @@ export default function EnhancedMastermindOS() {
     return () => clearTimeout(timer)
   }, [])
 
-  const handleUserChange = (newUser: User | null) => {
-    setUser(newUser)
-  }
-
   const navigationItems = [
-    { key: 'nexus', label: 'NEXUS', icon: Brain, description: 'Neural orchestration core' },
+    { key: 'nexus', label: 'NEXUS', icon: Layout, description: 'Neural orchestration core' },
     { key: 'scrolls', label: 'SCROLLS', icon: Scroll, description: 'Sovereign scroll development' },
     { key: 'memory', label: 'MEMORY', icon: Database, description: 'Distributed knowledge lattice' },
     { key: 'analytics', label: 'ANALYTICS', icon: BarChart3, description: 'Intelligence analysis hub' },
@@ -52,55 +52,18 @@ export default function EnhancedMastermindOS() {
     switch (activePanel) {
       case 'nexus':
         return <NexusCoreSection />
+      case 'scrolls':
+        return <ScrollsSection />
+      case 'memory':
+        return <MemorySection />
+      case 'analytics':
+        return <AnalyticsSection />
+      case 'enterprise':
+        return <EnterpriseSection />
+      case 'dashboard':
+        return <DashboardSection />
       default:
-        return (
-          <div style={{
-            padding: '32px',
-            height: '100%',
-            background: currentTheme.backgroundGradient,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <h2 style={{ 
-              fontSize: '48px', 
-              color: currentTheme.primaryColor, 
-              fontWeight: 'bold', 
-              marginBottom: '16px',
-              fontFamily: 'Orbitron, monospace',
-              textAlign: 'center',
-              textShadow: `0 0 30px ${currentTheme.primaryColor}50`
-            }}>
-              🚀 {currentTheme.name}
-            </h2>
-            <p style={{ 
-              color: currentTheme.textColor, 
-              fontSize: '18px', 
-              marginBottom: '32px',
-              textAlign: 'center',
-              fontFamily: 'Rajdhani, sans-serif'
-            }}>
-              Enhanced Nexus Core Protocol v3.0 - {currentTheme.description}
-            </p>
-            <div style={{
-              background: currentTheme.cardBackground,
-              border: `1px solid ${currentTheme.borderColor}`,
-              borderRadius: '12px',
-              padding: '24px',
-              backdropFilter: 'blur(10px)',
-              textAlign: 'center',
-              boxShadow: currentTheme.glowEffect
-            }}>
-              <p style={{ color: currentTheme.primaryColor, fontSize: '16px' }}>
-                🧠 Stack Auth integration active - {user ? `Welcome ${user.username}!` : 'Sign in to unlock features'}
-              </p>
-              <p style={{ color: '#888', fontSize: '14px', marginTop: '8px' }}>
-                Enhanced user management • Authentication system • Dashboard access
-              </p>
-            </div>
-          </div>
-        )
+        return <NexusCoreSection />
     }
   }
 
@@ -115,28 +78,29 @@ export default function EnhancedMastermindOS() {
           position: 'relative'
         }}>
           <div style={{ textAlign: 'center', zIndex: 10 }}>
-            <Brain style={{ 
-              width: '64px', 
-              height: '64px', 
-              margin: '0 auto 24px',
-              color: '#00ffff',
+            <div style={{ 
+              width: '48px', 
+              height: '48px', 
+              margin: '0 auto 20px',
+              background: 'linear-gradient(45deg, #00ffff, #ff00ff)',
+              borderRadius: '50%',
               animation: 'pulse 2s infinite'
             }} />
             <h1 style={{ 
-              fontSize: '48px', 
-              fontWeight: 'bold', 
+              fontSize: '36px', // Smaller title
+              fontWeight: '600', // Less bold
               color: '#00ffff', 
-              marginBottom: '16px',
+              marginBottom: '12px',
               fontFamily: 'Orbitron, monospace',
-              textShadow: '0 0 30px rgba(0, 255, 255, 0.8)'
+              textShadow: '0 0 20px rgba(0, 255, 255, 0.5)' // Softer glow
             }}>
               MASTERMIND OS v3.0
             </h1>
             <p style={{ 
-              color: '#00ffff', 
-              fontSize: '18px',
+              color: 'rgba(0, 255, 255, 0.8)', // Softer text
+              fontSize: '16px',
               fontFamily: 'Rajdhani, sans-serif',
-              marginBottom: '8px'
+              marginBottom: '6px'
             }}>
               🧠 Enhanced Nexus Core Protocol v3.0 Initializing...
             </p>
@@ -190,43 +154,89 @@ export default function EnhancedMastermindOS() {
           display: 'flex', 
           flexDirection: 'column' 
         }}>
-          {/* Header */}
+          {/* Header - Enhanced Bright Cyan Design */}
           <header style={{
             height: '64px',
-            background: 'rgba(0, 0, 0, 0.8)',
+            background: 'rgba(0, 0, 0, 0.8)', // More opaque to match dashboard
+            border: '2px solid #00ffff', // Bright cyan border like dashboard
+            borderRadius: '12px',
+            boxShadow: '0 0 20px rgba(0, 255, 255, 0.4)', // Enhanced glow like dashboard
             backdropFilter: 'blur(8px)',
-            borderBottom: '1px solid rgba(0, 255, 255, 0.3)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '0 24px',
             position: 'relative',
-            zIndex: 20
+            zIndex: 20,
+            margin: '12px',
+            marginBottom: '16px'
           }}>
-            {/* Logo */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Brain style={{ width: '32px', height: '32px', color: '#00ffff' }} />
-              <h1 style={{ 
-                fontSize: '24px', 
-                fontWeight: 'bold', 
-                color: '#00ffff',
-                fontFamily: 'Orbitron, monospace'
-              }}>
-                MASTERMIND OS
-              </h1>
-              <span style={{ 
-                color: 'rgba(0, 255, 255, 0.7)', 
-                fontSize: '14px', 
-                fontFamily: 'Courier New, monospace' 
-              }}>
-                v3.0
-              </span>
-            </div>
+            {/* Logo - Balanced Color Enhancement */}
+            <img 
+              src="/logo/Mastermind.png" 
+              alt="MASTERMIND OS" 
+              style={{ 
+                height: '52px',
+                width: 'auto',
+                filter: `
+                  brightness(2.0) 
+                  contrast(1.9) 
+                  saturate(1.4) 
+                  hue-rotate(8deg)
+                  drop-shadow(0 0 15px rgba(0,255,255,0.9))
+                  drop-shadow(0 0 8px rgba(255,255,255,0.4))
+                  drop-shadow(0 0 25px rgba(0,255,255,0.3))
+                `,
+                transition: 'all 0.3s ease',
+                cursor: 'pointer'
+              }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                const fallbackText = document.createElement('h1');
+                fallbackText.textContent = 'MASTERMIND OS';
+                fallbackText.style.cssText = `
+                  fontSize: 26px;
+                  fontWeight: 700;
+                  color: #00ffff;
+                  fontFamily: Orbitron, monospace;
+                  textShadow: 
+                    0 0 15px rgba(0, 255, 255, 0.9),
+                    0 0 8px rgba(255, 255, 255, 0.4);
+                  margin: 0;
+                  cursor: pointer;
+                `;
+                e.currentTarget.parentNode?.insertBefore(fallbackText, e.currentTarget);
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = `
+                  brightness(2.3) 
+                  contrast(2.1) 
+                  saturate(1.6) 
+                  hue-rotate(12deg)
+                  drop-shadow(0 0 20px rgba(0,255,255,1))
+                  drop-shadow(0 0 12px rgba(255,255,255,0.6))
+                  drop-shadow(0 0 30px rgba(0,255,255,0.5))
+                `;
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = `
+                  brightness(2.0) 
+                  contrast(1.9) 
+                  saturate(1.4) 
+                  hue-rotate(8deg)
+                  drop-shadow(0 0 15px rgba(0,255,255,0.9))
+                  drop-shadow(0 0 8px rgba(255,255,255,0.4))
+                  drop-shadow(0 0 25px rgba(0,255,255,0.3))
+                `;
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            />
             
             {/* Navigation and Auth Container */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
               {/* Navigation */}
-              <nav style={{ display: 'flex', gap: '4px' }}>
+              <nav style={{ display: 'flex', gap: '6px' }}>
                 {navigationItems.map((item) => {
                   const Icon = item.icon
                   const isActive = activePanel === item.key
@@ -237,40 +247,45 @@ export default function EnhancedMastermindOS() {
                       key={item.key}
                       onClick={() => setActivePanel(item.key as ActivePanel)}
                       style={{
-                        padding: '8px 16px',
-                        border: isActive ? `1px solid ${currentTheme.primaryColor}` : '1px solid transparent',
-                        background: isActive ? `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.2)` : 'transparent',
-                        color: isActive ? currentTheme.primaryColor : '#00ffff',
-                        borderRadius: '8px',
+                        padding: '8px 16px', // Enhanced padding
+                        border: isActive ? '2px solid #00ffff' : '2px solid transparent', // Enhanced borders
+                        background: isActive ? 'rgba(0, 255, 255, 0.2)' : 'transparent',
+                        color: isActive ? '#00ffff' : 'rgba(0, 255, 255, 0.7)',
+                        borderRadius: '8px', // Slightly more rounded
                         cursor: 'pointer',
-                        fontSize: '12px',
+                        fontSize: '11px',
                         fontFamily: 'Orbitron, monospace',
-                        fontWeight: '600',
+                        fontWeight: '500',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
+                        gap: '6px',
                         transition: 'all 0.3s ease',
                         textTransform: 'uppercase',
-                        position: 'relative'
+                        position: 'relative',
+                        boxShadow: isActive ? '0 0 15px rgba(0, 255, 255, 0.4)' : 'none' // Enhanced glow
                       }}
                       title={item.description}
                       onMouseEnter={(e) => {
                         if (!isActive) {
-                          e.currentTarget.style.background = `rgba(${currentTheme.primaryColor.slice(1).match(/.{2}/g)?.map(hex => parseInt(hex, 16)).join(', ')}, 0.1)`
-                          e.currentTarget.style.color = currentTheme.primaryColor
+                          e.currentTarget.style.background = 'rgba(0, 255, 255, 0.1)'
+                          e.currentTarget.style.color = '#ffffff' // Bright white on hover
+                          e.currentTarget.style.border = '2px solid rgba(0, 255, 255, 0.6)'
+                          e.currentTarget.style.boxShadow = '0 0 12px rgba(0, 255, 255, 0.3)'
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isActive) {
                           e.currentTarget.style.background = 'transparent'
-                          e.currentTarget.style.color = '#00ffff'
+                          e.currentTarget.style.color = 'rgba(0, 255, 255, 0.7)'
+                          e.currentTarget.style.border = '2px solid transparent'
+                          e.currentTarget.style.boxShadow = 'none'
                         }
                       }}
                     >
                       <Icon style={{ width: '16px', height: '16px' }} />
                       <span>{item.label}</span>
                       
-                      {/* Tooltip */}
+                      {/* Enhanced Tooltip */}
                       <div style={{
                         position: 'absolute',
                         top: '100%',
@@ -279,15 +294,16 @@ export default function EnhancedMastermindOS() {
                         marginTop: '8px',
                         padding: '8px 12px',
                         background: 'rgba(0, 0, 0, 0.9)',
-                        border: `1px solid ${currentTheme.primaryColor}30`,
-                        borderRadius: '6px',
+                        border: '2px solid #00ffff', // Enhanced border
+                        borderRadius: '8px',
                         fontSize: '11px',
-                        color: currentTheme.primaryColor,
+                        color: '#00ffff',
                         whiteSpace: 'nowrap',
                         opacity: 0,
                         pointerEvents: 'none',
                         transition: 'opacity 0.2s ease',
-                        zIndex: 30
+                        zIndex: 30,
+                        boxShadow: '0 0 10px rgba(0, 255, 255, 0.3)' // Tooltip glow
                       }}
                       className="tooltip">
                         {item.description}
@@ -298,13 +314,17 @@ export default function EnhancedMastermindOS() {
               </nav>
 
               {/* User System */}
-              <UserSystem onUserChange={handleUserChange} />
+              <UserSystem />
             </div>
           </header>
 
-          {/* Main Content Area */}
-          <main style={{ flex: 1, position: 'relative' }}>
-            <div style={{ height: 'calc(100vh - 64px)' }}>
+          {/* Main Content Area - Proper Spacing */}
+          <main style={{ 
+            flex: 1, 
+            position: 'relative',
+            padding: '0 12px 12px 12px' // Consistent spacing with header
+          }}>
+            <div style={{ height: 'calc(100vh - 64px - 44px)' }}> {/* Account for header height + margins */}
               {renderActiveSection()}
             </div>
           </main>

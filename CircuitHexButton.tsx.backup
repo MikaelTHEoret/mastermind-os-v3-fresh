@@ -1,0 +1,47 @@
+'use client';
+import React from 'react';
+
+interface CircuitHexButtonProps {
+  label: string;
+  x: number;
+  y: number;
+  onClick: () => void;
+  color: string;
+}
+
+export default function CircuitHexButton({ label, x, y, onClick, color }: CircuitHexButtonProps) {
+  return (
+    <svg
+      viewBox="0 0 120 80"
+      width="90"
+      height="60"
+      style={{
+        position: 'fixed',
+        left: x,
+        top: y,
+        transform: 'translate(-50%, -50%)',
+        cursor: 'pointer',
+        zIndex: 50,
+      }}
+      onClick={onClick}
+    >
+      <polygon
+        points="0,40 20,0 100,0 120,40 100,80 20,80"
+        fill="rgba(0,0,0,0.75)"
+        stroke={color}
+        strokeWidth="2"
+        filter={`drop-shadow(0 0 6px ${color})`}
+      />
+      <text
+        x="60"
+        y="50"
+        textAnchor="middle"
+        fontSize="14"
+        fill="#ffffff"
+        fontFamily="Orbitron, sans-serif"
+      >
+        {label}
+      </text>
+    </svg>
+  );
+}

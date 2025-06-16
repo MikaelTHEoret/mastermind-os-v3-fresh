@@ -1,0 +1,91 @@
+.wrapper { 
+  position: relative; 
+  overflow: hidden; 
+}
+
+.overlaySvg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 15;
+}
+
+.pathCommon {
+  fill: none;
+  stroke-width: 6;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+
+.pathCore {
+  stroke: #00ffff;
+  filter: drop-shadow(0 0 4px #00ffff);
+}
+
+.pathNodes {
+  stroke: #ff00ff;
+  filter: drop-shadow(0 0 4px #ff00ff);
+}
+
+.pathAgents {
+  stroke: #ffff00;
+  filter: drop-shadow(0 0 4px #ffff00);
+}
+
+.flowActive {
+  animation: dashFlow 0.8s ease-out forwards;
+  opacity: 1 !important;
+}
+
+@keyframes dashFlow {
+  to {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes burstFX {
+  from { 
+    transform: scale(0); 
+    opacity: 1; 
+  }
+  to { 
+    transform: scale(3); 
+    opacity: 0; 
+  }
+}
+
+.burst-core,
+.burst-nodes,
+.burst-agents {
+  position: fixed;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: burstFX 1s ease-out forwards;
+  z-index: 30;
+}
+
+.burst-core {
+  left: 200px;
+  top: 650px;
+  background: radial-gradient(circle, #00ffff 30%, transparent 70%);
+}
+
+.burst-nodes {
+  left: 200px;
+  top: 750px;
+  background: radial-gradient(circle, #ff00ff 30%, transparent 70%);
+}
+
+.burst-agents {
+  left: 200px;
+  top: 850px;
+  background: radial-gradient(circle, #ffff00 30%, transparent 70%);
+}

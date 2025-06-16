@@ -4,21 +4,22 @@
   "description": "Fresh MasterMind OS v3 deployment - clean slate - Clerk authentication",
   "scripts": {
     "dev": "next dev",
-    "build": "next build", 
+    "build": "next build",
     "start": "next start",
     "clean": "rm -rf .next"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.7.0",
+    "autoprefixer": "^10",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.460.0",
     "next": "15.1.5",
+    "postcss": "^8",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "@clerk/nextjs": "^6.7.0",
-    "lucide-react": "^0.460.0",
-    "clsx": "^2.0.0",
+    "sass": "^1.89.2",
     "tailwind-merge": "^2.0.0",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8",
-    "autoprefixer": "^10"
+    "tailwindcss": "^3.4.1"
   },
   "devDependencies": {
     "@types/node": "^20",

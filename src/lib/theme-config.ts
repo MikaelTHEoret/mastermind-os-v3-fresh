@@ -61,16 +61,16 @@ export const themeColors: ThemeColors = {
   error: '#ff4444',
   info: '#00d4ff',
   
-  // Background Colors - Dark Cyberpunk
+  // Background Colors - Standardized to match ScrollEditor perfect background
   background_primary: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-  background_secondary: 'rgba(0, 0, 0, 0.8)',
-  background_card: 'rgba(0, 0, 0, 0.6)',
-  background_glass: 'rgba(17, 24, 39, 0.4)',
+  background_secondary: 'rgba(0, 0, 0, 0.8)', // Standard dark background (ScrollEditor standard)
+  background_card: 'rgba(0, 0, 0, 0.8)', // Card background matching editor
+  background_glass: 'rgba(0, 0, 0, 0.7)', // Slightly more transparent for overlays
   
-  // Border Colors - Cyberpunk Theme
-  border_primary: 'rgba(0, 255, 255, 0.3)',
-  border_secondary: 'rgba(0, 255, 255, 0.1)',
-  border_accent: 'rgba(0, 255, 255, 0.5)',
+  // Border Colors - Enhanced luminous effects
+  border_primary: 'rgba(0, 255, 255, 1.0)', // Full opacity for luminous effect
+  border_secondary: 'rgba(0, 255, 255, 0.8)', // Strong opacity
+  border_accent: 'rgba(0, 255, 255, 0.9)', // Enhanced accent
   
   // Text Colors - Cyberpunk Theme
   text_primary: '#ffffff',
@@ -189,37 +189,56 @@ export const getStatusColor = (status: string): string => {
   }
 };
 
+// Standard component backgrounds - ensures consistency across all components
+export const getComponentBackground = (type: 'primary' | 'secondary' | 'nav' | 'terminal' | 'card' = 'primary'): string => {
+  switch (type) {
+    case 'primary':
+      return themeColors.background_secondary; // rgba(0, 0, 0, 0.8) - standard dark
+    case 'secondary':
+      return themeColors.background_card; // rgba(0, 0, 0, 0.8) - same as primary
+    case 'nav':
+      return themeColors.background_secondary; // rgba(0, 0, 0, 0.8) - nav background
+    case 'terminal':
+      return themeColors.background_secondary; // rgba(0, 0, 0, 0.8) - terminal background
+    case 'card':
+      return themeColors.background_card; // rgba(0, 0, 0, 0.8) - card background
+    default:
+      return themeColors.background_secondary; // rgba(0, 0, 0, 0.8) - default
+  }
+};
+
 // Common component styles
 export const commonStyles = {
   // Cards and containers
   card: {
-    background: themeColors.background_card,
-    border: `1px solid ${themeColors.border_primary}`,
+    background: 'rgba(0, 0, 0, 0.8)', // More opaque for better definition
+    border: `2px solid ${themeColors.border_primary}`, // Thicker full opacity border
     borderRadius: '12px',
-    backdropFilter: 'blur(10px)',
-    boxShadow: `inset 0 0 20px rgba(0, 0, 0, 0.7), 0 0 15px ${themeColors.border_primary}30`
+    // Remove backdropFilter to showcase sacred geometry background
+    boxShadow: `0 0 20px ${themeColors.primary_cyan}60, inset 0 0 10px rgba(0, 0, 0, 0.5)` // Luminous glow
   },
   
   glassCard: {
-    background: themeColors.background_glass,
-    border: `1px solid ${themeColors.border_secondary}`,
+    background: 'rgba(0, 0, 0, 0.8)', // More opaque instead of glass effect
+    border: `2px solid ${themeColors.border_secondary}`, // Thicker border
     borderRadius: '15px',
-    backdropFilter: 'blur(20px)',
-    boxShadow: `0 0 30px rgba(0, 0, 0, 0.7), inset 0 1px 0 ${themeColors.border_primary}30`
+    // Remove backdropFilter to showcase background
+    boxShadow: `0 0 25px ${themeColors.primary_cyan}60, inset 0 0 10px rgba(0, 0, 0, 0.5)` // Enhanced glow
   },
   
-  // Buttons
+  // Buttons - Enhanced luminous styling
   primaryButton: {
     padding: '12px 24px',
-    background: `linear-gradient(45deg, ${themeColors.primary_cyan}30, ${themeColors.primary_cyan}20)`,
-    border: `2px solid ${themeColors.primary_cyan}`,
+    background: 'rgba(0, 0, 0, 0.8)', // More opaque background
+    border: `2px solid ${themeColors.primary_cyan}`, // Thicker full opacity border
     borderRadius: '8px',
     color: themeColors.primary_cyan,
     fontFamily: 'Orbitron, monospace',
     fontSize: '12px',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.3s ease'
+    transition: 'all 0.3s ease',
+    boxShadow: `0 0 15px ${themeColors.primary_cyan}60, inset 0 0 8px rgba(0, 0, 0, 0.5)` // Luminous glow
   }
 };
 
@@ -252,6 +271,7 @@ export default {
   panelThemes,
   getTheme,
   getStatusColor,
+  getComponentBackground,
   commonStyles,
   animations
 };
