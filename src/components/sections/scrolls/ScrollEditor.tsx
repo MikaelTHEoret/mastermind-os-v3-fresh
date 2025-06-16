@@ -128,7 +128,8 @@ export default function ScrollEditor({
 
     } catch (error) {
       console.error(`Failed to load content for ${file.name}:`, error);
-      setEditorContent(`// Error loading file content: ${error.message}\n// File: ${file.name}\n// Storage: ${file.storage}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setEditorContent(`// Error loading file content: ${errorMessage}\n// File: ${file.name}\n// Storage: ${file.storage}`);
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +168,8 @@ export default function ScrollEditor({
 
     } catch (error) {
       console.error(`Failed to save ${selectedFile.name}:`, error);
-      alert(`Failed to save file: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to save file: ${errorMessage}`);
     } finally {
       setIsSaving(false);
     }
