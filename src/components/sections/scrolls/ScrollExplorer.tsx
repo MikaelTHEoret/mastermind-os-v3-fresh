@@ -524,6 +524,22 @@ export default function ScrollExplorer({
           
           // Create an error folder to show the issue (non-expandable)
           const errorFolderId = `${sourceId}-error-${repoPath.replace(/[\/\:\.]*/g, '-')}`;
+          const errorMsgId = `${errorFolderId}-msg`;
+          
+          // Add the error message file first
+          files.push({
+            id: errorMsgId,
+            name: `Error: ${response.statusText}`,
+            type: 'file',
+            path: `/${repoPath}/error.txt`,
+            lastModified: new Date().toISOString(),
+            storage: 'github',
+            parent: errorFolderId,
+            content: `GitHub API Error: ${response.status} ${response.statusText}\n\nPlease check:\n- Repository exists and is accessible\n- Personal access token has correct permissions\n- Repository name is correct in configuration`,
+            size: 200
+          });
+          
+          // Then add the error folder with children as string array
           files.push({
             id: errorFolderId,
             name: `❌ ${cleanRepo} (Error: ${response.status})`,
@@ -532,17 +548,7 @@ export default function ScrollExplorer({
             lastModified: new Date().toISOString(),
             storage: 'github',
             parent: sourceId,
-            children: [{
-              id: `${errorFolderId}-msg`,
-              name: `Error: ${response.statusText}`,
-              type: 'file',
-              path: `/${repoPath}/error.txt`,
-              lastModified: new Date().toISOString(),
-              storage: 'github',
-              parent: errorFolderId,
-              content: `GitHub API Error: ${response.status} ${response.statusText}\n\nPlease check:\n- Repository exists and is accessible\n- Personal access token has correct permissions\n- Repository name is correct in configuration`,
-              size: 200
-            }]
+            children: [errorMsgId] // Use ID string instead of object
           });
           continue;
         }
