@@ -270,8 +270,10 @@ export default function ScrollExplorer({
       const updated = new Map(prev);
       
       // Remove any existing error folders first
-      const keysToRemove = [];
-      for (const [key, file] of updated.entries()) {
+      const keysToRemove: string[] = [];
+      // Use Array.from to convert Map entries to array for proper iteration
+      const entries = Array.from(updated.entries());
+      for (const [key, file] of entries) {
         if (key.includes('-error-') || key.startsWith('source-') && key.includes('-error-')) {
           keysToRemove.push(key);
         }
@@ -521,7 +523,7 @@ export default function ScrollExplorer({
           });
           
           // Create an error folder to show the issue (non-expandable)
-          const errorFolderId = `${sourceId}-error-${repoPath.replace(/[\/\:\.]/g, '-')}`;
+          const errorFolderId = `${sourceId}-error-${repoPath.replace(/[\/\:\.]*/g, '-')}`;
           files.push({
             id: errorFolderId,
             name: `❌ ${cleanRepo} (Error: ${response.status})`,
@@ -583,7 +585,7 @@ export default function ScrollExplorer({
         
         // Create an error folder to show the issue
         files.push({
-          id: `${sourceId}-error-${repo.replace(/[\/\:\.]/g, '-')}`,
+          id: `${sourceId}-error-${repo.replace(/[\/\:\.]*/g, '-')}`,
           name: `❌ ${repo} (Connection Error)`,
           type: 'folder',
           path: `/${repo}`,
