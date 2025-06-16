@@ -28,6 +28,14 @@ import {
   ChevronRight
 } from 'lucide-react';
 
+// Interface for secret configuration
+interface SecretConfig {
+  key: string;
+  label: string;
+  required: boolean;
+  placeholder?: string;
+}
+
 // Predefined source types with their expected secrets
 const SOURCE_TYPES = {
   'github': {
@@ -39,7 +47,7 @@ const SOURCE_TYPES = {
       { key: 'username', label: 'Username', required: true },
       { key: 'repositories', label: 'Repository Names (comma-separated)', required: true, placeholder: 'e.g., repo1, user/repo2, org/repo3' },
       { key: 'default_branch', label: 'Default Branch', required: false, placeholder: 'main (default)' }
-    ]
+    ] as SecretConfig[]
   },
   'codeberg': {
     name: 'Codeberg',
@@ -50,7 +58,7 @@ const SOURCE_TYPES = {
       { key: 'username', label: 'Username', required: true },
       { key: 'repositories', label: 'Repository Names (comma-separated)', required: true, placeholder: 'e.g., repo1, user/repo2' },
       { key: 'default_branch', label: 'Default Branch', required: false, placeholder: 'main (default)' }
-    ]
+    ] as SecretConfig[]
   },
   'pinata': {
     name: 'Pinata IPFS',
@@ -60,7 +68,7 @@ const SOURCE_TYPES = {
       { key: 'api_key', label: 'API Key', required: true },
       { key: 'api_secret', label: 'API Secret', required: true },
       { key: 'jwt', label: 'JWT Token', required: false }
-    ]
+    ] as SecretConfig[]
   },
   'infura': {
     name: 'Infura',
@@ -69,7 +77,7 @@ const SOURCE_TYPES = {
     secrets: [
       { key: 'project_id', label: 'Project ID', required: true },
       { key: 'project_secret', label: 'Project Secret', required: true }
-    ]
+    ] as SecretConfig[]
   },
   'web3_storage': {
     name: 'Web3.Storage',
@@ -77,7 +85,7 @@ const SOURCE_TYPES = {
     color: 'bg-cyan-500/20 border-cyan-500/30',
     secrets: [
       { key: 'api_token', label: 'API Token', required: true }
-    ]
+    ] as SecretConfig[]
   },
   'openai': {
     name: 'OpenAI',
@@ -86,7 +94,7 @@ const SOURCE_TYPES = {
     secrets: [
       { key: 'api_key', label: 'API Key', required: true },
       { key: 'organization_id', label: 'Organization ID', required: false }
-    ]
+    ] as SecretConfig[]
   },
   'anthropic': {
     name: 'Anthropic Claude',
@@ -94,7 +102,7 @@ const SOURCE_TYPES = {
     color: 'bg-indigo-500/20 border-indigo-500/30',
     secrets: [
       { key: 'api_key', label: 'API Key', required: true }
-    ]
+    ] as SecretConfig[]
   },
   'neon': {
     name: 'Neon Database',
@@ -103,7 +111,7 @@ const SOURCE_TYPES = {
     secrets: [
       { key: 'database_url', label: 'Database URL', required: true },
       { key: 'api_key', label: 'API Key', required: false }
-    ]
+    ] as SecretConfig[]
   },
   'astra': {
     name: 'DataStax Astra',
@@ -113,7 +121,7 @@ const SOURCE_TYPES = {
       { key: 'api_endpoint', label: 'API Endpoint', required: true },
       { key: 'application_token', label: 'Application Token', required: true },
       { key: 'database_id', label: 'Database ID', required: true }
-    ]
+    ] as SecretConfig[]
   }
 };
 
@@ -141,7 +149,7 @@ export default function SourcesConfigDashboard() {
   const [editingSource, setEditingSource] = useState<string | null>(null);
   const [addingSource, setAddingSource] = useState<string | null>(null);
   const [customSourceName, setCustomSourceName] = useState('');
-  const [customSecrets, setCustomSecrets] = useState<{ key: string; label: string; required: boolean }[]>([]);
+  const [customSecrets, setCustomSecrets] = useState<SecretConfig[]>([]);
   const [loading, setLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
