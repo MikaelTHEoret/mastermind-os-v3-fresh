@@ -347,7 +347,7 @@ export default function EnhancedMastermindOS() {
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Author:</span> Mikael Theoret
                   </p>
                   
-                  {/* Affiliation with Logo - Fixed Z-index and positioning */}
+                  {/* Affiliation with Logo - Fixed with correct filename */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
@@ -367,7 +367,7 @@ export default function EnhancedMastermindOS() {
                       alignItems: 'center'
                     }}>
                       <img 
-                        src="/logo/Global_science_league.png" 
+                        src="/logo/global_science_league.png" 
                         alt="Global Science League" 
                         style={{ 
                           height: '24px',
