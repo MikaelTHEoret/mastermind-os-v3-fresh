@@ -1,6 +1,6 @@
 {
   "name": "mastermind-os-v3-fresh",
-  "version": "3.0.5",
+  "version": "3.0.6",
   "description": "Fresh MasterMind OS v3 deployment - clean slate - Clerk authentication",
   "scripts": {
     "dev": "next dev",
@@ -25,6 +25,8 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "15.3.3",
     "typescript": "^5"
   },
   "engines": {
