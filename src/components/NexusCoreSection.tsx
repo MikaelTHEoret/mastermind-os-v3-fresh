@@ -2,7 +2,6 @@
 import React, { useEffect } from 'react';
 import clsx from 'clsx';
 import styles from './NexusCoreSection.module.scss';
-import CircuitHexButton from './CircuitHexButton';
 
 interface NexusCoreSectionProps {
   coreEnergy?: number;
@@ -57,48 +56,33 @@ export default function NexusCoreSection({
         />
       </svg>
 
-      {/* Interactive Circuit Hex Buttons */}
-      <CircuitHexButton
-        label={`${Math.round(coreEnergy)}%`}
-        x={200}
-        y={640}
-        onClick={() => triggerPulse('core')}
-        color="#00ffff"
-      />
-      <CircuitHexButton
-        label={`${connectionNodes}`}
-        x={200}
-        y={740}
-        onClick={() => triggerPulse('nodes')}
-        color="#ff00ff"
-      />
-      <CircuitHexButton
-        label={`${activeAgents}`}
-        x={200}
-        y={840}
-        onClick={() => triggerPulse('agents')}
-        color="#ffff00"
-      />
+      {/* Simple Metric Buttons */}
+      <div className={styles.metricButtons}>
+        <button
+          className={styles.metricButton}
+          onClick={() => triggerPulse('core')}
+          style={{ color: '#00ffff' }}
+        >
+          Core: {Math.round(coreEnergy)}%
+        </button>
+        <button
+          className={styles.metricButton}
+          onClick={() => triggerPulse('nodes')}
+          style={{ color: '#ff00ff' }}
+        >
+          Nodes: {connectionNodes}
+        </button>
+        <button
+          className={styles.metricButton}
+          onClick={() => triggerPulse('agents')}
+          style={{ color: '#ffff00' }}
+        >
+          Agents: {activeAgents}
+        </button>
+      </div>
 
-      {/* Original Enhanced Nexus Core content would go here */}
-      <div style={{
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: '400px',
-        height: '400px',
-        border: '2px solid #00ffff',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, transparent 70%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '24px',
-        color: '#00ffff',
-        fontFamily: 'Orbitron, monospace',
-        zIndex: 5
-      }}>
+      {/* Original Enhanced Nexus Core content */}
+      <div className={styles.nexusCore}>
         NEXUS CORE
       </div>
     </div>
