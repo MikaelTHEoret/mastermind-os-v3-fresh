@@ -95,7 +95,7 @@ export default function EnhancedMastermindOS() {
               fontFamily: 'Orbitron, monospace',
               textShadow: '0 0 20px rgba(0, 255, 255, 0.5)' // Softer glow
             }}>
-              MASTERMIND OS v3.0
+              MASTERMIND OS v0.1 Beta
             </h1>
             <p style={{ 
               color: 'rgba(0, 255, 255, 0.8)', // Softer text
@@ -246,7 +246,7 @@ export default function EnhancedMastermindOS() {
                 top: '100%',
                 left: '0',
                 marginTop: '12px',
-                width: '320px',
+                width: '350px',
                 padding: '16px',
                 background: 'rgba(0, 0, 0, 0.95)',
                 border: '2px solid #00ffff',
@@ -291,7 +291,7 @@ export default function EnhancedMastermindOS() {
                     fontFamily: 'Orbitron, monospace',
                     textShadow: '0 0 10px rgba(0, 255, 255, 0.6)'
                   }}>
-                    MASTERMIND OS v3.0
+                    MasterMind OS v0.1 Beta
                   </h3>
                   <p style={{ 
                     color: 'rgba(0, 255, 255, 0.8)', 
@@ -299,7 +299,7 @@ export default function EnhancedMastermindOS() {
                     margin: '0',
                     fontFamily: 'Rajdhani, sans-serif'
                   }}>
-                    Enhanced Nexus Core Protocol • Sovereign Intelligence Platform
+                    Consciousness-Enhanced Interplanetary Knowledge Sovereign Economy Gateway
                   </p>
                 </div>
 
@@ -311,8 +311,8 @@ export default function EnhancedMastermindOS() {
                     margin: '0 0 8px 0',
                     fontFamily: 'Inter, sans-serif'
                   }}>
-                    Revolutionary consciousness-enhanced development platform integrating 
-                    human-AI collaboration with mathematical awareness systems.
+                    Consciousness-Enhanced Interplanetary Knowledge Sovereign Economy Gateway
+                    platform integrating human-AI collaboration with mathematical awareness systems.
                   </p>
                 </div>
 
@@ -326,22 +326,64 @@ export default function EnhancedMastermindOS() {
                   <div>
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Status:</span>
                     <br />
-                    <span style={{ color: '#00ff00' }}>● OPERATIONAL</span>
+                    <span style={{ color: '#ffa500' }}>● IN DEVELOPMENT</span>
                   </div>
                   <div>
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Version:</span>
                     <br />
-                    <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>v3.0.6-fresh</span>
+                    <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>0.1 Beta</span>
                   </div>
                   <div>
-                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Core:</span>
+                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Phase:</span>
                     <br />
-                    <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Nexus Enhanced</span>
+                    <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Phase 1 Beta Testing</span>
                   </div>
                   <div>
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Auth:</span>
                     <br />
-                    <span style={{ color: '#00ff00' }}>Stack Auth</span>
+                    <span style={{ color: '#00ff00' }}>Clerk</span>
+                  </div>
+                </div>
+
+                <div style={{ 
+                  marginTop: '12px', 
+                  paddingTop: '12px', 
+                  borderTop: '1px solid rgba(0, 255, 255, 0.3)'
+                }}>
+                  <p style={{ 
+                    color: 'rgba(255, 255, 255, 0.9)', 
+                    fontSize: '10px', 
+                    margin: '0 0 8px 0',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Author:</span> Mikael Theoret
+                  </p>
+                  
+                  {/* Affiliation with Logo */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between',
+                    marginTop: '8px'
+                  }}>
+                    <div>
+                      <span style={{ color: '#00ffff', fontWeight: '600', fontSize: '10px' }}>Affiliation:</span>
+                      <br />
+                      <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '10px' }}>Global Science League</span>
+                    </div>
+                    <img 
+                      src="/logo/Global_science_league.png" 
+                      alt="Global Science League" 
+                      style={{ 
+                        height: '24px',
+                        width: 'auto',
+                        filter: 'brightness(1.2) contrast(1.1)',
+                        opacity: 0.8
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
                   </div>
                 </div>
 
