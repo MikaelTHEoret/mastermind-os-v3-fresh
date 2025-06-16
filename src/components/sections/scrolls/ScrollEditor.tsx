@@ -14,7 +14,7 @@ interface FileItem {
   cid?: string;
   hash?: string;
   lastModified: string;
-  storage: 'native' | 'ipfs' | 'github' | 'pinata' | 'codeberg' | 'neon';
+  storage: 'native' | 'ipfs' | 'github' | 'pinata' | 'codeberg' | 'neon' | 'custom';
   parent?: string;
   children?: string[];
   mimeType?: string;
