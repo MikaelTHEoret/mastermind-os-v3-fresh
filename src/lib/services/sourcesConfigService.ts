@@ -1,4 +1,4 @@
-import { createClient } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 import crypto from 'crypto';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
@@ -30,13 +30,11 @@ interface CachedFile {
 }
 
 class SourcesConfigService {
-  private client: any;
+  private sql: any;
 
   constructor() {
     if (process.env.NEON_DATABASE_URL) {
-      this.client = createClient({
-        connectionString: process.env.NEON_DATABASE_URL,
-      });
+      this.sql = neon(process.env.NEON_DATABASE_URL);
     }
   }
 
@@ -86,7 +84,7 @@ class SourcesConfigService {
 
   // Source configuration methods
   async getConfiguredSources(userId: string): Promise<ConfiguredSource[]> {
-    if (!this.client) {
+    if (!this.sql) {
       // Fallback to localStorage for development
       if (typeof window !== 'undefined') {
         const saved = localStorage.getItem(`sources_config_${userId}`);
@@ -97,9 +95,9 @@ class SourcesConfigService {
 
     try {
       // Set RLS context
-      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
+      await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
 
-      const result = await this.client.query(`
+      const result = await this.sql`
         SELECT 
           id,
           source_type,
@@ -112,13 +110,13 @@ class SourcesConfigService {
           custom_schema,
           updated_at
         FROM user_sources_config 
-        WHERE user_id = $1
+        WHERE user_id = ${userId}
         ORDER BY created_at ASC
-      `, [userId]);
+      `;
 
       const userKey = this.generateUserEncryptionKey(userId);
       
-      return result.rows.map((row: any) => ({
+      return result.map((row: any) => ({
         id: row.id,
         type: row.source_type,
         name: row.source_name,
@@ -135,7 +133,7 @@ class SourcesConfigService {
   }
 
   async saveSourceConfig(userId: string, source: ConfiguredSource): Promise<void> {
-    if (!this.client) {
+    if (!this.sql) {
       // Fallback to localStorage for development
       if (typeof window !== 'undefined') {
         const existing = localStorage.getItem(`sources_config_${userId}`);
@@ -155,60 +153,44 @@ class SourcesConfigService {
 
     try {
       // Set RLS context
-      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
+      await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
 
       const userKey = this.generateUserEncryptionKey(userId);
       const { encryptedData, keyHash } = this.encryptSecrets(source.secrets, userKey);
 
       // Check if source exists
-      const existingResult = await this.client.query(
-        'SELECT id FROM user_sources_config WHERE id = $1 AND user_id = $2',
-        [source.id, userId]
-      );
+      const existingResult = await this.sql`
+        SELECT id FROM user_sources_config WHERE id = ${source.id} AND user_id = ${userId}
+      `;
 
-      if (existingResult.rows.length > 0) {
+      if (existingResult.length > 0) {
         // Update existing source
-        await this.client.query(`
+        await this.sql`
           UPDATE user_sources_config 
           SET 
-            source_name = $1,
-            encrypted_secrets = $2,
-            encryption_key_hash = $3,
-            status = $4,
-            last_tested = $5,
-            custom_schema = $6,
+            source_name = ${source.name},
+            encrypted_secrets = ${encryptedData},
+            encryption_key_hash = ${keyHash},
+            status = ${source.status},
+            last_tested = NOW(),
+            custom_schema = ${source.customSchema ? JSON.stringify(source.customSchema) : null},
             updated_at = NOW()
-          WHERE id = $7 AND user_id = $8
-        `, [
-          source.name,
-          encryptedData,
-          keyHash,
-          source.status,
-          new Date(),
-          source.customSchema ? JSON.stringify(source.customSchema) : null,
-          source.id,
-          userId
-        ]);
+          WHERE id = ${source.id} AND user_id = ${userId}
+        `;
       } else {
         // Insert new source
-        await this.client.query(`
+        await this.sql`
           INSERT INTO user_sources_config (
             id, user_id, source_type, source_name, 
             encrypted_secrets, encryption_key_hash, status, 
             last_tested, is_custom, custom_schema
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        `, [
-          source.id,
-          userId,
-          source.type,
-          source.name,
-          encryptedData,
-          keyHash,
-          source.status,
-          new Date(),
-          source.isCustom || false,
-          source.customSchema ? JSON.stringify(source.customSchema) : null
-        ]);
+          ) VALUES (
+            ${source.id}, ${userId}, ${source.type}, ${source.name},
+            ${encryptedData}, ${keyHash}, ${source.status},
+            NOW(), ${source.isCustom || false}, 
+            ${source.customSchema ? JSON.stringify(source.customSchema) : null}
+          )
+        `;
       }
     } catch (error) {
       console.error('Error saving source config:', error);
@@ -217,7 +199,7 @@ class SourcesConfigService {
   }
 
   async deleteSourceConfig(userId: string, sourceId: string): Promise<void> {
-    if (!this.client) {
+    if (!this.sql) {
       // Fallback to localStorage for development
       if (typeof window !== 'undefined') {
         const existing = localStorage.getItem(`sources_config_${userId}`);
@@ -232,12 +214,11 @@ class SourcesConfigService {
 
     try {
       // Set RLS context
-      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
+      await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
 
-      await this.client.query(
-        'DELETE FROM user_sources_config WHERE id = $1 AND user_id = $2',
-        [sourceId, userId]
-      );
+      await this.sql`
+        DELETE FROM user_sources_config WHERE id = ${sourceId} AND user_id = ${userId}
+      `;
     } catch (error) {
       console.error('Error deleting source config:', error);
       throw error;
@@ -257,12 +238,13 @@ class SourcesConfigService {
       const success = await this.performConnectionTest(source);
       
       // Update status in database
-      if (this.client) {
-        await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
-        await this.client.query(
-          'UPDATE user_sources_config SET status = $1, last_tested = NOW() WHERE id = $2 AND user_id = $3',
-          [success ? 'connected' : 'error', sourceId, userId]
-        );
+      if (this.sql) {
+        await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
+        await this.sql`
+          UPDATE user_sources_config 
+          SET status = ${success ? 'connected' : 'error'}, last_tested = NOW() 
+          WHERE id = ${sourceId} AND user_id = ${userId}
+        `;
       }
 
       return { success };
@@ -363,10 +345,8 @@ class SourcesConfigService {
 
   private async testNeonConnection(secrets: Record<string, string>): Promise<boolean> {
     try {
-      const testClient = createClient({
-        connectionString: secrets.database_url
-      });
-      await testClient.query('SELECT 1');
+      const testSql = neon(secrets.database_url);
+      await testSql`SELECT 1`;
       return true;
     } catch {
       return false;
@@ -388,21 +368,18 @@ class SourcesConfigService {
 
   // File cache methods
   async getCachedFiles(userId: string, sourceId?: string): Promise<CachedFile[]> {
-    if (!this.client) {
+    if (!this.sql) {
       return [];
     }
 
     try {
-      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
+      await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
 
-      const query = sourceId 
-        ? 'SELECT * FROM user_file_cache WHERE user_id = $1 AND source_id = $2 AND cache_expires > NOW()'
-        : 'SELECT * FROM user_file_cache WHERE user_id = $1 AND cache_expires > NOW()';
-      
-      const params = sourceId ? [userId, sourceId] : [userId];
-      const result = await this.client.query(query, params);
+      const result = sourceId 
+        ? await this.sql`SELECT * FROM user_file_cache WHERE user_id = ${userId} AND source_id = ${sourceId} AND cache_expires > NOW()`
+        : await this.sql`SELECT * FROM user_file_cache WHERE user_id = ${userId} AND cache_expires > NOW()`;
 
-      return result.rows.map((row: any) => ({
+      return result.map((row: any) => ({
         id: row.id,
         sourceId: row.source_id,
         filePath: row.file_path,
@@ -423,19 +400,23 @@ class SourcesConfigService {
   }
 
   async cacheFile(userId: string, file: Omit<CachedFile, 'id'>): Promise<void> {
-    if (!this.client) {
+    if (!this.sql) {
       return;
     }
 
     try {
-      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
+      await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
 
-      await this.client.query(`
+      await this.sql`
         INSERT INTO user_file_cache (
           user_id, source_id, file_path, file_name, file_type,
           file_size, mime_type, cached_content, external_url,
           ipfs_cid, last_modified, cache_expires
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ) VALUES (
+          ${userId}, ${file.sourceId}, ${file.filePath}, ${file.fileName}, ${file.fileType},
+          ${file.fileSize}, ${file.mimeType}, ${file.cachedContent}, ${file.externalUrl},
+          ${file.ipfsCid}, ${file.lastModified}, ${file.cacheExpires}
+        )
         ON CONFLICT (user_id, source_id, file_path) 
         DO UPDATE SET
           file_name = EXCLUDED.file_name,
@@ -447,20 +428,7 @@ class SourcesConfigService {
           ipfs_cid = EXCLUDED.ipfs_cid,
           last_modified = EXCLUDED.last_modified,
           cache_expires = EXCLUDED.cache_expires
-      `, [
-        userId,
-        file.sourceId,
-        file.filePath,
-        file.fileName,
-        file.fileType,
-        file.fileSize,
-        file.mimeType,
-        file.cachedContent,
-        file.externalUrl,
-        file.ipfsCid,
-        file.lastModified,
-        file.cacheExpires
-      ]);
+      `;
     } catch (error) {
       console.error('Error caching file:', error);
       throw error;
@@ -468,16 +436,15 @@ class SourcesConfigService {
   }
 
   async clearExpiredCache(userId: string): Promise<void> {
-    if (!this.client) {
+    if (!this.sql) {
       return;
     }
 
     try {
-      await this.client.query('SELECT set_config($1, $2, true)', ['app.current_user_id', userId]);
-      await this.client.query(
-        'DELETE FROM user_file_cache WHERE user_id = $1 AND cache_expires <= NOW()',
-        [userId]
-      );
+      await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
+      await this.sql`
+        DELETE FROM user_file_cache WHERE user_id = ${userId} AND cache_expires <= NOW()
+      `;
     } catch (error) {
       console.error('Error clearing expired cache:', error);
     }
