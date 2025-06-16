@@ -41,7 +41,7 @@ interface ScrollMinterProps {
   connectWallet: () => Promise<boolean>;
   mintOnNetwork: (isL1: boolean) => Promise<void>;
   copyToClipboard: (text: string) => void;
-  generateKeccakHash: (data: string) => string;
+  generateKeccakHash: (data: string) => Promise<string>;
   isValidEthAddress: (address: string) => boolean;
   theme: {
     primaryColor: string;
@@ -398,8 +398,8 @@ export default function ScrollMinter({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  const hash = generateKeccakHash(mintingData.content);
+                onClick={async () => {
+                  const hash = await generateKeccakHash(mintingData.content);
                   setMintingData(prev => ({ ...prev, keccakHash: hash }));
                 }}
                 style={{
