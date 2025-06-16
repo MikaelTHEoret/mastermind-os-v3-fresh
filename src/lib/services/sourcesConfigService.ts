@@ -1,5 +1,4 @@
 import { neon } from '@neondatabase/serverless';
-import crypto from 'crypto';
 
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 
@@ -31,15 +30,21 @@ interface CachedFile {
 
 class SourcesConfigService {
   private sql: any;
+  private isServer: boolean;
 
   constructor() {
-    if (process.env.NEON_DATABASE_URL) {
+    this.isServer = typeof window === 'undefined';
+    if (process.env.NEON_DATABASE_URL && this.isServer) {
       this.sql = neon(process.env.NEON_DATABASE_URL);
     }
   }
 
-  // Encryption utilities
+  // Encryption utilities (server-side only)
   private generateUserEncryptionKey(userId: string): string {
+    if (!this.isServer) {
+      throw new Error('Encryption only available on server side');
+    }
+    const crypto = require('crypto');
     const appSecret = process.env.ENCRYPTION_SECRET || 'fallback-secret-change-in-production';
     return crypto.scryptSync(userId, appSecret, 32).toString('hex');
   }
@@ -48,6 +53,10 @@ class SourcesConfigService {
     encryptedData: string;
     keyHash: string;
   } {
+    if (!this.isServer) {
+      throw new Error('Encryption only available on server side');
+    }
+    const crypto = require('crypto');
     const key = Buffer.from(userKey, 'hex');
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipherGCM(ENCRYPTION_ALGORITHM, key, iv);
@@ -63,7 +72,11 @@ class SourcesConfigService {
   }
 
   private decryptSecrets(encryptedData: string, userKey: string): Record<string, string> {
+    if (!this.isServer) {
+      throw new Error('Decryption only available on server side');
+    }
     try {
+      const crypto = require('crypto');
       const [ivHex, authTagHex, encrypted] = encryptedData.split(':');
       const key = Buffer.from(userKey, 'hex');
       const iv = Buffer.from(ivHex, 'hex');
@@ -84,8 +97,8 @@ class SourcesConfigService {
 
   // Source configuration methods
   async getConfiguredSources(userId: string): Promise<ConfiguredSource[]> {
-    if (!this.sql) {
-      // Fallback to localStorage for development
+    if (!this.sql || !this.isServer) {
+      // Fallback to localStorage for development/client-side
       if (typeof window !== 'undefined') {
         const saved = localStorage.getItem(`sources_config_${userId}`);
         return saved ? JSON.parse(saved) : [];
@@ -133,8 +146,8 @@ class SourcesConfigService {
   }
 
   async saveSourceConfig(userId: string, source: ConfiguredSource): Promise<void> {
-    if (!this.sql) {
-      // Fallback to localStorage for development
+    if (!this.sql || !this.isServer) {
+      // Fallback to localStorage for development/client-side
       if (typeof window !== 'undefined') {
         const existing = localStorage.getItem(`sources_config_${userId}`);
         const sources = existing ? JSON.parse(existing) : [];
@@ -199,8 +212,8 @@ class SourcesConfigService {
   }
 
   async deleteSourceConfig(userId: string, sourceId: string): Promise<void> {
-    if (!this.sql) {
-      // Fallback to localStorage for development
+    if (!this.sql || !this.isServer) {
+      // Fallback to localStorage for development/client-side
       if (typeof window !== 'undefined') {
         const existing = localStorage.getItem(`sources_config_${userId}`);
         if (existing) {
@@ -237,8 +250,8 @@ class SourcesConfigService {
       // Test connection based on source type
       const success = await this.performConnectionTest(source);
       
-      // Update status in database
-      if (this.sql) {
+      // Update status in database (only on server)
+      if (this.sql && this.isServer) {
         await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
         await this.sql`
           UPDATE user_sources_config 
@@ -366,9 +379,9 @@ class SourcesConfigService {
     }
   }
 
-  // File cache methods
+  // File cache methods (server-side only)
   async getCachedFiles(userId: string, sourceId?: string): Promise<CachedFile[]> {
-    if (!this.sql) {
+    if (!this.sql || !this.isServer) {
       return [];
     }
 
@@ -400,7 +413,7 @@ class SourcesConfigService {
   }
 
   async cacheFile(userId: string, file: Omit<CachedFile, 'id'>): Promise<void> {
-    if (!this.sql) {
+    if (!this.sql || !this.isServer) {
       return;
     }
 
@@ -436,7 +449,7 @@ class SourcesConfigService {
   }
 
   async clearExpiredCache(userId: string): Promise<void> {
-    if (!this.sql) {
+    if (!this.sql || !this.isServer) {
       return;
     }
 
