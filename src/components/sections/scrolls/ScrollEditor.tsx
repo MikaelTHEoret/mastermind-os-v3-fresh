@@ -43,7 +43,10 @@ interface ScrollEditorProps {
   theme: {
     primaryColor: string;
     secondaryColor: string;
+    accentColor: string;
     borderColor: string;
+    textColor: string;
+    cardBackground: string;
   };
 }
 
