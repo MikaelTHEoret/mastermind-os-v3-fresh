@@ -257,7 +257,7 @@ export default function EnhancedMastermindOS() {
                 visibility: showLogoTooltip ? 'visible' : 'hidden',
                 transform: showLogoTooltip ? 'translateY(0)' : 'translateY(-10px)',
                 transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                zIndex: 50,
+                zIndex: 100,
                 boxShadow: '0 0 30px rgba(0, 255, 255, 0.4), inset 0 0 20px rgba(0, 255, 255, 0.1)',
                 backdropFilter: 'blur(10px)',
                 pointerEvents: showLogoTooltip ? 'auto' : 'none'
@@ -303,25 +303,13 @@ export default function EnhancedMastermindOS() {
                   </p>
                 </div>
 
-                <div style={{ marginBottom: '12px' }}>
-                  <p style={{ 
-                    color: '#ffffff', 
-                    fontSize: '11px', 
-                    lineHeight: '1.4', 
-                    margin: '0 0 8px 0',
-                    fontFamily: 'Inter, sans-serif'
-                  }}>
-                    Consciousness-Enhanced Interplanetary Knowledge Sovereign Economy Gateway
-                    platform integrating human-AI collaboration with mathematical awareness systems.
-                  </p>
-                </div>
-
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: '1fr 1fr', 
                   gap: '8px',
                   fontSize: '10px',
-                  fontFamily: 'Courier New, monospace'
+                  fontFamily: 'Courier New, monospace',
+                  marginBottom: '12px'
                 }}>
                   <div>
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Status:</span>
@@ -359,31 +347,45 @@ export default function EnhancedMastermindOS() {
                     <span style={{ color: '#00ffff', fontWeight: '600' }}>Author:</span> Mikael Theoret
                   </p>
                   
-                  {/* Affiliation with Logo */}
+                  {/* Affiliation with Logo - Fixed Z-index and positioning */}
                   <div style={{ 
                     display: 'flex', 
                     alignItems: 'center', 
                     justifyContent: 'space-between',
-                    marginTop: '8px'
+                    marginTop: '8px',
+                    position: 'relative'
                   }}>
                     <div>
                       <span style={{ color: '#00ffff', fontWeight: '600', fontSize: '10px' }}>Affiliation:</span>
                       <br />
                       <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontSize: '10px' }}>Global Science League</span>
                     </div>
-                    <img 
-                      src="/logo/Global_science_league.png" 
-                      alt="Global Science League" 
-                      style={{ 
-                        height: '24px',
-                        width: 'auto',
-                        filter: 'brightness(1.2) contrast(1.1)',
-                        opacity: 0.8
-                      }}
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    <div style={{ 
+                      position: 'relative',
+                      zIndex: 200,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      <img 
+                        src="/logo/Global_science_league.png" 
+                        alt="Global Science League" 
+                        style={{ 
+                          height: '24px',
+                          width: 'auto',
+                          filter: 'brightness(1.2) contrast(1.1)',
+                          opacity: 0.9,
+                          position: 'relative',
+                          zIndex: 300
+                        }}
+                        onLoad={(e) => {
+                          console.log('Global Science League logo loaded successfully');
+                        }}
+                        onError={(e) => {
+                          console.log('Failed to load Global Science League logo');
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
