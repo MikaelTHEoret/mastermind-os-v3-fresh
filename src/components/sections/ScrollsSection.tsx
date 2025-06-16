@@ -1327,7 +1327,10 @@ export default function ScrollsSection() {
                 theme={{ 
                   primaryColor: themeColors.primary_cyan, 
                   secondaryColor: themeColors.text_secondary, 
-                  borderColor: themeColors.border_primary 
+                  accentColor: themeColors.mystical_magenta,
+                  borderColor: themeColors.border_primary,
+                  textColor: themeColors.primary_cyan,
+                  cardBackground: getComponentBackground('card')
                 }} 
               />
             </div>
@@ -1348,7 +1351,10 @@ export default function ScrollsSection() {
                 theme={{ 
                   primaryColor: themeColors.primary_cyan, 
                   secondaryColor: themeColors.text_secondary, 
-                  borderColor: themeColors.border_primary 
+                  accentColor: themeColors.mystical_magenta,
+                  borderColor: themeColors.border_primary,
+                  textColor: themeColors.primary_cyan,
+                  cardBackground: getComponentBackground('card')
                 }}
               />
             </div>
@@ -1374,7 +1380,10 @@ export default function ScrollsSection() {
                   theme={{ 
                     primaryColor: themeColors.primary_cyan, 
                     secondaryColor: themeColors.text_secondary, 
-                    borderColor: themeColors.border_primary 
+                    accentColor: themeColors.mystical_magenta,
+                    borderColor: themeColors.border_primary,
+                    textColor: themeColors.primary_cyan,
+                    cardBackground: getComponentBackground('card')
                   }} 
                 />
               </div>
@@ -1396,7 +1405,10 @@ export default function ScrollsSection() {
                   theme={{ 
                     primaryColor: themeColors.primary_cyan, 
                     secondaryColor: themeColors.text_secondary, 
-                    borderColor: themeColors.border_primary 
+                    accentColor: themeColors.mystical_magenta,
+                    borderColor: themeColors.border_primary,
+                    textColor: themeColors.primary_cyan,
+                    cardBackground: getComponentBackground('card')
                   }}
                 />
               </div>
@@ -1424,7 +1436,10 @@ export default function ScrollsSection() {
               theme={{ 
                 primaryColor: themeColors.primary_cyan, 
                 secondaryColor: themeColors.text_secondary, 
-                borderColor: themeColors.border_primary 
+                accentColor: themeColors.mystical_magenta,
+                borderColor: themeColors.border_primary,
+                textColor: themeColors.primary_cyan,
+                cardBackground: getComponentBackground('card')
               }}
             />
           </div>
