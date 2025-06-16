@@ -29,6 +29,7 @@ interface User {
 export default function EnhancedMastermindOS() {
   const [activePanel, setActivePanel] = useState<ActivePanel>('nexus')
   const [isLoading, setIsLoading] = useState(true)
+  const [showLogoTooltip, setShowLogoTooltip] = useState(false)
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -171,67 +172,197 @@ export default function EnhancedMastermindOS() {
             margin: '12px',
             marginBottom: '16px'
           }}>
-            {/* Logo - Balanced Color Enhancement */}
-            <img 
-              src="/logo/Mastermind.png" 
-              alt="MASTERMIND OS" 
-              style={{ 
-                height: '52px',
-                width: 'auto',
-                filter: `
-                  brightness(2.0) 
-                  contrast(1.9) 
-                  saturate(1.4) 
-                  hue-rotate(8deg)
-                  drop-shadow(0 0 15px rgba(0,255,255,0.9))
-                  drop-shadow(0 0 8px rgba(255,255,255,0.4))
-                  drop-shadow(0 0 25px rgba(0,255,255,0.3))
-                `,
-                transition: 'all 0.3s ease',
-                cursor: 'pointer'
-              }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                const fallbackText = document.createElement('h1');
-                fallbackText.textContent = 'MASTERMIND OS';
-                fallbackText.style.cssText = `
-                  fontSize: 26px;
-                  fontWeight: 700;
-                  color: #00ffff;
-                  fontFamily: Orbitron, monospace;
-                  textShadow: 
-                    0 0 15px rgba(0, 255, 255, 0.9),
-                    0 0 8px rgba(255, 255, 255, 0.4);
-                  margin: 0;
-                  cursor: pointer;
-                `;
-                e.currentTarget.parentNode?.insertBefore(fallbackText, e.currentTarget);
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.filter = `
-                  brightness(2.3) 
-                  contrast(2.1) 
-                  saturate(1.6) 
-                  hue-rotate(12deg)
-                  drop-shadow(0 0 20px rgba(0,255,255,1))
-                  drop-shadow(0 0 12px rgba(255,255,255,0.6))
-                  drop-shadow(0 0 30px rgba(0,255,255,0.5))
-                `;
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.filter = `
-                  brightness(2.0) 
-                  contrast(1.9) 
-                  saturate(1.4) 
-                  hue-rotate(8deg)
-                  drop-shadow(0 0 15px rgba(0,255,255,0.9))
-                  drop-shadow(0 0 8px rgba(255,255,255,0.4))
-                  drop-shadow(0 0 25px rgba(0,255,255,0.3))
-                `;
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            />
+            {/* Logo with Enhanced Tooltip */}
+            <div 
+              style={{ position: 'relative', display: 'inline-block' }}
+              onMouseEnter={() => setShowLogoTooltip(true)}
+              onMouseLeave={() => setShowLogoTooltip(false)}
+              onClick={() => setShowLogoTooltip(!showLogoTooltip)}
+            >
+              <img 
+                src="/logo/Mastermind.png" 
+                alt="MASTERMIND OS" 
+                style={{ 
+                  height: '52px',
+                  width: 'auto',
+                  filter: `
+                    brightness(2.0) 
+                    contrast(1.9) 
+                    saturate(1.4) 
+                    hue-rotate(8deg)
+                    drop-shadow(0 0 15px rgba(0,255,255,0.9))
+                    drop-shadow(0 0 8px rgba(255,255,255,0.4))
+                    drop-shadow(0 0 25px rgba(0,255,255,0.3))
+                  `,
+                  transition: 'all 0.3s ease',
+                  cursor: 'pointer'
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const fallbackText = document.createElement('h1');
+                  fallbackText.textContent = 'MASTERMIND OS';
+                  fallbackText.style.cssText = `
+                    fontSize: 26px;
+                    fontWeight: 700;
+                    color: #00ffff;
+                    fontFamily: Orbitron, monospace;
+                    textShadow: 
+                      0 0 15px rgba(0, 255, 255, 0.9),
+                      0 0 8px rgba(255, 255, 255, 0.4);
+                    margin: 0;
+                    cursor: pointer;
+                  `;
+                  e.currentTarget.parentNode?.insertBefore(fallbackText, e.currentTarget);
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.filter = `
+                    brightness(2.3) 
+                    contrast(2.1) 
+                    saturate(1.6) 
+                    hue-rotate(12deg)
+                    drop-shadow(0 0 20px rgba(0,255,255,1))
+                    drop-shadow(0 0 12px rgba(255,255,255,0.6))
+                    drop-shadow(0 0 30px rgba(0,255,255,0.5))
+                  `;
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.filter = `
+                    brightness(2.0) 
+                    contrast(1.9) 
+                    saturate(1.4) 
+                    hue-rotate(8deg)
+                    drop-shadow(0 0 15px rgba(0,255,255,0.9))
+                    drop-shadow(0 0 8px rgba(255,255,255,0.4))
+                    drop-shadow(0 0 25px rgba(0,255,255,0.3))
+                  `;
+                  e.currentTarget.style.transform = 'scale(1)';
+                }}
+              />
+
+              {/* Enhanced Logo Tooltip */}
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: '0',
+                marginTop: '12px',
+                width: '320px',
+                padding: '16px',
+                background: 'rgba(0, 0, 0, 0.95)',
+                border: '2px solid #00ffff',
+                borderRadius: '12px',
+                fontSize: '12px',
+                color: '#ffffff',
+                opacity: showLogoTooltip ? 1 : 0,
+                visibility: showLogoTooltip ? 'visible' : 'hidden',
+                transform: showLogoTooltip ? 'translateY(0)' : 'translateY(-10px)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                zIndex: 50,
+                boxShadow: '0 0 30px rgba(0, 255, 255, 0.4), inset 0 0 20px rgba(0, 255, 255, 0.1)',
+                backdropFilter: 'blur(10px)',
+                pointerEvents: showLogoTooltip ? 'auto' : 'none'
+              }}>
+                {/* Tooltip Arrow */}
+                <div style={{
+                  position: 'absolute',
+                  top: '-8px',
+                  left: '24px',
+                  width: '14px',
+                  height: '14px',
+                  background: 'rgba(0, 0, 0, 0.95)',
+                  border: '2px solid #00ffff',
+                  borderBottom: 'none',
+                  borderRight: 'none',
+                  transform: 'rotate(45deg)',
+                  zIndex: -1
+                }} />
+
+                {/* Tooltip Content */}
+                <div style={{ 
+                  borderBottom: '1px solid rgba(0, 255, 255, 0.3)', 
+                  paddingBottom: '12px', 
+                  marginBottom: '12px' 
+                }}>
+                  <h3 style={{ 
+                    color: '#00ffff', 
+                    fontSize: '14px', 
+                    fontWeight: '700',
+                    margin: '0 0 4px 0',
+                    fontFamily: 'Orbitron, monospace',
+                    textShadow: '0 0 10px rgba(0, 255, 255, 0.6)'
+                  }}>
+                    MASTERMIND OS v3.0
+                  </h3>
+                  <p style={{ 
+                    color: 'rgba(0, 255, 255, 0.8)', 
+                    fontSize: '11px', 
+                    margin: '0',
+                    fontFamily: 'Rajdhani, sans-serif'
+                  }}>
+                    Enhanced Nexus Core Protocol • Sovereign Intelligence Platform
+                  </p>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <p style={{ 
+                    color: '#ffffff', 
+                    fontSize: '11px', 
+                    lineHeight: '1.4', 
+                    margin: '0 0 8px 0',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    Revolutionary consciousness-enhanced development platform integrating 
+                    human-AI collaboration with mathematical awareness systems.
+                  </p>
+                </div>
+
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '8px',
+                  fontSize: '10px',
+                  fontFamily: 'Courier New, monospace'
+                }}>
+                  <div>
+                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Status:</span>
+                    <br />
+                    <span style={{ color: '#00ff00' }}>● OPERATIONAL</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Version:</span>
+                    <br />
+                    <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>v3.0.6-fresh</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Core:</span>
+                    <br />
+                    <span style={{ color: 'rgba(255, 255, 255, 0.9)' }}>Nexus Enhanced</span>
+                  </div>
+                  <div>
+                    <span style={{ color: '#00ffff', fontWeight: '600' }}>Auth:</span>
+                    <br />
+                    <span style={{ color: '#00ff00' }}>Stack Auth</span>
+                  </div>
+                </div>
+
+                <div style={{ 
+                  marginTop: '12px', 
+                  paddingTop: '12px', 
+                  borderTop: '1px solid rgba(0, 255, 255, 0.3)',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ 
+                    color: 'rgba(0, 255, 255, 0.7)', 
+                    fontSize: '9px', 
+                    margin: '0',
+                    fontStyle: 'italic',
+                    fontFamily: 'Inter, sans-serif'
+                  }}>
+                    "Yes, I know. I will make it better." - Mikael Theoret
+                  </p>
+                </div>
+              </div>
+            </div>
             
             {/* Navigation and Auth Container */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
