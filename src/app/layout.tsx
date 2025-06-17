@@ -1,6 +1,8 @@
 import './globals.css'
 import { ClerkProvider } from '@clerk/nextjs'
 import { WalletProvider } from '@/context/WalletContext'
+import { Analytics } from '@vercel/analytics/react'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata = {
   title: 'MasterMind OS v3.0 - Enhanced Nexus Core Protocol',
@@ -121,6 +123,9 @@ export default function RootLayout({
           <WalletProvider>
             {children}
           </WalletProvider>
+          {/* Silent analytics tracking - no UI */}
+          <Analytics />
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>
