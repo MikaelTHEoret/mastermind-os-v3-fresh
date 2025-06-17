@@ -964,7 +964,7 @@ export default function SourcesConfigDashboard() {
         <Card className="border border-cyan-500/30 bg-black/60 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="text-white flex items-center justify-between">
-              Select Source Type
+              Add New Source
               <Button
                 variant="ghost"
                 size="sm"
@@ -980,15 +980,84 @@ export default function SourcesConfigDashboard() {
               {Object.entries(SOURCE_TYPES).map(([key, sourceType]) => {
                 const Icon = sourceType.icon;
                 return (
-                  <Button
+                  <button
                     key={key}
-                    variant="outline"
                     onClick={() => addNewSource(key)}
-                    className={`h-20 flex flex-col items-center gap-2 ${sourceType.color} hover:opacity-80 transition-opacity`}
+                    className="relative group overflow-hidden transition-all duration-300 transform hover:scale-105"
+                    style={{
+                      minHeight: '100px',
+                      background: 'linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6))',
+                      border: '2px solid rgba(0, 255, 255, 0.3)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '12px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      boxShadow: '0 4px 15px rgba(0, 255, 255, 0.2)'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.border = '2px solid #00ffff';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 255, 255, 0.15), rgba(0, 255, 255, 0.08))';
+                      e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 255, 255, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.border = '2px solid rgba(0, 255, 255, 0.3)';
+                      e.currentTarget.style.background = 'linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.6))';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(0, 255, 255, 0.2)';
+                    }}
                   >
-                    <Icon className="w-6 h-6 text-white" />
-                    <span className="text-white text-sm">{sourceType.name}</span>
-                  </Button>
+                    {/* Background glow effect */}
+                    <div 
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{
+                        background: 'radial-gradient(circle at center, rgba(0, 255, 255, 0.1), transparent 70%)',
+                        borderRadius: '12px'
+                      }}
+                    />
+                    
+                    {/* Icon with enhanced visibility */}
+                    <Icon 
+                      className="relative z-10 transition-all duration-300 group-hover:scale-110" 
+                      style={{ 
+                        width: '32px', 
+                        height: '32px',
+                        color: '#00ffff',
+                        filter: 'drop-shadow(0 0 8px rgba(0, 255, 255, 0.5))',
+                        transition: 'all 0.3s ease'
+                      }} 
+                    />
+                    
+                    {/* Text with enhanced visibility and glow */}
+                    <span 
+                      className="relative z-10 text-center font-semibold transition-all duration-300 group-hover:scale-105"
+                      style={{ 
+                        color: '#ffffff',
+                        fontSize: '16px',
+                        fontFamily: 'Rajdhani, sans-serif',
+                        fontWeight: '600',
+                        textShadow: '0 0 10px rgba(0, 255, 255, 0.8), 0 0 20px rgba(0, 255, 255, 0.4)',
+                        letterSpacing: '0.5px'
+                      }}
+                    >
+                      {sourceType.name}
+                    </span>
+
+                    {/* Animated border effect on hover */}
+                    <div 
+                      className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{
+                        border: '1px solid transparent',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(45deg, transparent, rgba(0, 255, 255, 0.3), transparent) border-box',
+                        mask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)',
+                        maskComposite: 'subtract'
+                      }}
+                    />
+                  </button>
                 );
               })}
             </div>
