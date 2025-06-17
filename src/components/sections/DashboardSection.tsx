@@ -559,7 +559,7 @@ export default function DashboardSection() {
                       5
                     </div>
                     <div 
-                      className="text-sm"
+                      className="text-s"
                       style={{ color: 'rgba(255, 0, 255, 0.7)' }}
                     >
                       Sources Configured
