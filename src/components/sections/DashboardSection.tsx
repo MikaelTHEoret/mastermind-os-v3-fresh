@@ -748,17 +748,14 @@ export default function DashboardSection() {
               />
             )}
             <div className="flex-1 min-w-0">
-              <p 
-                className="text-sm truncate"
-                style={{ color: '#ffffff' }}
-              >
-                {user?.firstName || 'User'}
+              <p className="text-lg font-rajdhani font-semibold text-white">
+                {user?.firstName || 'Unknown'} {user?.lastName || ''}
               </p>
-              <p 
-                className="text-xs truncate"
-                style={{ color: 'rgba(0, 255, 255, 0.7)' }}
-              >
-                {user?.primaryEmailAddress?.emailAddress}
+              <p className="text-cyan-400/70">
+                {user?.primaryEmailAddress?.emailAddress || 'No email'}
+              </p>
+              <p className="text-xs text-cyan-400/50 mt-1">
+                Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
               </p>
             </div>
           </div>
