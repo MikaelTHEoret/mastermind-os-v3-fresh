@@ -120,14 +120,16 @@ export default function MastermindTerminal() {
                     }}
                     onMouseOver={(e) => {
                       if (activeTab !== tab.id) {
-                        e.target.style.color = '#00ffff';
-                        e.target.style.background = 'rgba(0, 255, 255, 0.05)';
+                        const target = e.target as HTMLElement;
+                        target.style.color = '#00ffff';
+                        target.style.background = 'rgba(0, 255, 255, 0.05)';
                       }
                     }}
                     onMouseOut={(e) => {
                       if (activeTab !== tab.id) {
-                        e.target.style.color = '#888888';
-                        e.target.style.background = 'transparent';
+                        const target = e.target as HTMLElement;
+                        target.style.color = '#888888';
+                        target.style.background = 'transparent';
                       }
                     }}
                   >
