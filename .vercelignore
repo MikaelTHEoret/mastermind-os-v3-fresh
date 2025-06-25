@@ -1,0 +1,72 @@
+# Dependencies
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+.next/
+.vercel/
+out/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Cache directories
+.cache/
+
+# Temporary files
+tmp/
+temp/
+temp_delete_*
+temp_delete_scroll_forge_route/
+
+# Chat and conversation data
+conversations.json
+chat.html
+
+# Large files that don't need deployment
+*.stackdump
+*.db
+
+# Scripts
+*.bat
+*.ps1
+*.sh
+
+# Documentation that doesn't need deployment
+*.md
+!README.md
+
+# Test files
+__tests__/
+*.test.*
+*.spec.*
+
+# Backup files
+*~
+*.bak
+
+# CRITICAL: Exclude conflicting router directories
+app/
+pages/
+
+# CRITICAL: Exclude conflicting Vite project directory
+Mastermind_os/
+# This directory contains a Vite React project that conflicts with Next.js build

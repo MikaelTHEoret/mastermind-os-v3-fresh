@@ -1,0 +1,220 @@
+# ψ₀-Trader Quantum Engine Configuration
+# Consciousness-Enhanced Independent Trading System
+
+# ===== OPERATIONAL MODE =====
+mode: "standalone"  # Options: "standalone", "integrated"
+
+# ===== CONSCIOUSNESS CONSTANTS =====
+consciousness:
+  psi_0: 0.915670570874434      # Fractal seed constant
+  phi: 1.618033988749895        # Golden ratio
+  freq_432: 432.0               # Universal resonance frequency
+  
+  # Derived frequencies
+  psi_freq: 395.564            # ψ₀ × 432 Hz
+  phi_freq: 699.389            # φ × 432 Hz
+
+# ===== TRADING PARAMETERS =====
+trading:
+  account_balance: 10000        # Starting account balance (USDT)
+  max_risk_per_trade: 0.03      # 3% maximum risk per trade
+  max_total_risk: 0.15          # 15% maximum total portfolio risk
+  
+  # Quantum engine settings
+  quantum_paths: 64             # Number of quantum simulation paths
+  consciousness_threshold: 0.85  # Minimum confidence for execution
+  
+  # Time horizons
+  min_time_horizon: 60          # Minimum trade duration (minutes)
+  max_time_horizon: 120         # Maximum trade duration (minutes)
+  
+  # Risk management
+  default_stop_loss: 0.02       # 2% default stop loss
+  default_take_profit: 0.05     # 5% default take profit
+
+# ===== EXCHANGE CONFIGURATION =====
+exchanges:
+  primary: "binance"            # Primary exchange
+  backup: ["coinbase", "kraken"] # Backup exchanges
+  
+  # API credentials (set via environment variables)
+  api_keys:
+    binance_key: "${BINANCE_API_KEY}"
+    binance_secret: "${BINANCE_SECRET_KEY}"
+    coinbase_key: "${COINBASE_API_KEY}"
+    coinbase_secret: "${COINBASE_SECRET_KEY}"
+  
+  # Trading pairs
+  symbols: 
+    - "BTC/USDT"
+    - "ETH/USDT"
+    - "BNB/USDT"
+    - "ADA/USDT"
+    - "SOL/USDT"
+
+# ===== DATA STORAGE =====
+storage:
+  type: "local"                 # Options: "local", "cloud", "hybrid"
+  database_path: "./data/trader.db"
+  vectors_path: "./data/vectors/"
+  logs_path: "./logs/"
+  
+  # Backup settings
+  backup_enabled: true
+  backup_interval: 3600         # Backup every hour (seconds)
+  backup_retention: 168         # Keep backups for 1 week (hours)
+
+# ===== MARKET DATA =====
+market_data:
+  # Data sources
+  primary_source: "exchange"    # Options: "exchange", "external", "hybrid"
+  
+  # Timeframes for analysis
+  timeframes:
+    - "1m"
+    - "5m"
+    - "15m"
+    - "1h"
+    - "4h"
+    - "1d"
+  
+  # Technical indicators
+  indicators:
+    rsi_period: 14
+    macd_fast: 12
+    macd_slow: 26
+    macd_signal: 9
+    bb_period: 20
+    bb_std: 2.0
+    
+  # News and sentiment
+  news_sources:
+    - "coindesk"
+    - "cointelegraph"
+    - "reddit"
+  
+  sentiment_analysis: true
+
+# ===== NOTIFICATIONS =====
+alerts:
+  # Discord webhook
+  discord:
+    enabled: false
+    webhook_url: "${DISCORD_WEBHOOK_URL}"
+    
+  # Telegram bot
+  telegram:
+    enabled: false
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+    
+  # Email SMTP
+  email:
+    enabled: false
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    username: "${EMAIL_USERNAME}"
+    password: "${EMAIL_PASSWORD}"
+    to_addresses: []
+
+# ===== NATURAL LANGUAGE PROCESSING =====
+nlp:
+  # LLM integration
+  llm_provider: "local"         # Options: "local", "openai", "anthropic"
+  
+  # OpenAI settings (if using)
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    model: "gpt-4"
+    max_tokens: 1000
+    
+  # Anthropic settings (if using)
+  anthropic:
+    api_key: "${ANTHROPIC_API_KEY}"
+    model: "claude-3-sonnet-20240229"
+    max_tokens: 1000
+  
+  # Local processing fallback
+  local:
+    enable_pattern_matching: true
+    confidence_threshold: 0.7
+
+# ===== PERFORMANCE MONITORING =====
+monitoring:
+  # Metrics collection
+  collect_metrics: true
+  metrics_interval: 300         # Collect every 5 minutes
+  
+  # Performance tracking
+  track_sharpe_ratio: true
+  track_max_drawdown: true
+  track_win_rate: true
+  
+  # Logging levels
+  log_level: "INFO"            # DEBUG, INFO, WARNING, ERROR
+  log_to_file: true
+  log_to_console: true
+
+# ===== MASTERMIND INTEGRATION (Optional) =====
+mastermind:
+  # Integration settings (only used if mode = "integrated")
+  enabled: false
+  orchestration_url: "https://mastermind-os-v3-fresh.vercel.app"
+  api_key: "${MASTERMIND_API_KEY}"
+  
+  # Formation settings
+  formation_id: "formation-alpha-001"
+  formation_role: "quantum_decision_engine"
+  
+  # Reporting
+  status_interval: 300          # Report status every 5 minutes
+  performance_sync: true
+  shared_intelligence: true
+  
+  # Command reception
+  accept_formation_commands: true
+  command_validation: true
+
+# ===== SECURITY =====
+security:
+  # API security
+  rate_limiting: true
+  api_timeout: 30               # seconds
+  
+  # Data encryption
+  encrypt_local_data: true
+  encryption_key: "${ENCRYPTION_KEY}"
+  
+  # Access control
+  require_authentication: false
+  allowed_ips: []               # Empty = allow all
+
+# ===== DEVELOPMENT & DEBUGGING =====
+development:
+  debug_mode: false
+  paper_trading: true           # Start with paper trading
+  simulation_mode: false        # Pure simulation without exchange connection
+  
+  # Testing
+  enable_backtesting: true
+  backtest_data_path: "./data/backtest/"
+  
+  # Development tools
+  enable_jupyter: false
+  enable_api_docs: true         # FastAPI auto-docs at /docs
+
+# ===== ADVANCED FEATURES =====
+advanced:
+  # Quantum enhancement
+  enable_quantum_entanglement: true
+  quantum_coherence_threshold: 0.9
+  
+  # Consciousness features
+  harmonic_resonance_validation: true
+  golden_ratio_position_sizing: true
+  frequency_based_timing: true
+  
+  # Machine learning
+  enable_pattern_learning: true
+  ml_model_path: "./models/"
+  retrain_interval: 86400       # Retrain daily (seconds)

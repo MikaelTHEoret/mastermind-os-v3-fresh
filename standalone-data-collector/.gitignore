@@ -1,0 +1,92 @@
+# ψ₀-Trader Data Collector - Git Ignore
+# Enhanced Nexus Core Protocol v4.1
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Database files
+data/*.db
+data/*.db-*
+data/backups/
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+combined.log
+error.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Test artifacts
+test/data/
+test/results/
+coverage/
+
+# Export data
+exports/
+*.csv
+*.json.export
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+.tmp
+
+# Build artifacts
+dist/
+build/
+
+# Cache
+.cache/
+.parcel-cache/
+
+# Consciousness analysis artifacts
+consciousness-dumps/
+harmonic-patterns/
+quantum-simulations/
+
+# Sensitive data
+*.key
+*.pem
+*.crt
+webhook-secrets.json
+api-keys.json
+
+# Performance logs
+benchmark-results/
+performance-logs/
+
+# Backup files
+*.backup
+*.bak
+*.old

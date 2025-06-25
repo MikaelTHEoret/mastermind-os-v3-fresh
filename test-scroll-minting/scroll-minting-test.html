@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌀 Scroll Minting Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ffff;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid #00ffff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        button {
+            background: rgba(0, 255, 255, 0.2);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: rgba(0, 255, 255, 0.3);
+        }
+        .log {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            height: 300px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        input {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            padding: 8px;
+            margin: 5px;
+            border-radius: 4px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌀 Scroll Minting Integration Test</h1>
+        <p>Testing the scroll minting functionality with real Web3 integration</p>
+
+        <div class="test-section">
+            <h3>📋 Test Parameters</h3>
+            <div>
+                <label>Recipient Address:</label><br>
+                <input type="text" id="recipientAddress" value="0x4575a90d54785323546f2bb4a520622ed6d3efbc" />
+            </div>
+            <div>
+                <label>Title:</label><br>
+                <input type="text" id="scrollTitle" value="Test Scroll v1.0" />
+            </div>
+            <div>
+                <label>IPFS CID:</label><br>
+                <input type="text" id="ipfsCid" value="bafkreitest123456789abcdef" />
+            </div>
+            <div>
+                <label>Content Hash:</label><br>
+                <input type="text" id="contentHash" value="0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef" />
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔗 Web3 Connection Test</h3>
+            <button onclick="testWalletConnection()">Test Wallet Connection</button>
+            <button onclick="checkNetworks()">Check Networks</button>
+            <button onclick="validateParameters()">Validate Parameters</button>
+        </div>
+
+        <div class="test-section">
+            <h3>⚡ Minting Tests</h3>
+            <button onclick="testL1Minting()">Test L1 Minting</button>
+            <button onclick="testL2Minting()">Test L2 Minting</button>
+            <button onclick="testContractValidation()">Test Contract Validation</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Test Log</h3>
+            <div id="testLog" class="log"></div>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        // Import the scroll contract functions
+        // Note: In real implementation, these would be imported from the actual modules
+
+        function log(message) {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}<br>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('testLog').innerHTML = '';
+        }
+
+        // Test 1: Wallet Connection
+        async function testWalletConnection() {
+            log('🔄 Testing wallet connection...');
+            
+            if (typeof window.ethereum === 'undefined') {
+                log('❌ No Web3 wallet detected (MetaMask not installed)');
+                return false;
+            }
+
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                if (accounts.length > 0) {
+                    log(`✅ Wallet connected: ${accounts[0]}`);
+                    return true;
+                } else {
+                    log('⚠️ Wallet not connected - requesting connection...');
+                    const newAccounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    if (newAccounts.length > 0) {
+                        log(`✅ Wallet connected: ${newAccounts[0]}`);
+                        return true;
+                    } else {
+                        log('❌ Wallet connection failed');
+                        return false;
+                    }
+                }
+            } catch (error) {
+                log(`❌ Wallet connection error: ${error.message}`);
+                return false;
+            }
+        }
+
+        // Test 2: Network Information
+        async function checkNetworks() {
+            log('🔄 Checking network information...');
+            
+            if (typeof window.ethereum === 'undefined') {
+                log('❌ No Web3 wallet detected');
+                return;
+            }
+
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                log(`📡 Current Chain ID: ${chainId}`);
+                
+                switch (chainId) {
+                    case '0x1':
+                        log('✅ Connected to Ethereum Mainnet');
+                        break;
+                    case '0x82750':
+                        log('✅ Connected to Scroll Mainnet');
+                        break;
+                    case '0xaa36a7':
+                        log('⚠️ Connected to Sepolia Testnet');
+                        break;
+                    case '0x8274f':
+                        log('⚠️ Connected to Scroll Sepolia');
+                        break;
+                    default:
+                        log(`⚠️ Connected to unknown network: ${chainId}`);
+                }
+            } catch (error) {
+                log(`❌ Network check error: ${error.message}`);
+            }
+        }
+
+        // Test 3: Parameter Validation
+        function validateParameters() {
+            log('🔄 Validating parameters...');
+            
+            const recipientAddress = document.getElementById('recipientAddress').value;
+            const title = document.getElementById('scrollTitle').value;
+            const cid = document.getElementById('ipfsCid').value;
+            const hash = document.getElementById('contentHash').value;

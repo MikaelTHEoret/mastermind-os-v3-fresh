@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "mastermind-terminal": {
+      "command": "node",
+      "args": ["./scripts/mcp/mastermind-mcp-server.js"],
+      "cwd": "C:\\Users\\Mik\\Documents\\mastermind-os-v3-fresh",
+      "env": {
+        "MASTERMIND_API_BASE": "https://mastermind-os-v3-fresh.vercel.app/api",
+        "MASTERMIND_API_KEY": ""
+      }
+    }
+  }
+}

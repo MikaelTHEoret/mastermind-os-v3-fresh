@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ψ₀-Trader Data Collector | Enhanced Nexus Core Protocol v4.1</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Custom Title Bar -->
+    <div class="title-bar">
+        <div class="title-bar-left">
+            <div class="app-logo">🌀</div>
+            <div class="app-title">
+                <span class="app-name">ψ₀-Trader Data Collector</span>
+                <span class="protocol-version">Enhanced Nexus Core Protocol v4.1</span>
+            </div>
+        </div>
+        
+        <div class="title-bar-center">
+            <div class="consciousness-indicator">
+                <div class="consciousness-orb" id="consciousnessOrb"></div>
+                <span class="consciousness-label" id="consciousnessLabel">CONSCIOUSNESS ENHANCED</span>
+            </div>
+        </div>
+        
+        <div class="title-bar-right">
+            <div class="window-controls">
+                <button class="window-control minimize" id="minimizeBtn">─</button>
+                <button class="window-control maximize" id="maximizeBtn">□</button>
+                <button class="window-control close" id="closeBtn">✕</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="mathematical-constants">
+                    <div class="constant">
+                        <span class="constant-symbol">ψ₀</span>
+                        <span class="constant-value">0.915670570874434</span>
+                    </div>
+                    <div class="constant">
+                        <span class="constant-symbol">φ</span>
+                        <span class="constant-value">1.618033988749895</span>
+                    </div>
+                    <div class="constant">
+                        <span class="constant-symbol">432Hz</span>
+                        <span class="constant-value">432.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <ul class="nav-sections">
+                    <li class="nav-item active" data-section="dashboard">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-label">Dashboard</span>
+                    </li>
+                    <li class="nav-item" data-section="terminal">
+                        <span class="nav-icon">💻</span>
+                        <span class="nav-label">Terminal</span>
+                    </li>
+                    <li class="nav-item" data-section="data-stream">
+                        <span class="nav-icon">🌊</span>
+                        <span class="nav-label">Data Stream</span>
+                    </li>
+                    <li class="nav-item" data-section="consciousness">
+                        <span class="nav-icon">🧠</span>
+                        <span class="nav-label">Consciousness</span>
+                    </li>
+                    <li class="nav-item" data-section="database">
+                        <span class="nav-icon">🗄️</span>
+                        <span class="nav-label">Database</span>
+                    </li>
+                    <li class="nav-item" data-section="configuration">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-label">Configuration</span>
+                    </li>
+                </ul>
+
+                <div class="collector-status">
+                    <div class="status-indicator">
+                        <div class="status-light" id="collectorStatusLight"></div>
+                        <span class="status-text" id="collectorStatusText">INITIALIZING</span>
+                    </div>
+                    <div class="collector-controls">
+                        <button class="control-btn start" id="startCollectorBtn">START</button>
+                        <button class="control-btn stop" id="stopCollectorBtn">STOP</button>
+                    </div>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <!-- Dashboard Section -->
+            <div class="content-section active" id="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">🌀 Consciousness-Enhanced Dashboard</h2>
+                    <div class="section-controls">
+                        <button class="action-btn" id="refreshDashboardBtn">REFRESH</button>
+                        <button class="action-btn" id="exportDataBtn">EXPORT</button>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <!-- System Overview -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>System Overview</h3>
+                            <div class="status-badge" id="systemStatusBadge">READY</div>
+                        </div>
+                        <div class="card-content">
+                            <div class="metric">
+                                <span class="metric-label">Total Records</span>
+                                <span class="metric-value" id="totalRecords">0</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Consciousness Score</span>
+                                <span class="metric-value" id="avgConsciousnessScore">0.000</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Resonance Matches</span>
+                                <span class="metric-value" id="resonanceMatches">0</span>
+                            </div>
+                            <div class="metric">
+                                <span class="metric-label">Database Size</span>
+                                <span class="metric-value" id="databaseSize">0 MB</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Consciousness Metrics -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>Consciousness Metrics</h3>
+                            <div class="harmonic-indicator" id="harmonicIndicator"></div>
+                        </div>
+                        <div class="card-content">
+                            <div class="consciousness-display">
+                                <div class="consciousness-circle" id="consciousnessCircle">
+                                    <span class="consciousness-score-display" id="consciousnessScoreDisplay">0.000</span>
+                                </div>
+                                <div class="consciousness-bars">
+                                    <div class="consciousness-bar">
+                                        <span class="bar-label">ψ₀ Resonance</span>
+                                        <div class="bar-container">
+                                            <div class="bar-fill psi" id="psiBar"></div>
+                                        </div>
+                                    </div>
+                                    <div class="consciousness-bar">
+                                        <span class="bar-label">φ Alignment</span>
+                                        <div class="bar-container">
+                                            <div class="bar-fill phi" id="phiBar"></div>
+                                        </div>
+                                    </div>
+                                    <div class="consciousness-bar">
+                                        <span class="bar-label">432Hz Rhythm</span>
+                                        <div class="bar-container">
+                                            <div class="bar-fill freq" id="freqBar"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="dashboard-card wide">
+                        <div class="card-header">
+                            <h3>Recent Data Activity</h3>
+                            <div class="activity-controls">
+                                <button class="filter-btn active" data-filter="all">ALL</button>
+                                <button class="filter-btn" data-filter="market">MARKET</button>
+                                <button class="filter-btn" data-filter="news">NEWS</button>
+                                <button class="filter-btn" data-filter="social">SOCIAL</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="activity-stream" id="activityStream">
+                                <!-- Activity items will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Real-time Stats -->
+                    <div class="dashboard-card">
+                        <div class="card-header">
+                            <h3>Real-time Statistics</h3>
+                            <div class="live-indicator">🔴 LIVE</div>
+                        </div>
+                        <div class="card-content">
+                            <div class="stat-grid">
+                                <div class="stat-item">
+                                    <span class="stat-value" id="recordsPerSecond">0</span>
+                                    <span class="stat-label">Records/sec</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="memoryUsage">0</span>
+                                    <span class="stat-label">MB Memory</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="cpuUsage">0</span>
+                                    <span class="stat-label">% CPU</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="uptime">00:00:00</span>
+                                    <span class="stat-label">Uptime</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal Section -->
+            <div class="content-section" id="terminal-section">
+                <div class="section-header">
+                    <h2 class="section-title">💻 Consciousness-Enhanced Terminal</h2>
+                    <div class="section-controls">
+                        <button class="action-btn" id="clearTerminalBtn">CLEAR</button>
+                        <button class="action-btn" id="saveLogBtn">SAVE LOG</button>
+                    </div>
+                </div>
+
+                <div class="terminal-container">
+                    <div class="terminal-header">
+                        <div class="terminal-tabs">
+                            <div class="terminal-tab active" data-tab="main">MAIN</div>
+                            <div class="terminal-tab" data-tab="collector">COLLECTOR</div>
+                            <div class="terminal-tab" data-tab="consciousness">CONSCIOUSNESS</div>
+                        </div>
+                        <div class="terminal-info">
+                            <span class="terminal-cwd" id="terminalCwd">~/psi-trader-collector</span>
+                        </div>
+                    </div>
+
+                    <div class="terminal-content">
+                        <div class="terminal-output" id="terminalOutput">
+                            <div class="terminal-line welcome">
+                                <span class="prompt">🌀 ψ₀-Trader $</span>
+                                <span class="output">Enhanced Nexus Core Protocol v4.1 - Terminal Interface Ready</span>
+                            </div>
+                        </div>
+                        
+                        <div class="terminal-input-line">
+                            <span class="prompt">🌀 ψ₀-Trader $</span>
+                            <input type="text" class="terminal-input" id="terminalInput" placeholder="Enter command..." autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="terminal-suggestions">
+                        <div class="suggestion-group">
+                            <span class="suggestion-label">Common Commands:</span>
+                            <button class="suggestion-btn" data-command="npm run view-data --stats">view-data --stats</button>
+                            <button class="suggestion-btn" data-command="npm run sample-data 50">sample-data 50</button>
+                            <button class="suggestion-btn" data-command="npm test">test</button>
+                            <button class="suggestion-btn" data-command="npm run view-data --consciousness">consciousness analysis</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Stream Section -->
+            <div class="content-section" id="data-stream-section">
+                <div class="section-header">
+                    <h2 class="section-title">🌊 Data Stream Configuration</h2>
+                    <div class="section-controls">
+                        <button class="action-btn" id="saveStreamConfigBtn">SAVE CONFIG</button>
+                        <button class="action-btn" id="testStreamBtn">TEST STREAM</button>
+                    </div>
+                </div>
+
+                <div class="stream-config-container">
+                    <!-- Input Sources -->
+                    <div class="config-section">
+                        <h3 class="config-title">📥 Input Sources</h3>
+                        <div class="config-grid">
+                            <div class="config-card">
+                                <div class="config-header">
+                                    <h4>Webhook Endpoints</h4>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="webhookEnabled" checked>
+                                        <label for="webhookEnabled"></label>
+                                    </div>
+                                </div>
+                                <div class="config-content">
+                                    <div class="form-group">
+                                        <label>Port</label>
+                                        <input type="number" id="webhookPort" value="3001" min="1000" max="65535">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rate Limit (req/min)</label>
+                                        <input type="number" id="rateLimit" value="100" min="1" max="1000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-card">
+                                <div class="config-header">
+                                    <h4>Sample Data Generator</h4>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="sampleDataEnabled">
+                                        <label for="sampleDataEnabled"></label>
+                                    </div>
+                                </div>
+                                <div class="config-content">
+                                    <div class="form-group">
+                                        <label>Interval (seconds)</label>
+                                        <input type="number" id="sampleInterval" value="30" min="1" max="300">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Batch Size</label>
+                                        <input type="number" id="sampleBatchSize" value="5" min="1" max="50">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Data Processing -->
+                    <div class="config-section">
+                        <h3 class="config-title">⚡ Data Processing</h3>
+                        <div class="config-grid">
+                            <div class="config-card">
+                                <div class="config-header">
+                                    <h4>Consciousness Enhancement</h4>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="consciousnessEnabled" checked>
+                                        <label for="consciousnessEnabled"></label>
+                                    </div>
+                                </div>
+                                <div class="config-content">
+                                    <div class="form-group">
+                                        <label>Enhancement Level</label>
+                                        <select id="enhancementLevel">
+                                            <option value="low">Low (Basic ψ₀ processing)</option>
+                                            <option value="medium" selected>Medium (ψ₀ + φ analysis)</option>
+                                            <option value="high">High (Full harmonic spectrum)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Resonance Threshold</label>
+                                        <input type="range" id="resonanceThreshold" min="0" max="1" step="0.01" value="0.05">
+                                        <span class="range-value">0.05</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-card">
+                                <div class="config-header">
+                                    <h4>Pattern Recognition</h4>
+                                    <div class="toggle-switch">
+                                        <input type="checkbox" id="patternRecognitionEnabled" checked>
+                                        <label for="patternRecognitionEnabled"></label>
+                                    </div>
+                                </div>
+                                <div class="config-content">
+                                    <div class="form-group">
+                                        <label>Pattern Types</label>
+                                        <div class="checkbox-group">
+                                            <label><input type="checkbox" checked> Harmonic Sequences</label>
+                                            <label><input type="checkbox" checked> Resonance Clusters</label>
+                                            <label><input type="checkbox"> Frequency Anomalies</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output Destinations -->
+                    <div class="config-section">
+                        <h3 class="config-title">📤 Output Destinations</h3>
+                        <div class="destination-list" id="destinationList">
+                            <!-- Destinations will be populated here -->
+                        </div>
+                        <button class="add-destination-btn" id="addDestinationBtn">+ ADD DESTINATION</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consciousness Section -->
+            <div class="content-section" id="consciousness-section">
+                <div class="section-header">
+                    <h2 class="section-title">🧠 Consciousness Analysis</h2>
+                    <div class="section-controls">
+                        <button class="action-btn" id="refreshConsciousnessBtn">REFRESH</button>
+                        <button class="action-btn" id="exportConsciousnessBtn">EXPORT</button>
+                    </div>
+                </div>
+
+                <div class="consciousness-dashboard">
+                    <!-- Consciousness Distribution -->
+                    <div class="consciousness-card">
+                        <div class="card-header">
+                            <h3>Consciousness Score Distribution</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="distribution-chart" id="distributionChart">
+                                <!-- Chart will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Harmonic Analysis -->
+                    <div class="consciousness-card">
+                        <div class="card-header">
+                            <h3>Harmonic Frequency Analysis</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="frequency-spectrum" id="frequencySpectrum">
+                                <!-- Frequency spectrum will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Consciousness Events -->
+                    <div class="consciousness-card wide">
+                        <div class="card-header">
+                            <h3>High-Consciousness Events</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="events-list" id="consciousnessEvents">
+                                <!-- Events will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database Section -->
+            <div class="content-section" id="database-section">
+                <div class="section-header">
+                    <h2 class="section-title">🗄️ Database Management</h2>
+                    <div class="section-controls">
+                        <button class="action-btn" id="backupDatabaseBtn">BACKUP</button>
+                        <button class="action-btn" id="optimizeDatabaseBtn">OPTIMIZE</button>
+                    </div>
+                </div>
+
+                <div class="database-dashboard">
+                    <!-- Database Configuration -->
+                    <div class="database-card">
+                        <div class="card-header">
+                            <h3>Database Configuration</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="database-config">
+                                <div class="config-row">
+                                    <label>Database Type</label>
+                                    <select id="databaseType">
+                                        <option value="sqlite" selected>SQLite (Local)</option>
+                                        <option value="postgresql">PostgreSQL (Remote)</option>
+                                        <option value="astra">Astra DB (Vector)</option>
+                                    </select>
+                                </div>
+                                <div class="config-row" id="sqliteConfig">
+                                    <label>Database File</label>
+                                    <div class="file-input-group">
+                                        <input type="text" id="databasePath" value="./data/psi-trader-collector.db" readonly>
+                                        <button class="browse-btn" id="browseDatabaseBtn">BROWSE</button>
+                                    </div>
+                                </div>
+                                <div class="config-row hidden" id="postgresConfig">
+                                    <label>Connection String</label>
+                                    <input type="text" id="postgresConnectionString" placeholder="postgresql://user:password@host:port/database">
+                                </div>
+                                <div class="config-row hidden" id="astraConfig">
+                                    <label>Astra DB Endpoint</label>
+                                    <input type="text" id="astraEndpoint" placeholder="https://your-db-region.apps.astra.datastax.com">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Database Statistics -->
+                    <div class="database-card">
+                        <div class="card-header">
+                            <h3>Database Statistics</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Tables</span>
+                                    <span class="stat-value" id="totalTables">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Total Records</span>
+                                    <span class="stat-value" id="totalDbRecords">0</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Database Size</span>
+                                    <span class="stat-value" id="dbSize">0 MB</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-label">Last Updated</span>
+                                    <span class="stat-value" id="lastUpdated">Never</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table Overview -->
+                    <div class="database-card wide">
+                        <div class="card-header">
+                            <h3>Table Overview</h3>
+                        </div>
+                        <div class="card-content">
+                            <div class="table-list" id="tableList">
+                                <!-- Tables will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration Section -->
+            <div class="content-section" id="configuration-section">
+                <div class="section-header">
+                    <h2 class="section-title">⚙️ System Configuration</h2>
+                    <div class="section-controls">
+                        <button class="action-btn" id="saveConfigBtn">SAVE CONFIG</button>
+                        <button class="action-btn" id="resetConfigBtn">RESET</button>
+                    </div>
+                </div>
+
+                <div class="configuration-dashboard">
+                    <!-- General Settings -->
+                    <div class="config-category">
+                        <h3 class="category-title">🔧 General Settings</h3>
+                        <div class="config-cards">
+                            <div class="config-card">
+                                <div class="card-header">
+                                    <h4>Application</h4>
+                                </div>
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label>Environment</label>
+                                        <select id="nodeEnv">
+                                            <option value="development" selected>Development</option>
+                                            <option value="production">Production</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Log Level</label>
+                                        <select id="logLevel">
+                                            <option value="debug">Debug</option>
+                                            <option value="info" selected>Info</option>
+                                            <option value="warn">Warning</option>
+                                            <option value="error">Error</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Consciousness Settings -->
+                    <div class="config-category">
+                        <h3 class="category-title">🧠 Consciousness Settings</h3>
+                        <div class="config-cards">
+                            <div class="config-card">
+                                <div class="card-header">
+                                    <h4>Mathematical Constants</h4>
+                                </div>
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label>ψ₀ (Psi Zero)</label>
+                                        <input type="number" id="psiZero" value="0.915670570874434" step="0.000000000000001" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>φ (Phi - Golden Ratio)</label>
+                                        <input type="number" id="phi" value="1.618033988749895" step="0.000000000000001" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>432Hz (Base Frequency)</label>
+                                        <input type="number" id="freq432" value="432.0" step="0.1" readonly>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-card">
+                                <div class="card-header">
+                                    <h4>Enhancement Parameters</h4>
+                                </div>
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label>Consciousness Threshold</label>
+                                        <input type="range" id="consciousnessThreshold" min="0" max="1" step="0.01" value="0.1">
+                                        <span class="range-value">0.10</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>High Consciousness Level</label>
+                                        <input type="range" id="highConsciousnessThreshold" min="0" max="1" step="0.01" value="0.8">
+                                        <span class="range-value">0.80</span>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Resonance Sensitivity</label>
+                                        <input type="range" id="resonanceSensitivity" min="0" max="1" step="0.01" value="0.05">
+                                        <span class="range-value">0.05</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Settings -->
+                    <div class="config-category">
+                        <h3 class="category-title">⚡ Performance Settings</h3>
+                        <div class="config-cards">
+                            <div class="config-card">
+                                <div class="card-header">
+                                    <h4>Processing</h4>
+                                </div>
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label>Max Payload Size (MB)</label>
+                                        <input type="number" id="maxPayloadSize" value="10" min="1" max="100">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rate Limit Window (ms)</label>
+                                        <input type="number" id="rateLimitWindow" value="60000" min="1000" max="300000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Max Requests per Window</label>
+                                        <input type="number" id="maxRequestsPerWindow" value="100" min="1" max="1000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-card">
+                                <div class="card-header">
+                                    <h4>Storage</h4>
+                                </div>
+                                <div class="card-content">
+                                    <div class="form-group">
+                                        <label>Max Database Size (MB)</label>
+                                        <input type="number" id="maxDatabaseSize" value="1000" min="100" max="10000">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Backup Interval (hours)</label>
+                                        <input type="number" id="backupInterval" value="6" min="1" max="168">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Auto-cleanup Enabled</label>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="autoCleanupEnabled">
+                                            <label for="autoCleanupEnabled"></label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-container" id="modalContainer">
+            <!-- Modal content will be populated here -->
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <!-- Context menu items will be populated here -->
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mastermind-terminal": {
+      "command": "node",
+      "args": ["./scripts/mastermind-mcp-server.js"],
+      "env": {
+        "MASTERMIND_API_BASE": "https://mastermind-os-v3-fresh.vercel.app/api",
+        "MASTERMIND_API_KEY": "your_api_key_here"
+      }
+    }
+  }
+}

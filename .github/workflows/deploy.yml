@@ -1,0 +1,18 @@
+# GitHub Actions workflow file DISABLED to prevent double deployments
+# 
+# This file has been disabled to stop duplicate Vercel deployments.
+# Vercel will deploy automatically via its own webhook integration.
+#
+# name: Deploy to Vercel (DISABLED)
+#
+# on:
+#   push:
+#     branches: [ main ]
+#   workflow_dispatch:
+#
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Disabled
+#         run: echo "This workflow has been disabled to prevent double deployments"

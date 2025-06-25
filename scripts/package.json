@@ -1,0 +1,14 @@
+{
+  "name": "mastermind-mcp-server",
+  "version": "1.0.0",
+  "description": "Mastermind OS MCP Server for Claude Desktop Integration",
+  "type": "module",
+  "main": "mastermind-mcp-server.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "node-fetch": "^3.3.2"
+  },
+  "bin": {
+    "mastermind-mcp-server": "./mastermind-mcp-server.js"
+  }
+}
