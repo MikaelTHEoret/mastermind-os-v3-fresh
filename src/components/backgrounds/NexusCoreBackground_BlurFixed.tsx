@@ -97,7 +97,7 @@ export default function NexusCoreBackground({ children }: NexusCoreBackgroundPro
           filter: 'brightness(0.2)',
           /* BLUR FIX: GPU optimization */
           willChange: 'transform',
-          transform3d: 'translateZ(0)'
+          transform: 'translateZ(0)'
         }} />
 
         {/* BLUR FIX: Simplified light columns - no animation */}
