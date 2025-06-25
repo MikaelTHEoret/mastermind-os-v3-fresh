@@ -290,8 +290,8 @@ export default function ConfigDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  const getHealthStatusColor = (status: string) => {
-    const colors = {
+  const getHealthStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
       'healthy': '#00ff88',
       'unhealthy': '#ff4444',
       'unknown': '#888888'
@@ -299,8 +299,8 @@ export default function ConfigDashboard() {
     return colors[status] || colors.unknown;
   };
 
-  const getProviderIcon = (name: string) => {
-    const icons = {
+  const getProviderIcon = (name: string): string => {
+    const icons: Record<string, string> = {
       'deepseek': '🧠',
       'groq': '⚡',
       'openai': '🤖',
@@ -310,8 +310,8 @@ export default function ConfigDashboard() {
     return icons[name] || '🔮';
   };
 
-  const getCollectionIcon = (name: string) => {
-    const icons = {
+  const getCollectionIcon = (name: string): string => {
+    const icons: Record<string, string> = {
       'hugging_dynamic_memory': '🤗',
       'system_enhancements': '⚙️',
       'fractal_scrolls': '📜',
