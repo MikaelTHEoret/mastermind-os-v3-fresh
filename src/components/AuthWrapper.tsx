@@ -1,14 +1,29 @@
 'use client';
 
-import { useUser } from '@stackframe/stack';
-import { SignIn } from '@stackframe/stack';
+import { useUser, SignIn } from '@clerk/nextjs';
 import EnhancedMastermindOS from '@/components/EnhancedMastermindOS';
 
 export default function AuthWrapper() {
-  const user = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
+
+  // Show loading state while Clerk loads
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-purple-900 to-violet-900 flex items-center justify-center">
+        <div className="w-full max-w-md text-center">
+          <div className="animate-pulse">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent mb-2">
+              🧠 MASTERMIND OS v3
+            </h1>
+            <p className="text-zinc-400">Loading authentication...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Show sign-in page if not authenticated
-  if (!user) {
+  if (!isSignedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-purple-900 to-violet-900 flex items-center justify-center">
         <div className="w-full max-w-md">
@@ -20,7 +35,17 @@ export default function AuthWrapper() {
           </div>
           
           <div className="bg-zinc-900/50 backdrop-blur-sm border border-cyan-500/30 rounded-lg p-6">
-            <SignIn />
+            <SignIn 
+              routing="virtual"
+              signUpUrl="/sign-up"
+              redirectUrl="/"
+              appearance={{
+                elements: {
+                  formButtonPrimary: 'bg-cyan-600 hover:bg-cyan-700',
+                  card: 'bg-transparent border-0'
+                }
+              }}
+            />
           </div>
           
           <div className="text-center mt-6 text-sm text-zinc-400">
