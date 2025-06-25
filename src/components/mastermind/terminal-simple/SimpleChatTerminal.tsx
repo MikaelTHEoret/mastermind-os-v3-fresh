@@ -117,7 +117,7 @@ export default function SimpleChatTerminal() {
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'system',
-        content: `❌ Connection Error: ${error.message}`,
+        content: `❌ Connection Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
