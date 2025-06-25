@@ -3,7 +3,7 @@
 // Nexus Core Protocol v4.1
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AlertCircle, FileText, Download, Upload, Hash, Zap, Cpu, Database, Code, Globe, Key, Lock, Unlock, CheckCircle, XCircle, Clock, TrendingUp, Activity, Brain, Target, Shield, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff, Wand2, Hexagon, FileCode, MousePointer, ScrollText, Coins, ExternalLink, Plus, Trash2, RotateCcw, Settings, Search, Filter, Calendar, Tag, Bookmark, Star, MoreHorizontal, RefreshCw, Save, Edit3, Copy, Share2, MessageSquare, Layers, GitBranch, Workflow, Zap as Lightning, Network, Atom, Waves, Orbit, Maximize2, Minimize2, BarChart3, PieChart, LineChart, TrendingDown, AlertTriangle } from 'lucide-react';
+import { AlertCircle, FileText, Download, Upload, Hash, Zap, Cpu, Database, Code, Globe, Key, Lock, Unlock, CheckCircle, XCircle, Clock, TrendingUp, Activity, Brain, Target, Shield, Sparkles, ChevronDown, ChevronUp, Eye, EyeOff, Wand2, Hexagon, FileCode, MousePointer, ScrollText, Coins, ExternalLink, Plus, Trash2, RotateCcw, Settings, Search, Filter, Calendar, Tag, Bookmark, Star, MoreHorizontal, RefreshCw, Save, Edit3, Copy, Share2, MessageSquare, Layers, GitBranch, Workflow, Zap as Lightning, Network, Atom, Waves, Orbit, Maximize2, Minimize2, BarChart3, PieChart, LineChart, TrendingDown, AlertTriangle, Terminal, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -131,6 +131,21 @@ export const ScrollsSection: React.FC = () => {
     return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
   
+  // Load configured sources
+  const loadConfiguredSources = useCallback(async () => {
+    if (!user?.id) return;
+    
+    try {
+      addTerminalLine('📡 Loading configured sources...');
+      const sources = await sourcesConfigService.getConfiguredSources(user.id);
+      setConfiguredSources(sources);
+      addTerminalLine(`✅ Loaded ${sources.length} configured sources`);
+    } catch (error) {
+      console.error('Failed to load configured sources:', error);
+      addTerminalLine(`❌ Failed to load sources: ${error}`);
+    }
+  }, [user?.id, addTerminalLine]);
+  
   // Consciousness mathematics integration
   useEffect(() => {
     if (mintingData.isValidData) {
@@ -146,7 +161,7 @@ export const ScrollsSection: React.FC = () => {
       setHarmonicResonance(enhancedData.harmonicResonance);
       setPhiAlignment(enhancedData.phiAlignment);
     }
-  }, [mintingData.isValidData, consciousnessLevel]);
+  }, [mintingData.isValidData, mintingData.content.length, consciousnessLevel]);
   
   // Keccak hash generation with consciousness enhancement
   useEffect(() => {
@@ -211,22 +226,7 @@ export const ScrollsSection: React.FC = () => {
     };
     
     initializeEnhancedFileSystem();
-  }, []);
-  
-  // Load configured sources
-  const loadConfiguredSources = async () => {
-    if (!user?.id) return;
-    
-    try {
-      addTerminalLine('📡 Loading configured sources...');
-      const sources = await sourcesConfigService.getConfiguredSources(user.id);
-      setConfiguredSources(sources);
-      addTerminalLine(`✅ Loaded ${sources.length} configured sources`);
-    } catch (error) {
-      console.error('Failed to load configured sources:', error);
-      addTerminalLine(`❌ Failed to load sources: ${error}`);
-    }
-  };
+  }, [addTerminalLine, loadConfiguredSources]);
   
   // File extraction with consciousness enhancement
   const extractMetadataFromFile = async (file: any): Promise<ScrollMetadata> => {
@@ -287,11 +287,14 @@ export const ScrollsSection: React.FC = () => {
         addTerminalLine(`🔗 Hash: ${extractedMetadata.keccakHash.substring(0, 20)}...`);
       }
 
+      return extractedMetadata;
+
     } catch (error) {
       console.error('Error extracting metadata:', error);
       
       // Fallback: just update basic info
       try {
+        const content = file.content || file.name || '';
         const hash = file.hash || await generateHash(content);
         const keccakHash = await generateKeccakHash(content);
         
