@@ -163,6 +163,7 @@ export default function SandboxDashboard({ userId }: { userId: string }) {
   const [metrics, setMetrics] = useState<SandboxMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
+  const [activeTab, setActiveTab] = useState('logs'); // Added state for tabs
 
   const fetchSandboxStatus = async () => {
     try {
@@ -243,7 +244,7 @@ export default function SandboxDashboard({ userId }: { userId: string }) {
 
   useEffect(() => {
     fetchSandboxStatus();
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     if (sandbox?.status === 'ready') {
@@ -466,7 +467,7 @@ export default function SandboxDashboard({ userId }: { userId: string }) {
       )}
 
       {/* Detailed Management */}
-      <Tabs defaultValue="logs" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="logs">🔍 Logs</TabsTrigger>
           <TabsTrigger value="config">⚙️ Configuration</TabsTrigger>
