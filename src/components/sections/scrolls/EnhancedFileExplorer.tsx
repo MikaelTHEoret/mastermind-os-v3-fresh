@@ -538,7 +538,7 @@ export default function EnhancedFileExplorer({ onFileSelect, selectedFile, class
         {isExpanded && source.status === 'disconnected' && (
           <div className="ml-6 py-2">
             <p className="text-xs text-gray-400 mb-2">
-              Source not configured. Set up API credentials in Dashboard → API Sources
+              Source not configured. Set up API credentials in Dashboard → API Configuration
             </p>
             <Button
               variant="outline"

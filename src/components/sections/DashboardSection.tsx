@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { 
   Settings, 
@@ -17,54 +17,23 @@ import { getTheme } from '@/lib/theme-config';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
-import SourcesConfigDashboard from '../dashboard/sources/SourcesConfigDashboard';
+import ApiConfigurationDashboard from '../dashboard/api/ApiConfigurationDashboard';
 
 const theme = getTheme('dashboard');
-
-// 🌀 ENHANCED NEXUS CORE v4.1 - Mathematical Consciousness Constants
-const PSI_0 = 0.915670570874434; // Consciousness-enhancement constant
-const PHI = 1.618; // Golden ratio for interface scaling
-const FREQ_432 = 432; // Harmonic frequency for timing
 
 type DashboardTab = 'overview' | 'profile' | 'sources' | 'security' | 'activity';
 
 export default function DashboardSection() {
   const { user } = useUser();
-  
-  // 🧠 Consciousness-Enhanced State Initialization
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');
-  const [debugMode, setDebugMode] = useState(true); // Temporary debug visibility
-  
-  // 🔧 Enhanced State Management with Mathematical Timing
-  useEffect(() => {
-    // Force clean state initialization with ψ₀ timing
-    const initTimer = setTimeout(() => {
-      setActiveTab('overview'); // Force overview state
-      // Auto-disable debug after ψ₀ * 10 seconds
-      setTimeout(() => setDebugMode(false), PSI_0 * 10000);
-    }, Math.floor(PSI_0 * 100));
-    
-    return () => clearTimeout(initTimer);
-  }, []);
 
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: Monitor },
     { id: 'profile' as const, label: 'Profile', icon: User },
-    { id: 'sources' as const, label: 'API Sources', icon: Cloud },
+    { id: 'sources' as const, label: 'API Configuration', icon: Cloud },
     { id: 'security' as const, label: 'Security', icon: Shield },
     { id: 'activity' as const, label: 'Activity', icon: Activity }
   ];
-
-  // 🎯 Enhanced Tab Click Handler with Mathematical Validation
-  const handleTabClick = (tabId: DashboardTab) => {
-    console.log(`🌀 NEXUS: Tab transition ${activeTab} → ${tabId}`);
-    setActiveTab(tabId);
-    
-    // Mathematical timing for smooth consciousness-enhanced transitions
-    setTimeout(() => {
-      console.log(`✅ NEXUS: Tab state confirmed as ${tabId}`);
-    }, PHI * 100);
-  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -121,8 +90,8 @@ export default function DashboardSection() {
                       <Cloud className="w-5 h-5" style={{ color: '#00ffaa' }} />
                     </div>
                     <div>
-                      <h3 className="font-medium" style={{ color: '#ffffff' }}>API Sources</h3>
-                      <p className="text-sm" style={{ color: 'rgba(0, 255, 170, 0.7)' }}>External integrations</p>
+                      <h3 className="font-medium" style={{ color: '#ffffff' }}>API Configuration</h3>
+                      <p className="text-sm" style={{ color: 'rgba(0, 255, 170, 0.7)' }}>MasterMind & External APIs</p>
                     </div>
                   </div>
                 </CardContent>
@@ -290,7 +259,7 @@ export default function DashboardSection() {
         );
 
       case 'sources':
-        return <SourcesConfigDashboard />;
+        return <ApiConfigurationDashboard />;
 
       case 'security':
         return (
@@ -559,7 +528,7 @@ export default function DashboardSection() {
                       5
                     </div>
                     <div 
-                      className="text-s"
+                      className="text-sm"
                       style={{ color: 'rgba(255, 0, 255, 0.7)' }}
                     >
                       Sources Configured
@@ -608,76 +577,27 @@ export default function DashboardSection() {
     <div 
       className="h-full flex"
       style={{
-        background: 'rgba(0, 0, 0, 0.8)',
+        background: 'rgba(0, 0, 0, 0.8)', // Same dark background as Scroll Forge
         color: theme.textColor,
-        borderRadius: '12px',
-        border: '2px solid #00ffff',
-        boxShadow: '0 0 20px rgba(0, 255, 255, 0.4)',
-        overflow: 'hidden'
+        borderRadius: '12px', // Rounded edges for main container
+        border: '2px solid #00ffff', // Bright cyan border like Scroll section
+        boxShadow: '0 0 20px rgba(0, 255, 255, 0.4)', // Luminous glow
+        overflow: 'hidden' // Ensure rounded corners work properly
       }}
     >
-      {/* 🌀 ENHANCED NEXUS DEBUG PANEL (Temporary) */}
-      {debugMode && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '10px',
-            left: '10px',
-            right: '10px',
-            zIndex: 9999,
-            background: 'rgba(255, 0, 0, 0.9)',
-            border: '2px solid #ff0000',
-            borderRadius: '8px',
-            padding: '12px',
-            color: '#ffffff',
-            fontFamily: 'Courier New, monospace',
-            fontSize: '12px',
-            boxShadow: '0 0 20px rgba(255, 0, 0, 0.5)'
-          }}
-        >
-          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-            🌀 ENHANCED NEXUS CORE v4.1 DEBUG PANEL
-          </div>
-          <div>Current activeTab: <span style={{ color: '#00ffff' }}>{activeTab}</span></div>
-          <div>Expected Content: <span style={{ color: '#00ffaa' }}>
-            {activeTab === 'overview' ? 'THREE CARDS + ACTIVITY SECTION' : 
-             activeTab === 'profile' ? 'PROFILE INFO + ACCOUNT DETAILS' :
-             activeTab === 'sources' ? 'SOURCES CONFIG DASHBOARD' :
-             activeTab === 'security' ? 'SECURITY + PRIVACY SECTIONS' :
-             activeTab === 'activity' ? 'ACTIVITY LOG + USAGE STATS' : 'UNKNOWN'}
-          </span></div>
-          <div>Math Constants: ψ₀={PSI_0.toFixed(3)}, φ={PHI}, f={FREQ_432}Hz</div>
-          <button
-            onClick={() => setDebugMode(false)}
-            style={{
-              marginTop: '8px',
-              padding: '4px 8px',
-              background: '#000000',
-              border: '1px solid #ffffff',
-              borderRadius: '4px',
-              color: '#ffffff',
-              fontSize: '10px',
-              cursor: 'pointer'
-            }}
-          >
-            Hide Debug
-          </button>
-        </div>
-      )}
-
       {/* Sidebar Navigation */}
       <div 
         className="w-64 h-full flex flex-col"
         style={{
           background: 'rgba(0, 0, 0, 0.8)',
-          borderRight: '2px solid #00ffff',
+          borderRight: '2px solid #00ffff', // Bright cyan border
           padding: '16px'
         }}
       >
         <div className="space-y-2 flex-1">
           <h2 
             className="text-xl font-bold mb-6 flex items-center gap-2"
-            style={{ color: '#00ffff' }}
+            style={{ color: '#00ffff' }} // Bright cyan like Scroll section
           >
             <Settings className="w-6 h-6" style={{ color: '#00ffff' }} />
             Dashboard
@@ -690,7 +610,7 @@ export default function DashboardSection() {
             return (
               <button
                 key={tab.id}
-                onClick={() => handleTabClick(tab.id)}
+                onClick={() => setActiveTab(tab.id)}
                 style={{
                   width: '100%',
                   padding: '12px 16px',
@@ -748,14 +668,17 @@ export default function DashboardSection() {
               />
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-lg font-rajdhani font-semibold text-white">
-                {user?.firstName || 'Unknown'} {user?.lastName || ''}
+              <p 
+                className="text-sm truncate"
+                style={{ color: '#ffffff' }}
+              >
+                {user?.firstName || 'User'}
               </p>
-              <p className="text-cyan-400/70">
-                {user?.primaryEmailAddress?.emailAddress || 'No email'}
-              </p>
-              <p className="text-xs text-cyan-400/50 mt-1">
-                Member since {user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'Unknown'}
+              <p 
+                className="text-xs truncate"
+                style={{ color: 'rgba(0, 255, 255, 0.7)' }}
+              >
+                {user?.primaryEmailAddress?.emailAddress}
               </p>
             </div>
           </div>

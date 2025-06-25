@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Scroll, Database, BarChart3, Building2, Layout } from 'lucide-react'
+import { Scroll, Database, BarChart3, Building2, Layout, Zap, Terminal } from 'lucide-react'
 import EnhancedNexusBackground from './EnhancedNexusBackground'
 import NexusCoreSection from './sections/NexusCoreSection'
 import ScrollsSection from './sections/ScrollsSection'
@@ -9,10 +9,12 @@ import MemorySection from './sections/MemorySection'
 import AnalyticsSection from './sections/AnalyticsSection'
 import EnterpriseSection from './sections/EnterpriseSection'
 import DashboardSection from './sections/DashboardSection'
+import TerminalSection from './sections/TerminalSection'
+import { QuantumTradingSection } from './sections/QuantumTradingSection'
 import UserSystem from './UserSystem'
 import { getTheme } from '../lib/theme-config'
 
-type ActivePanel = 'nexus' | 'scrolls' | 'memory' | 'analytics' | 'enterprise' | 'dashboard'
+type ActivePanel = 'nexus' | 'scrolls' | 'memory' | 'analytics' | 'enterprise' | 'dashboard' | 'terminal' | 'quantum-trading'
 
 interface User {
   id: string
@@ -44,7 +46,9 @@ export default function EnhancedMastermindOS() {
     { key: 'memory', label: 'MEMORY', icon: Database, description: 'Distributed knowledge lattice' },
     { key: 'analytics', label: 'ANALYTICS', icon: BarChart3, description: 'Intelligence analysis hub' },
     { key: 'enterprise', label: 'ENTERPRISE', icon: Building2, description: 'Management orchestration' },
-    { key: 'dashboard', label: 'DASHBOARD', icon: Layout, description: 'User control center' }
+    { key: 'dashboard', label: 'DASHBOARD', icon: Layout, description: 'User control center' },
+    { key: 'terminal', label: 'TERMINAL', icon: Terminal, description: 'AutoGPT + Universal LLM Hub' },
+    { key: 'quantum-trading', label: 'QUANTUM', icon: Zap, description: 'ψ₀-Enhanced trading intelligence' }
   ]
 
   const renderActiveSection = () => {
@@ -63,6 +67,10 @@ export default function EnhancedMastermindOS() {
         return <EnterpriseSection />
       case 'dashboard':
         return <DashboardSection />
+      case 'terminal':
+        return <TerminalSection />
+      case 'quantum-trading':
+        return <QuantumTradingSection />
       default:
         return <NexusCoreSection />
     }

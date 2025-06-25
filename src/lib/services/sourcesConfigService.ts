@@ -34,8 +34,12 @@ class SourcesConfigService {
 
   constructor() {
     this.isServer = typeof window === 'undefined';
-    if (process.env.NEON_DATABASE_URL && this.isServer) {
-      this.sql = neon(process.env.NEON_DATABASE_URL);
+    const databaseUrl = process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
+    if (databaseUrl && this.isServer) {
+      this.sql = neon(databaseUrl);
+      console.log('🔌 Database connection initialized for sources config');
+    } else if (this.isServer) {
+      console.warn('⚠️ No database URL found - falling back to localStorage');
     }
   }
 
@@ -44,8 +48,16 @@ class SourcesConfigService {
     if (!this.isServer) {
       throw new Error('Encryption only available on server side');
     }
+    
     const crypto = require('crypto');
-    const appSecret = process.env.ENCRYPTION_SECRET || 'fallback-secret-change-in-production';
+    const appSecret = process.env.ENCRYPTION_SECRET || process.env.NEXTAUTH_SECRET || 'fallback-secret-change-in-production';
+    
+    console.log('🔐 Generating encryption key - hasSecret:', !!appSecret, 'secretLength:', appSecret.length);
+    
+    if (!appSecret || appSecret === 'your_encryption_secret_for_sources_config_here') {
+      throw new Error('ENCRYPTION_SECRET not properly configured');
+    }
+    
     return crypto.scryptSync(userId, appSecret, 32).toString('hex');
   }
 
@@ -56,19 +68,32 @@ class SourcesConfigService {
     if (!this.isServer) {
       throw new Error('Encryption only available on server side');
     }
-    const crypto = require('crypto');
-    const key = Buffer.from(userKey, 'hex');
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipherGCM(ENCRYPTION_ALGORITHM, key, iv);
     
-    let encrypted = cipher.update(JSON.stringify(secrets), 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    
-    const authTag = cipher.getAuthTag();
-    const encryptedData = iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
-    const keyHash = crypto.createHash('sha256').update(userKey).digest('hex');
-    
-    return { encryptedData, keyHash };
+    try {
+      console.log('🔐 Starting encryption process - secretsCount:', Object.keys(secrets).length, 'userKeyLength:', userKey.length);
+      
+      const crypto = require('crypto');
+      const key = Buffer.from(userKey, 'hex');
+      const iv = crypto.randomBytes(16);
+      const cipher = crypto.createCipherGCM(ENCRYPTION_ALGORITHM, key, iv);
+      
+      const secretsString = JSON.stringify(secrets);
+      console.log('🔐 Encrypting secrets string length:', secretsString.length);
+      
+      let encrypted = cipher.update(secretsString, 'utf8', 'hex');
+      encrypted += cipher.final('hex');
+      
+      const authTag = cipher.getAuthTag();
+      const encryptedData = iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+      const keyHash = crypto.createHash('sha256').update(userKey).digest('hex');
+      
+      console.log('🔐 Encryption completed - encryptedDataLength:', encryptedData.length, 'keyHashLength:', keyHash.length);
+      
+      return { encryptedData, keyHash };
+    } catch (error) {
+      console.error('❌ Encryption failed:', error);
+      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   private decryptSecrets(encryptedData: string, userKey: string): Record<string, string> {
@@ -146,7 +171,10 @@ class SourcesConfigService {
   }
 
   async saveSourceConfig(userId: string, source: ConfiguredSource): Promise<void> {
+    console.log(`🔄 saveSourceConfig called - userId: ${userId}, isServer: ${this.isServer}, hasSql: ${!!this.sql}`);
+    
     if (!this.sql || !this.isServer) {
+      console.log('📝 Falling back to localStorage (no SQL connection)');
       // Fallback to localStorage for development/client-side
       if (typeof window !== 'undefined') {
         const existing = localStorage.getItem(`sources_config_${userId}`);
@@ -160,23 +188,46 @@ class SourcesConfigService {
         }
         
         localStorage.setItem(`sources_config_${userId}`, JSON.stringify(sources));
+        console.log('💾 Saved to localStorage');
       }
       return;
     }
 
     try {
+      console.log('🔐 Using database storage');
       // Set RLS context
       await this.sql`SELECT set_config('app.current_user_id', ${userId}, true)`;
 
-      const userKey = this.generateUserEncryptionKey(userId);
-      const { encryptedData, keyHash } = this.encryptSecrets(source.secrets, userKey);
+      // Check if ENCRYPTION_SECRET is properly configured
+      const encryptionSecret = process.env.ENCRYPTION_SECRET;
+      const useEncryption = encryptionSecret && encryptionSecret !== 'your_encryption_secret_for_sources_config_here';
+      
+      console.log('🔐 Encryption available:', useEncryption);
+      
+      let encryptedData: string;
+      let keyHash: string;
+      
+      if (useEncryption) {
+        console.log('🔐 Using encrypted storage');
+        const userKey = this.generateUserEncryptionKey(userId);
+        const encryption = this.encryptSecrets(source.secrets, userKey);
+        encryptedData = encryption.encryptedData;
+        keyHash = encryption.keyHash;
+      } else {
+        console.log('⚠️ Using unencrypted storage (development mode)');
+        // For development when encryption isn't configured
+        encryptedData = JSON.stringify(source.secrets);
+        keyHash = 'dev_mode_no_encryption';
+      }
 
+      console.log(`🔍 Checking if source exists: ${source.id}`);
       // Check if source exists
       const existingResult = await this.sql`
         SELECT id FROM user_sources_config WHERE id = ${source.id} AND user_id = ${userId}
       `;
 
       if (existingResult.length > 0) {
+        console.log('📝 Updating existing source');
         // Update existing source
         await this.sql`
           UPDATE user_sources_config 
@@ -190,7 +241,9 @@ class SourcesConfigService {
             updated_at = NOW()
           WHERE id = ${source.id} AND user_id = ${userId}
         `;
+        console.log('✅ Source updated successfully');
       } else {
+        console.log('➕ Inserting new source');
         // Insert new source
         await this.sql`
           INSERT INTO user_sources_config (
@@ -204,9 +257,10 @@ class SourcesConfigService {
             ${source.customSchema ? JSON.stringify(source.customSchema) : null}
           )
         `;
+        console.log('✅ Source inserted successfully');
       }
     } catch (error) {
-      console.error('Error saving source config:', error);
+      console.error('❌ Error saving source config:', error);
       throw error;
     }
   }
@@ -278,6 +332,10 @@ class SourcesConfigService {
         return this.testOpenAIConnection(source.secrets);
       case 'anthropic':
         return this.testAnthropicConnection(source.secrets);
+      case 'deepseek':
+        return this.testDeepSeekConnection(source.secrets);
+      case 'groq':
+        return this.testGroqConnection(source.secrets);
       case 'neon':
         return this.testNeonConnection(source.secrets);
       case 'astra':
@@ -378,7 +436,35 @@ class SourcesConfigService {
       return false;
     }
   }
-
+  
+    private async testDeepSeekConnection(secrets: Record<string, string>): Promise<boolean> {
+      try {
+        const baseUrl = secrets.base_url || 'https://api.deepseek.com';
+        const response = await fetch(`${baseUrl}/v1/models`, {
+          headers: {
+            'Authorization': `Bearer ${secrets.api_key}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
+  
+    private async testGroqConnection(secrets: Record<string, string>): Promise<boolean> {
+      try {
+        const response = await fetch('https://api.groq.com/openai/v1/models', {
+          headers: {
+            'Authorization': `Bearer ${secrets.api_key}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    }
   // File cache methods (server-side only)
   async getCachedFiles(userId: string, sourceId?: string): Promise<CachedFile[]> {
     if (!this.sql || !this.isServer) {

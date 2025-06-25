@@ -1,0 +1,23 @@
+{
+  "name": "mastermind-terminal-mcp",
+  "version": "1.0.0",
+  "description": "MCP Server for Mastermind Terminal Hub with AutoGPT integration",
+  "main": "mastermind-mcp-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node mastermind-mcp-server.js",
+    "dev": "node --watch mastermind-mcp-server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "node-fetch": "^3.3.2"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude-desktop",
+    "autogpt",
+    "mastermind"
+  ],
+  "license": "MIT"
+}
