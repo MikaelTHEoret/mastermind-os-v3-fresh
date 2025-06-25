@@ -83,7 +83,7 @@ export default function NexusCoreBackground({ children }: NexusCoreBackgroundPro
           position: 'fixed',
           top: '50%',
           left: '50%',
-          transform: 'translate(-50%, -50%)',
+          transform: 'translate(-50%, -50%) translateZ(0)', // Combined transforms
           width: '400px', // Smaller for better performance
           height: '400px',
           backgroundImage: 'url(/backgrounds/holographicpanel.png)',
@@ -96,8 +96,7 @@ export default function NexusCoreBackground({ children }: NexusCoreBackgroundPro
           animation: 'sigilRotate 600s linear infinite', // Much slower
           filter: 'brightness(0.2)',
           /* BLUR FIX: GPU optimization */
-          willChange: 'transform',
-          transform: 'translateZ(0)'
+          willChange: 'transform'
         }} />
 
         {/* BLUR FIX: Simplified light columns - no animation */}
