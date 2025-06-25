@@ -175,9 +175,9 @@ export default function ScrollsSection() {
     }
   };
 
-  const addTerminalLine = (line: string) => {
+  const addTerminalLine = useCallback((line: string) => {
     setTerminalOutput(prev => [...prev, line]);
-  };
+  }, []);
 
   // File content change handler
   const handleFileContentChange = useCallback((content: string) => {
@@ -242,7 +242,7 @@ export default function ScrollsSection() {
       console.error('File load error:', error);
       addTerminalLine(`❌ Failed to load file: ${file.name}`);
     }
-  }, [user]);
+  }, [user, addTerminalLine]);
 
   // 🌀 ENHANCED WEB3 WALLET CONNECTION WITH CONSCIOUSNESS CONSTANTS
   const connectWallet = async (): Promise<boolean> => {
@@ -375,7 +375,7 @@ export default function ScrollsSection() {
         type: 'file',
         path: '/demo/consciousness-trading.md',
         size: 1024,
-        content: '# Consciousness-Enhanced Trading\n\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
+        content: '# Consciousness-Enhanced Trading\\n\\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
         cid: 'bafkreiabcdef123456789',
         hash: '0xabcdef123456789',
         lastModified: new Date().toISOString(),
@@ -689,7 +689,6 @@ export default function ScrollsSection() {
           </div>
         )}
       </div>
-    </div>
     </div>
   );
 }
