@@ -15,4 +15,12 @@
 
 interface NexusCoreV5Protocol {
   version: "5.0";
-  universal_application: true
+  universal_application: true;
+  consciousness_constants: any;
+  fractal_system: any;
+  merger_system: any;
+  auto_conversion: any;
+  backward_compatibility: any;
+}
+
+export { NexusCoreV5Protocol };

@@ -3,6 +3,9 @@
  * Enhanced Nexus Core Protocol v4.0 - Cross-Validation and Performance Analysis
  */
 
+export class UltimateLearningEngine {
+  private systemMetrics: any;
+
   /**
    * Categorize volatility for performance tracking
    */
@@ -19,1009 +22,657 @@
   private updateVolatilityPerformance(category: string, result: CrossValidationResult): void {
     if (!this.systemMetrics.performance_by_volatility.has(category)) {
       this.systemMetrics.performance_by_volatility.set(category, {
-        pattern_accuracy: 0,
-        kill_chain_accuracy: 0,
-        sample_size: 0
+        accuracy_sum: 0,
+        profit_sum: 0,
+        trade_count: 0,
+        best_accuracy: 0,
+        worst_accuracy: 1,
+        consistency_score: 0
       });
     }
     
-    const volMetrics = this.systemMetrics.performance_by_volatility.get(category)!;
-    const newSampleSize = volMetrics.sample_size + 1;
+    const perf = this.systemMetrics.performance_by_volatility.get(category);
+    perf.accuracy_sum += result.accuracy;
+    perf.profit_sum += result.total_profit;
+    perf.trade_count += result.total_trades;
+    perf.best_accuracy = Math.max(perf.best_accuracy, result.accuracy);
+    perf.worst_accuracy = Math.min(perf.worst_accuracy, result.accuracy);
     
-    volMetrics.pattern_accuracy = 
-      (volMetrics.pattern_accuracy * volMetrics.sample_size + 
-       result.performance_analysis.pattern_accuracy) / newSampleSize;
-    
-    volMetrics.kill_chain_accuracy = 
-      (volMetrics.kill_chain_accuracy * volMetrics.sample_size + 
-       result.performance_analysis.kill_chain_accuracy) / newSampleSize;
-    
-    volMetrics.sample_size = newSampleSize;
+    // Calculate consistency score (lower variance = higher consistency)
+    const consistency = 1 - (perf.best_accuracy - perf.worst_accuracy);
+    perf.consistency_score = Math.max(0, consistency);
   }
 
   /**
-   * Update timeframe-based performance metrics
+   * Advanced Cross-Validation with Consciousness Integration
    */
-  private updateTimeframePerformance(timeframe: number, result: CrossValidationResult): void {
-    // Round timeframe to nearest 15 minutes for grouping
-    const roundedTimeframe = Math.round(timeframe / 15) * 15;
+  async performAdvancedCrossValidation(
+    strategies: any[],
+    marketData: any[],
+    foldCount: number = 5
+  ): Promise<CrossValidationResult[]> {
+    console.log(`🧠 Performing Advanced Cross-Validation with ${foldCount} folds...`);
     
-    if (!this.systemMetrics.performance_by_timeframe.has(roundedTimeframe)) {
-      this.systemMetrics.performance_by_timeframe.set(roundedTimeframe, {
-        pattern_accuracy: 0,
-        kill_chain_accuracy: 0,
-        sample_size: 0
-      });
-    }
+    const results: CrossValidationResult[] = [];
+    const foldSize = Math.floor(marketData.length / foldCount);
     
-    const timeMetrics = this.systemMetrics.performance_by_timeframe.get(roundedTimeframe)!;
-    const newSampleSize = timeMetrics.sample_size + 1;
-    
-    timeMetrics.pattern_accuracy = 
-      (timeMetrics.pattern_accuracy * timeMetrics.sample_size + 
-       result.performance_analysis.pattern_accuracy) / newSampleSize;
-    
-    timeMetrics.kill_chain_accuracy = 
-      (timeMetrics.kill_chain_accuracy * timeMetrics.sample_size + 
-       result.performance_analysis.kill_chain_accuracy) / newSampleSize;
-    
-    timeMetrics.sample_size = newSampleSize;
-  }
-
-  /**
-   * Perform comprehensive learning analysis
-   */
-  private async performLearningAnalysis(): Promise<void> {
-    console.log('🧠 Performing learning analysis...');
-    
-    // Analyze pattern vs kill chain performance trends
-    const performanceTrends = this.analyzePerformanceTrends();
-    
-    // Identify consciousness correlation patterns
-    const consciousnessPatterns = this.analyzeConsciousnessPatterns();
-    
-    // Analyze market condition dependencies
-    const marketConditionAnalysis = this.analyzeMarketConditionDependencies();
-    
-    // Generate learning recommendations
-    const learningRecommendations = this.generateLearningRecommendations(
-      performanceTrends,
-      consciousnessPatterns,
-      marketConditionAnalysis
-    );
-    
-    // Emit learning analysis results
-    this.emit('learning_analysis_complete', {
-      performance_trends: performanceTrends,
-      consciousness_patterns: consciousnessPatterns,
-      market_condition_analysis: marketConditionAnalysis,
-      learning_recommendations: learningRecommendations,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  /**
-   * Analyze performance trends over time
-   */
-  private analyzePerformanceTrends(): any {
-    const allResults = Array.from(this.crossValidationResults.values()).flat();
-    
-    if (allResults.length < this.minSampleSize) {
-      return {
-        insufficient_data: true,
-        sample_size: allResults.length,
-        min_required: this.minSampleSize
-      };
-    }
-    
-    // Sort by timestamp
-    allResults.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    
-    // Split into time windows (e.g., weekly)
-    const weeklyWindows = this.groupResultsByWeek(allResults);
-    
-    // Calculate trends
-    const patternAccuracyTrend = this.calculateTrend(
-      weeklyWindows.map(week => week.avg_pattern_accuracy)
-    );
-    
-    const killChainAccuracyTrend = this.calculateTrend(
-      weeklyWindows.map(week => week.avg_kill_chain_accuracy)
-    );
-    
-    const consciousnessEffectivenessTrend = this.calculateTrend(
-      weeklyWindows.map(week => week.avg_consciousness_effectiveness)
-    );
-    
-    return {
-      pattern_accuracy_trend: patternAccuracyTrend,
-      kill_chain_accuracy_trend: killChainAccuracyTrend,
-      consciousness_effectiveness_trend: consciousnessEffectivenessTrend,
-      weekly_windows: weeklyWindows.length,
-      total_samples: allResults.length,
-      learning_velocity: this.calculateLearningVelocity(weeklyWindows)
-    };
-  }
-
-  /**
-   * Group results by week for trend analysis
-   */
-  private groupResultsByWeek(results: CrossValidationResult[]): any[] {
-    const weeks: Map<string, CrossValidationResult[]> = new Map();
-    
-    results.forEach(result => {
-      const date = new Date(result.timestamp);
-      const weekKey = `${date.getFullYear()}-W${this.getWeekNumber(date)}`;
+    for (let fold = 0; fold < foldCount; fold++) {
+      console.log(`📊 Processing Fold ${fold + 1}/${foldCount}...`);
       
-      if (!weeks.has(weekKey)) {
-        weeks.set(weekKey, []);
+      // Create training and validation sets
+      const startIdx = fold * foldSize;
+      const endIdx = Math.min(startIdx + foldSize, marketData.length);
+      
+      const validationData = marketData.slice(startIdx, endIdx);
+      const trainingData = [
+        ...marketData.slice(0, startIdx),
+        ...marketData.slice(endIdx)
+      ];
+      
+      // Test each strategy on this fold
+      for (const strategy of strategies) {
+        const foldResult = await this.testStrategyOnFold(
+          strategy,
+          trainingData,
+          validationData,
+          fold
+        );
+        
+        results.push(foldResult);
+        
+        // Update volatility-based performance tracking
+        const marketVolatility = this.calculateMarketVolatility(validationData);
+        const volatilityCategory = this.categorizeVolatility(marketVolatility);
+        this.updateVolatilityPerformance(volatilityCategory, foldResult);
       }
-      weeks.get(weekKey)!.push(result);
-    });
+    }
     
-    return Array.from(weeks.entries()).map(([week, weekResults]) => ({
-      week,
-      sample_size: weekResults.length,
-      avg_pattern_accuracy: weekResults.reduce((sum, r) => 
-        sum + r.performance_analysis.pattern_accuracy, 0) / weekResults.length,
-      avg_kill_chain_accuracy: weekResults.reduce((sum, r) => 
-        sum + r.performance_analysis.kill_chain_accuracy, 0) / weekResults.length,
-      avg_consciousness_effectiveness: weekResults.reduce((sum, r) => 
-        sum + r.performance_analysis.consciousness_effectiveness, 0) / weekResults.length,
-      pattern_wins: weekResults.filter(r => 
-        r.performance_analysis.better_performer === 'PATTERN').length,
-      kill_chain_wins: weekResults.filter(r => 
-        r.performance_analysis.better_performer === 'KILL_CHAIN').length,
-      ties: weekResults.filter(r => 
-        r.performance_analysis.better_performer === 'TIE').length
-    }));
+    console.log(`✅ Cross-validation complete. Processed ${results.length} strategy-fold combinations.`);
+    return results;
   }
 
   /**
-   * Get week number for grouping
+   * Test strategy on a specific fold with consciousness enhancement
    */
-  private getWeekNumber(date: Date): number {
-    const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-    const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
-    return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-  }
-
-  /**
-   * Calculate trend from time series data
-   */
-  private calculateTrend(values: number[]): any {
-    if (values.length < 3) {
-      return { trend: 'INSUFFICIENT_DATA', slope: 0, r_squared: 0 };
-    }
+  private async testStrategyOnFold(
+    strategy: any,
+    trainingData: any[],
+    validationData: any[],
+    foldIndex: number
+  ): Promise<CrossValidationResult> {
     
-    const n = values.length;
-    const x = Array.from({length: n}, (_, i) => i);
-    const y = values;
+    // Train strategy on training data
+    const trainedStrategy = await this.trainStrategyWithConsciousness(strategy, trainingData);
     
-    // Calculate linear regression
-    const sumX = x.reduce((sum, val) => sum + val, 0);
-    const sumY = y.reduce((sum, val) => sum + val, 0);
-    const sumXY = x.reduce((sum, val, i) => sum + val * y[i], 0);
-    const sumXX = x.reduce((sum, val) => sum + val * val, 0);
-    const sumYY = y.reduce((sum, val) => sum + val * val, 0);
+    // Test on validation data
+    const predictions: KillChainPrediction[] = [];
+    let totalProfit = 0;
+    let correctPredictions = 0;
+    let totalTrades = 0;
     
-    const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / n;
-    
-    // Calculate R-squared
-    const yMean = sumY / n;
-    const ssRes = y.reduce((sum, val, i) => {
-      const predicted = slope * x[i] + intercept;
-      return sum + Math.pow(val - predicted, 2);
-    }, 0);
-    const ssTot = y.reduce((sum, val) => sum + Math.pow(val - yMean, 2), 0);
-    const rSquared = 1 - (ssRes / ssTot);
-    
-    // Determine trend direction
-    let trend: string;
-    if (Math.abs(slope) < 0.01) {
-      trend = 'STABLE';
-    } else if (slope > 0) {
-      trend = slope > 0.05 ? 'STRONG_IMPROVING' : 'IMPROVING';
-    } else {
-      trend = slope < -0.05 ? 'STRONG_DECLINING' : 'DECLINING';
-    }
-    
-    return {
-      trend,
-      slope: parseFloat(slope.toFixed(6)),
-      r_squared: parseFloat(rSquared.toFixed(4)),
-      statistical_significance: rSquared > 0.5 ? 'SIGNIFICANT' : 'NOT_SIGNIFICANT'
-    };
-  }
-
-  /**
-   * Calculate learning velocity (improvement rate)
-   */
-  private calculateLearningVelocity(weeklyWindows: any[]): any {
-    if (weeklyWindows.length < 2) {
-      return { velocity: 0, acceleration: 0 };
-    }
-    
-    // Calculate week-over-week improvements
-    const improvements = [];
-    for (let i = 1; i < weeklyWindows.length; i++) {
-      const prev = weeklyWindows[i - 1];
-      const curr = weeklyWindows[i];
+    for (let i = 0; i < validationData.length - 1; i++) {
+      const currentData = validationData[i];
+      const nextData = validationData[i + 1];
       
-      const patternImprovement = curr.avg_pattern_accuracy - prev.avg_pattern_accuracy;
-      const killChainImprovement = curr.avg_kill_chain_accuracy - prev.avg_kill_chain_accuracy;
-      const overallImprovement = (patternImprovement + killChainImprovement) / 2;
-      
-      improvements.push(overallImprovement);
-    }
-    
-    const avgVelocity = improvements.reduce((sum, imp) => sum + imp, 0) / improvements.length;
-    
-    // Calculate acceleration (change in velocity)
-    let acceleration = 0;
-    if (improvements.length > 1) {
-      const velocities = improvements;
-      const velocityChanges = [];
-      
-      for (let i = 1; i < velocities.length; i++) {
-        velocityChanges.push(velocities[i] - velocities[i - 1]);
-      }
-      
-      acceleration = velocityChanges.reduce((sum, change) => sum + change, 0) / velocityChanges.length;
-    }
-    
-    return {
-      velocity: parseFloat(avgVelocity.toFixed(6)),
-      acceleration: parseFloat(acceleration.toFixed(6)),
-      learning_phase: this.determineLearningPhase(avgVelocity, acceleration)
-    };
-  }
-
-  /**
-   * Determine current learning phase
-   */
-  private determineLearningPhase(velocity: number, acceleration: number): string {
-    if (velocity > 0.02 && acceleration > 0) return 'RAPID_LEARNING';
-    if (velocity > 0.01) return 'STEADY_LEARNING';
-    if (velocity > 0 && acceleration < 0) return 'PLATEAU_APPROACHING';
-    if (Math.abs(velocity) < 0.005) return 'PLATEAU';
-    if (velocity < -0.01) return 'PERFORMANCE_DECLINE';
-    return 'TRANSITIONAL';
-  }
-
-  /**
-   * Analyze consciousness correlation patterns
-   */
-  private analyzeConsciousnessPatterns(): any {
-    const allResults = Array.from(this.crossValidationResults.values()).flat();
-    
-    if (allResults.length < this.minSampleSize) {
-      return { insufficient_data: true };
-    }
-    
-    // Group by consciousness state
-    const byConsciousnessState = new Map();
-    allResults.forEach(result => {
-      const state = result.kill_chain_prediction.consciousness_state;
-      if (!byConsciousnessState.has(state)) {
-        byConsciousnessState.set(state, []);
-      }
-      byConsciousnessState.get(state).push(result);
-    });
-    
-    // Analyze each consciousness state
-    const stateAnalysis = Array.from(byConsciousnessState.entries()).map(([state, results]) => {
-      const avgPatternAccuracy = results.reduce((sum: number, r: any) => 
-        sum + r.performance_analysis.pattern_accuracy, 0) / results.length;
-      
-      const avgKillChainAccuracy = results.reduce((sum: number, r: any) => 
-        sum + r.performance_analysis.kill_chain_accuracy, 0) / results.length;
-      
-      const avgConsciousnessEffectiveness = results.reduce((sum: number, r: any) => 
-        sum + r.performance_analysis.consciousness_effectiveness, 0) / results.length;
-      
-      // Calculate correlation between consciousness effectiveness and accuracy
-      const correlation = this.calculateCorrelation(
-        results.map((r: any) => r.performance_analysis.consciousness_effectiveness),
-        results.map((r: any) => (r.performance_analysis.pattern_accuracy + r.performance_analysis.kill_chain_accuracy) / 2)
+      // Generate prediction using trained strategy
+      const prediction = await this.generateConsciousnessPrediction(
+        trainedStrategy,
+        currentData,
+        i
       );
       
-      return {
-        consciousness_state: state,
-        sample_size: results.length,
-        avg_pattern_accuracy: parseFloat(avgPatternAccuracy.toFixed(4)),
-        avg_kill_chain_accuracy: parseFloat(avgKillChainAccuracy.toFixed(4)),
-        avg_consciousness_effectiveness: parseFloat(avgConsciousnessEffectiveness.toFixed(4)),
-        consciousness_accuracy_correlation: parseFloat(correlation.toFixed(4)),
-        optimal_state: avgPatternAccuracy > 0.7 && avgKillChainAccuracy > 0.7
-      };
-    });
+      // Evaluate prediction accuracy
+      const actualOutcome = this.determineActualOutcome(currentData, nextData);
+      const isCorrect = this.evaluatePredictionAccuracy(prediction, actualOutcome);
+      
+      if (isCorrect) correctPredictions++;
+      totalTrades++;
+      
+      // Calculate profit/loss
+      const profit = this.calculateTradeProfitLoss(prediction, actualOutcome);
+      totalProfit += profit;
+      
+      predictions.push(prediction);
+    }
     
-    // Find best performing consciousness states
-    const bestStates = stateAnalysis
-      .filter(state => state.sample_size >= 10)
-      .sort((a, b) => (b.avg_pattern_accuracy + b.avg_kill_chain_accuracy) - (a.avg_pattern_accuracy + a.avg_kill_chain_accuracy))
-      .slice(0, 3);
+    const accuracy = totalTrades > 0 ? correctPredictions / totalTrades : 0;
+    const avgProfitPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
     
-    // Analyze consciousness transitions
-    const transitionAnalysis = this.analyzeConsciousnessTransitions(allResults);
+    // Calculate consciousness metrics
+    const consciousnessMetrics = this.calculateConsciousnessMetrics(predictions);
     
     return {
-      state_analysis: stateAnalysis,
-      best_performing_states: bestStates,
-      transition_analysis: transitionAnalysis,
-      overall_consciousness_correlation: this.calculateOverallConsciousnessCorrelation(allResults),
-      consciousness_learning_insights: this.generateConsciousnessLearningInsights(stateAnalysis)
+      strategy_id: strategy.id,
+      fold_index: foldIndex,
+      accuracy,
+      total_profit: totalProfit,
+      avg_profit_per_trade: avgProfitPerTrade,
+      total_trades: totalTrades,
+      predictions,
+      consciousness_metrics: consciousnessMetrics,
+      training_size: trainingData.length,
+      validation_size: validationData.length
     };
   }
 
   /**
-   * Calculate correlation between two arrays
+   * Train strategy with consciousness integration
    */
-  private calculateCorrelation(x: number[], y: number[]): number {
-    if (x.length !== y.length || x.length === 0) return 0;
+  private async trainStrategyWithConsciousness(strategy: any, trainingData: any[]): Promise<any> {
+    console.log(`🧠 Training strategy ${strategy.id} with consciousness enhancement...`);
     
-    const n = x.length;
-    const sumX = x.reduce((sum, val) => sum + val, 0);
-    const sumY = y.reduce((sum, val) => sum + val, 0);
-    const sumXY = x.reduce((sum, val, i) => sum + val * y[i], 0);
-    const sumXX = x.reduce((sum, val) => sum + val * val, 0);
-    const sumYY = y.reduce((sum, val) => sum + val * val, 0);
+    // Apply consciousness constants during training
+    const PSI_0 = 0.915670570874434;
+    const PHI = 1.618;
+    const FREQ_432 = 432;
     
-    const numerator = n * sumXY - sumX * sumY;
-    const denominator = Math.sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+    // Consciousness-enhanced learning rate
+    const baseRate = strategy.learning_rate || 0.01;
+    const consciousnessModulation = Math.sin(Date.now() * PSI_0 * 1e-6);
+    const enhancedRate = baseRate * (1 + consciousnessModulation * 0.1) * (PHI / 2);
     
-    return denominator === 0 ? 0 : numerator / denominator;
+    // Enhanced strategy with consciousness integration
+    const enhancedStrategy = {
+      ...strategy,
+      learning_rate: enhancedRate,
+      consciousness_factor: consciousnessModulation,
+      phi_scaling: PHI,
+      harmonic_frequency: FREQ_432,
+      trained_on_size: trainingData.length,
+      consciousness_enhanced: true
+    };
+    
+    console.log(`📊 Enhanced learning rate: ${enhancedRate.toFixed(6)}`);
+    console.log(`🌊 Consciousness modulation: ${consciousnessModulation.toFixed(6)}`);
+    
+    return enhancedStrategy;
   }
 
   /**
-   * Analyze consciousness state transitions
+   * Generate consciousness-enhanced prediction
    */
-  private analyzeConsciousnessTransitions(results: CrossValidationResult[]): any {
-    const transitions = new Map();
+  private async generateConsciousnessPrediction(
+    strategy: any,
+    marketData: any,
+    timeIndex: number
+  ): Promise<KillChainPrediction> {
     
-    // Sort results by timestamp and symbol
-    const symbolResults = new Map();
+    // Base prediction using strategy logic
+    const basePrediction = this.generateBasePrediction(strategy, marketData);
+    
+    // Apply consciousness enhancement
+    const consciousnessBoost = this.calculateConsciousnessBoost(timeIndex);
+    const phiHarmonics = this.calculatePhiHarmonics(marketData);
+    const freqAlignment = this.calculate432Alignment(timeIndex);
+    
+    // Enhanced confidence calculation
+    const baseConfidence = basePrediction.confidence;
+    const enhancedConfidence = Math.min(1.0, 
+      baseConfidence * (1 + consciousnessBoost * 0.1) * phiHarmonics * freqAlignment
+    );
+    
+    return {
+      direction: basePrediction.direction,
+      confidence: enhancedConfidence,
+      target_price: basePrediction.target_price,
+      time_horizon: basePrediction.time_horizon,
+      strategy_id: strategy.id,
+      consciousness_boost: consciousnessBoost,
+      phi_harmonics: phiHarmonics,
+      freq_alignment: freqAlignment,
+      enhanced_by_consciousness: true,
+      timestamp: Date.now() + timeIndex * 1000
+    };
+  }
+
+  /**
+   * Calculate consciousness boost factor
+   */
+  private calculateConsciousnessBoost(timeIndex: number): number {
+    const PSI_0 = 0.915670570874434;
+    const timeModulation = timeIndex * PSI_0;
+    return Math.sin(timeModulation) * 0.5 + 0.5; // Normalize to 0-1
+  }
+
+  /**
+   * Calculate phi harmonics influence
+   */
+  private calculatePhiHarmonics(marketData: any): number {
+    const PHI = 1.618;
+    const priceRatio = marketData.close / marketData.open;
+    const phiAlignment = Math.abs(priceRatio - PHI) / PHI;
+    return Math.max(0.5, 1 - phiAlignment); // Higher when closer to phi ratio
+  }
+
+  /**
+   * Calculate 432Hz frequency alignment
+   */
+  private calculate432Alignment(timeIndex: number): number {
+    const FREQ_432 = 432;
+    const timeFrequency = (timeIndex % FREQ_432) / FREQ_432;
+    return Math.sin(2 * Math.PI * timeFrequency) * 0.25 + 0.75; // 0.5-1.0 range
+  }
+
+  /**
+   * Generate base prediction without consciousness enhancement
+   */
+  private generateBasePrediction(strategy: any, marketData: any): any {
+    // Simple momentum-based prediction for demonstration
+    const priceChange = marketData.close - marketData.open;
+    const direction = priceChange > 0 ? 'UP' : 'DOWN';
+    const confidence = Math.min(0.9, Math.abs(priceChange / marketData.open) * 10);
+    
+    return {
+      direction,
+      confidence,
+      target_price: marketData.close * (1 + (direction === 'UP' ? 0.02 : -0.02)),
+      time_horizon: '1h'
+    };
+  }
+
+  /**
+   * Determine actual market outcome
+   */
+  private determineActualOutcome(currentData: any, nextData: any): MarketOutcome {
+    const priceChange = nextData.close - currentData.close;
+    const percentChange = priceChange / currentData.close;
+    
+    return {
+      direction: priceChange > 0 ? 'UP' : 'DOWN',
+      price_change: priceChange,
+      percent_change: percentChange,
+      volume_change: (nextData.volume - currentData.volume) / currentData.volume,
+      volatility: Math.abs(percentChange)
+    };
+  }
+
+  /**
+   * Evaluate prediction accuracy
+   */
+  private evaluatePredictionAccuracy(prediction: KillChainPrediction, outcome: MarketOutcome): boolean {
+    // Direction accuracy
+    const directionCorrect = prediction.direction === outcome.direction;
+    
+    // Price target accuracy (within 5% tolerance)
+    const priceAccuracy = Math.abs(prediction.target_price - outcome.price_change) / outcome.price_change;
+    const priceCorrect = priceAccuracy <= 0.05;
+    
+    // Combined accuracy (weighted)
+    return directionCorrect && (priceCorrect || prediction.confidence > 0.8);
+  }
+
+  /**
+   * Calculate trade profit/loss
+   */
+  private calculateTradeProfitLoss(prediction: KillChainPrediction, outcome: MarketOutcome): number {
+    const baseProfitLoss = outcome.percent_change * (prediction.direction === outcome.direction ? 1 : -1);
+    const confidenceMultiplier = prediction.confidence;
+    const consciousnessBonus = prediction.consciousness_boost || 0;
+    
+    return baseProfitLoss * confidenceMultiplier * (1 + consciousnessBonus * 0.1);
+  }
+
+  /**
+   * Calculate market volatility
+   */
+  private calculateMarketVolatility(marketData: any[]): number {
+    if (marketData.length < 2) return 0;
+    
+    const returns = marketData.slice(1).map((data, i) => {
+      const prevData = marketData[i];
+      return (data.close - prevData.close) / prevData.close;
+    });
+    
+    const meanReturn = returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+    const variance = returns.reduce((sum, ret) => sum + Math.pow(ret - meanReturn, 2), 0) / returns.length;
+    
+    return Math.sqrt(variance);
+  }
+
+  /**
+   * Calculate consciousness metrics for predictions
+   */
+  private calculateConsciousnessMetrics(predictions: KillChainPrediction[]): any {
+    const totalPredictions = predictions.length;
+    const consciousnessEnhanced = predictions.filter(p => p.enhanced_by_consciousness).length;
+    const avgConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0) / totalPredictions;
+    const avgConsciousnessBoost = predictions.reduce((sum, p) => sum + (p.consciousness_boost || 0), 0) / totalPredictions;
+    
+    return {
+      total_predictions: totalPredictions,
+      consciousness_enhanced_count: consciousnessEnhanced,
+      consciousness_enhancement_rate: consciousnessEnhanced / totalPredictions,
+      avg_confidence: avgConfidence,
+      avg_consciousness_boost: avgConsciousnessBoost,
+      phi_harmony_avg: predictions.reduce((sum, p) => sum + (p.phi_harmonics || 0), 0) / totalPredictions,
+      freq_alignment_avg: predictions.reduce((sum, p) => sum + (p.freq_alignment || 0), 0) / totalPredictions
+    };
+  }
+
+  /**
+   * Comprehensive Performance Analysis
+   */
+  async analyzePerformanceInsights(results: CrossValidationResult[]): Promise<LearningInsights> {
+    console.log(`📊 Analyzing performance insights from ${results.length} results...`);
+    
+    // Group results by strategy
+    const strategyResults = new Map<string, CrossValidationResult[]>();
     results.forEach(result => {
-      if (!symbolResults.has(result.symbol)) {
-        symbolResults.set(result.symbol, []);
+      if (!strategyResults.has(result.strategy_id)) {
+        strategyResults.set(result.strategy_id, []);
       }
-      symbolResults.get(result.symbol).push(result);
+      strategyResults.get(result.strategy_id)!.push(result);
     });
     
-    // Analyze transitions for each symbol
-    symbolResults.forEach(symbolRes => {
-      symbolRes.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      
-      for (let i = 1; i < symbolRes.length; i++) {
-        const prevState = symbolRes[i - 1].kill_chain_prediction.consciousness_state;
-        const currState = symbolRes[i].kill_chain_prediction.consciousness_state;
-        
-        if (prevState !== currState) {
-          const transitionKey = `${prevState}->${currState}`;
-          
-          if (!transitions.has(transitionKey)) {
-            transitions.set(transitionKey, {
-              count: 0,
-              performance_changes: [],
-              avg_performance_change: 0
-            });
-          }
-          
-          const transition = transitions.get(transitionKey);
-          transition.count++;
-          
-          const prevPerformance = (symbolRes[i - 1].performance_analysis.pattern_accuracy + 
-                                  symbolRes[i - 1].performance_analysis.kill_chain_accuracy) / 2;
-          const currPerformance = (symbolRes[i].performance_analysis.pattern_accuracy + 
-                                  symbolRes[i].performance_analysis.kill_chain_accuracy) / 2;
-          
-          const performanceChange = currPerformance - prevPerformance;
-          transition.performance_changes.push(performanceChange);
-          transition.avg_performance_change = 
-            transition.performance_changes.reduce((sum, change) => sum + change, 0) / transition.performance_changes.length;
-        }
-      }
-    });
-    
-    return Array.from(transitions.entries()).map(([transition, data]) => ({
-      transition,
-      frequency: data.count,
-      avg_performance_impact: parseFloat(data.avg_performance_change.toFixed(4)),
-      beneficial: data.avg_performance_change > 0.05,
-      sample_size: data.performance_changes.length
-    }));
-  }
-
-  /**
-   * Calculate overall consciousness correlation
-   */
-  private calculateOverallConsciousnessCorrelation(results: CrossValidationResult[]): number {
-    const consciousnessEffectiveness = results.map(r => r.performance_analysis.consciousness_effectiveness);
-    const overallAccuracy = results.map(r => 
-      (r.performance_analysis.pattern_accuracy + r.performance_analysis.kill_chain_accuracy) / 2
-    );
-    
-    return this.calculateCorrelation(consciousnessEffectiveness, overallAccuracy);
-  }
-
-  /**
-   * Generate consciousness learning insights
-   */
-  private generateConsciousnessLearningInsights(stateAnalysis: any[]): string[] {
-    const insights = [];
-    
-    const bestState = stateAnalysis.reduce((best, current) => 
-      (current.avg_pattern_accuracy + current.avg_kill_chain_accuracy) > 
-      (best.avg_pattern_accuracy + best.avg_kill_chain_accuracy) ? current : best
-    );
-    
-    if (bestState.sample_size >= 10) {
-      insights.push(`${bestState.consciousness_state} shows optimal performance with ${((bestState.avg_pattern_accuracy + bestState.avg_kill_chain_accuracy) / 2 * 100).toFixed(1)}% accuracy`);
+    // Calculate strategy performance
+    const strategyPerformance = new Map<string, any>();
+    for (const [strategyId, stratResults] of strategyResults) {
+      const performance = this.calculateStrategyPerformance(stratResults);
+      strategyPerformance.set(strategyId, performance);
     }
     
-    const highCorrelationStates = stateAnalysis.filter(state => 
-      state.consciousness_accuracy_correlation > 0.5 && state.sample_size >= 10
+    // Find best and worst performing strategies
+    const bestStrategy = this.findBestStrategy(strategyPerformance);
+    const worstStrategy = this.findWorstStrategy(strategyPerformance);
+    
+    // Calculate consciousness impact
+    const consciousnessImpact = this.analyzeConsciousnessImpact(results);
+    
+    // Generate insights
+    const insights = this.generateLearningInsights(
+      strategyPerformance,
+      bestStrategy,
+      worstStrategy,
+      consciousnessImpact
     );
     
-    if (highCorrelationStates.length > 0) {
-      insights.push(`Strong consciousness-accuracy correlation found in ${highCorrelationStates.length} states`);
-    }
-    
-    const lowPerformanceStates = stateAnalysis.filter(state => 
-      (state.avg_pattern_accuracy + state.avg_kill_chain_accuracy) / 2 < 0.4
-    );
-    
-    if (lowPerformanceStates.length > 0) {
-      insights.push(`${lowPerformanceStates.length} consciousness states show poor performance - need algorithm adjustment`);
-    }
-    
+    console.log(`✅ Performance analysis complete. Generated ${insights.recommendation_count} insights.`);
     return insights;
   }
 
   /**
-   * Analyze market condition dependencies
+   * Calculate strategy performance metrics
    */
-  private analyzeMarketConditionDependencies(): any {
-    const volatilityAnalysis = Array.from(this.systemMetrics.performance_by_volatility.entries())
-      .map(([category, metrics]) => ({
-        volatility_category: category,
-        pattern_accuracy: parseFloat(metrics.pattern_accuracy.toFixed(4)),
-        kill_chain_accuracy: parseFloat(metrics.kill_chain_accuracy.toFixed(4)),
-        sample_size: metrics.sample_size,
-        reliability: metrics.sample_size >= 20 ? 'HIGH' : metrics.sample_size >= 10 ? 'MEDIUM' : 'LOW'
-      }));
+  private calculateStrategyPerformance(results: CrossValidationResult[]): any {
+    const totalResults = results.length;
+    const avgAccuracy = results.reduce((sum, r) => sum + r.accuracy, 0) / totalResults;
+    const totalProfit = results.reduce((sum, r) => sum + r.total_profit, 0);
+    const totalTrades = results.reduce((sum, r) => sum + r.total_trades, 0);
+    const avgProfitPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
     
-    const timeframeAnalysis = Array.from(this.systemMetrics.performance_by_timeframe.entries())
-      .map(([timeframe, metrics]) => ({
-        timeframe_minutes: timeframe,
-        pattern_accuracy: parseFloat(metrics.pattern_accuracy.toFixed(4)),
-        kill_chain_accuracy: parseFloat(metrics.kill_chain_accuracy.toFixed(4)),
-        sample_size: metrics.sample_size,
-        reliability: metrics.sample_size >= 20 ? 'HIGH' : metrics.sample_size >= 10 ? 'MEDIUM' : 'LOW'
-      }));
+    // Calculate consistency (standard deviation of accuracy)
+    const accuracies = results.map(r => r.accuracy);
+    const accuracyStdDev = this.calculateStandardDeviation(accuracies);
+    const consistency = 1 - accuracyStdDev; // Higher consistency = lower std dev
+    
+    // Calculate consciousness contribution
+    const consciousnessMetrics = results.map(r => r.consciousness_metrics);
+    const avgConsciousnessBoost = consciousnessMetrics.reduce(
+      (sum, m) => sum + (m?.avg_consciousness_boost || 0), 0
+    ) / consciousnessMetrics.length;
     
     return {
-      volatility_analysis: volatilityAnalysis,
-      timeframe_analysis: timeframeAnalysis,
-      optimal_conditions: this.identifyOptimalConditions(volatilityAnalysis, timeframeAnalysis),
-      risk_conditions: this.identifyRiskConditions(volatilityAnalysis, timeframeAnalysis)
+      fold_count: totalResults,
+      avg_accuracy: avgAccuracy,
+      total_profit: totalProfit,
+      avg_profit_per_trade: avgProfitPerTrade,
+      consistency_score: Math.max(0, consistency),
+      accuracy_std_dev: accuracyStdDev,
+      total_trades: totalTrades,
+      consciousness_boost_avg: avgConsciousnessBoost,
+      profit_consistency: this.calculateProfitConsistency(results)
     };
   }
 
   /**
-   * Identify optimal market conditions
+   * Calculate standard deviation
    */
-  private identifyOptimalConditions(volatilityAnalysis: any[], timeframeAnalysis: any[]): any {
-    const bestVolatility = volatilityAnalysis
-      .filter(v => v.reliability !== 'LOW')
-      .reduce((best, current) => 
-        (current.pattern_accuracy + current.kill_chain_accuracy) > 
-        (best.pattern_accuracy + best.kill_chain_accuracy) ? current : best
-      );
+  private calculateStandardDeviation(values: number[]): number {
+    const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+    const variance = values.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / values.length;
+    return Math.sqrt(variance);
+  }
+
+  /**
+   * Calculate profit consistency
+   */
+  private calculateProfitConsistency(results: CrossValidationResult[]): number {
+    const profits = results.map(r => r.avg_profit_per_trade);
+    const profitStdDev = this.calculateStandardDeviation(profits);
+    const avgProfit = profits.reduce((sum, p) => sum + p, 0) / profits.length;
     
-    const bestTimeframe = timeframeAnalysis
-      .filter(t => t.reliability !== 'LOW')
-      .reduce((best, current) => 
-        (current.pattern_accuracy + current.kill_chain_accuracy) > 
-        (best.pattern_accuracy + best.kill_chain_accuracy) ? current : best
-      );
+    // Coefficient of variation (lower = more consistent)
+    const cv = avgProfit !== 0 ? profitStdDev / Math.abs(avgProfit) : Infinity;
+    return Math.max(0, 1 - cv);
+  }
+
+  /**
+   * Find best performing strategy
+   */
+  private findBestStrategy(strategyPerformance: Map<string, any>): any {
+    let bestStrategy = null;
+    let bestScore = -Infinity;
+    
+    for (const [strategyId, performance] of strategyPerformance) {
+      // Composite score: accuracy + profit + consistency
+      const score = performance.avg_accuracy * 0.4 + 
+                   performance.avg_profit_per_trade * 0.4 + 
+                   performance.consistency_score * 0.2;
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestStrategy = { strategy_id: strategyId, performance, composite_score: score };
+      }
+    }
+    
+    return bestStrategy;
+  }
+
+  /**
+   * Find worst performing strategy
+   */
+  private findWorstStrategy(strategyPerformance: Map<string, any>): any {
+    let worstStrategy = null;
+    let worstScore = Infinity;
+    
+    for (const [strategyId, performance] of strategyPerformance) {
+      const score = performance.avg_accuracy * 0.4 + 
+                   performance.avg_profit_per_trade * 0.4 + 
+                   performance.consistency_score * 0.2;
+      
+      if (score < worstScore) {
+        worstScore = score;
+        worstStrategy = { strategy_id: strategyId, performance, composite_score: score };
+      }
+    }
+    
+    return worstStrategy;
+  }
+
+  /**
+   * Analyze consciousness enhancement impact
+   */
+  private analyzeConsciousnessImpact(results: CrossValidationResult[]): any {
+    const consciousnessMetrics = results.map(r => r.consciousness_metrics).filter(m => m);
+    
+    if (consciousnessMetrics.length === 0) {
+      return { impact_detected: false, message: 'No consciousness metrics available' };
+    }
+    
+    const avgEnhancementRate = consciousnessMetrics.reduce(
+      (sum, m) => sum + m.consciousness_enhancement_rate, 0
+    ) / consciousnessMetrics.length;
+    
+    const avgBoost = consciousnessMetrics.reduce(
+      (sum, m) => sum + m.avg_consciousness_boost, 0
+    ) / consciousnessMetrics.length;
+    
+    const avgPhiHarmony = consciousnessMetrics.reduce(
+      (sum, m) => sum + m.phi_harmony_avg, 0
+    ) / consciousnessMetrics.length;
+    
+    const avgFreqAlignment = consciousnessMetrics.reduce(
+      (sum, m) => sum + m.freq_alignment_avg, 0
+    ) / consciousnessMetrics.length;
+    
+    // Determine impact level
+    let impactLevel = 'LOW';
+    if (avgEnhancementRate > 0.7 && avgBoost > 0.3) impactLevel = 'HIGH';
+    else if (avgEnhancementRate > 0.5 && avgBoost > 0.2) impactLevel = 'MEDIUM';
     
     return {
-      optimal_volatility: bestVolatility,
-      optimal_timeframe: bestTimeframe,
-      combined_accuracy: (bestVolatility.pattern_accuracy + bestVolatility.kill_chain_accuracy + 
-                         bestTimeframe.pattern_accuracy + bestTimeframe.kill_chain_accuracy) / 4
+      impact_detected: true,
+      impact_level: impactLevel,
+      enhancement_rate: avgEnhancementRate,
+      avg_consciousness_boost: avgBoost,
+      phi_harmony_contribution: avgPhiHarmony,
+      freq_alignment_contribution: avgFreqAlignment,
+      total_enhanced_predictions: consciousnessMetrics.reduce(
+        (sum, m) => sum + m.consciousness_enhanced_count, 0
+      )
     };
   }
 
   /**
-   * Identify risky market conditions
+   * Generate comprehensive learning insights
    */
-  private identifyRiskConditions(volatilityAnalysis: any[], timeframeAnalysis: any[]): any {
-    const worstVolatility = volatilityAnalysis
-      .filter(v => v.reliability !== 'LOW')
-      .reduce((worst, current) => 
-        (current.pattern_accuracy + current.kill_chain_accuracy) < 
-        (worst.pattern_accuracy + worst.kill_chain_accuracy) ? current : worst
-      );
+  private generateLearningInsights(
+    strategyPerformance: Map<string, any>,
+    bestStrategy: any,
+    worstStrategy: any,
+    consciousnessImpact: any
+  ): LearningInsights {
     
-    const worstTimeframe = timeframeAnalysis
-      .filter(t => t.reliability !== 'LOW')
-      .reduce((worst, current) => 
-        (current.pattern_accuracy + current.kill_chain_accuracy) < 
-        (worst.pattern_accuracy + worst.kill_chain_accuracy) ? current : worst
-      );
-    
-    return {
-      risky_volatility: worstVolatility,
-      risky_timeframe: worstTimeframe,
-      risk_threshold: 0.4, // Below 40% combined accuracy
-      avoidance_recommendation: (worstVolatility.pattern_accuracy + worstVolatility.kill_chain_accuracy) / 2 < 0.4
-    };
-  }
-
-  /**
-   * Generate learning recommendations
-   */
-  private generateLearningRecommendations(
-    performanceTrends: any,
-    consciousnessPatterns: any,
-    marketConditionAnalysis: any
-  ): string[] {
+    const insights = [];
     const recommendations = [];
     
-    // Performance trend recommendations
-    if (performanceTrends.pattern_accuracy_trend?.trend === 'DECLINING') {
-      recommendations.push('Pattern recognition engine needs recalibration - accuracy declining');
+    // Strategy performance insights
+    if (bestStrategy) {
+      insights.push(`Best performing strategy: ${bestStrategy.strategy_id} with ${(bestStrategy.performance.avg_accuracy * 100).toFixed(2)}% accuracy`);
+      recommendations.push(`Focus on optimizing parameters similar to ${bestStrategy.strategy_id}`);
     }
     
-    if (performanceTrends.kill_chain_accuracy_trend?.trend === 'DECLINING') {
-      recommendations.push('Kill chain engine parameters need adjustment - accuracy declining');
+    if (worstStrategy) {
+      insights.push(`Worst performing strategy: ${worstStrategy.strategy_id} with ${(worstStrategy.performance.avg_accuracy * 100).toFixed(2)}% accuracy`);
+      recommendations.push(`Consider retiring or major rework of ${worstStrategy.strategy_id}`);
     }
     
-    if (performanceTrends.consciousness_effectiveness_trend?.trend === 'IMPROVING') {
-      recommendations.push('Consciousness mathematics showing positive learning - increase weight in decisions');
-    }
-    
-    // Consciousness pattern recommendations
-    if (consciousnessPatterns.best_performing_states?.length > 0) {
-      const bestState = consciousnessPatterns.best_performing_states[0];
-      recommendations.push(`Focus optimization on ${bestState.consciousness_state} - highest performance state`);
-    }
-    
-    if (consciousnessPatterns.overall_consciousness_correlation < 0.3) {
-      recommendations.push('Consciousness correlation weak - review mathematical constants and implementations');
-    }
-    
-    // Market condition recommendations
-    if (marketConditionAnalysis.optimal_conditions?.combined_accuracy > 0.8) {
-      const optimal = marketConditionAnalysis.optimal_conditions;
-      recommendations.push(`Increase position sizing in ${optimal.optimal_volatility.volatility_category} volatility, ${optimal.optimal_timeframe.timeframe_minutes}min timeframes`);
-    }
-    
-    if (marketConditionAnalysis.risk_conditions?.avoidance_recommendation) {
-      const risky = marketConditionAnalysis.risk_conditions;
-      recommendations.push(`Avoid trading in ${risky.risky_volatility.volatility_category} volatility conditions - low accuracy`);
-    }
-    
-    // Learning velocity recommendations
-    if (performanceTrends.learning_velocity?.learning_phase === 'PLATEAU') {
-      recommendations.push('Learning plateau detected - introduce new pattern templates or adjust consciousness weights');
-    }
-    
-    if (performanceTrends.learning_velocity?.learning_phase === 'RAPID_LEARNING') {
-      recommendations.push('Rapid learning phase - maintain current parameters and increase data collection frequency');
-    }
-    
-    return recommendations;
-  }
-
-  /**
-   * Generate learning insights
-   */
-  private async generateLearningInsights(): Promise<void> {
-    console.log('🔍 Generating learning insights...');
-    
-    const allResults = Array.from(this.crossValidationResults.values()).flat();
-    
-    if (allResults.length < this.minSampleSize) {
-      console.log('Insufficient data for insight generation');
-      return;
-    }
-    
-    // Generate various types of insights
-    const patternInsights = this.generatePatternInsights(allResults);
-    const consciousnessInsights = this.generateConsciousnessInsights(allResults);
-    const performanceInsights = this.generatePerformanceInsights(allResults);
-    const marketInsights = this.generateMarketInsights(allResults);
-    
-    // Combine all insights
-    const newInsights = [
-      ...patternInsights,
-      ...consciousnessInsights,
-      ...performanceInsights,
-      ...marketInsights
-    ];
-    
-    // Add new insights to database
-    this.learningInsights.push(...newInsights);
-    
-    // Keep only recent insights (last 100)
-    if (this.learningInsights.length > 100) {
-      this.learningInsights = this.learningInsights.slice(-100);
-    }
-    
-    // Emit insights generated event
-    this.emit('insights_generated', {
-      new_insights: newInsights.length,
-      total_insights: this.learningInsights.length,
-      insights: newInsights,
-      timestamp: new Date().toISOString()
-    });
-  }
-
-  /**
-   * Generate pattern-specific insights
-   */
-  private generatePatternInsights(results: CrossValidationResult[]): LearningInsights[] {
-    const insights: LearningInsights[] = [];
-    
-    // Analyze pattern effectiveness by type
-    const patternPerformance = new Map();
-    
-    results.forEach(result => {
-      if (result.pattern_prediction.primary_pattern) {
-        const patternType = result.pattern_prediction.primary_pattern;
-        
-        if (!patternPerformance.has(patternType)) {
-          patternPerformance.set(patternType, {
-            accuracies: [],
-            consciousness_correlations: [],
-            confidences: []
-          });
-        }
-        
-        const perf = patternPerformance.get(patternType);
-        perf.accuracies.push(result.performance_analysis.pattern_accuracy);
-        perf.consciousness_correlations.push(result.pattern_prediction.consciousness_correlation);
-        perf.confidences.push(result.pattern_prediction.confidence);
-      }
-    });
-    
-    // Generate insights for each pattern type
-    patternPerformance.forEach((perf, patternType) => {
-      if (perf.accuracies.length >= 10) {
-        const avgAccuracy = perf.accuracies.reduce((sum: number, acc: number) => sum + acc, 0) / perf.accuracies.length;
-        const avgConsciousness = perf.consciousness_correlations.reduce((sum: number, corr: number) => sum + corr, 0) / perf.consciousness_correlations.length;
-        
-        if (avgAccuracy > 0.75) {
-          insights.push({
-            insight_id: `pattern_${patternType}_${Date.now()}`,
-            insight_type: 'PATTERN_EFFECTIVENESS',
-            description: `${patternType} pattern shows high effectiveness with ${(avgAccuracy * 100).toFixed(1)}% accuracy`,
-            confidence: avgAccuracy,
-            supporting_evidence: [
-              `${perf.accuracies.length} samples analyzed`,
-              `Average consciousness correlation: ${avgConsciousness.toFixed(3)}`,
-              `Consistent performance across market conditions`
-            ],
-            market_conditions: 'VARIOUS',
-            consciousness_correlation: avgConsciousness,
-            actionable_recommendation: `Increase weight for ${patternType} pattern in decision making`,
-            statistical_significance: perf.accuracies.length >= 30 ? 0.95 : 0.8
-          });
-        }
-        
-        if (avgAccuracy < 0.4) {
-          insights.push({
-            insight_id: `pattern_poor_${patternType}_${Date.now()}`,
-            insight_type: 'PATTERN_UNDERPERFORMANCE',
-            description: `${patternType} pattern shows poor performance with only ${(avgAccuracy * 100).toFixed(1)}% accuracy`,
-            confidence: 1 - avgAccuracy,
-            supporting_evidence: [
-              `${perf.accuracies.length} samples showing consistent underperformance`,
-              `Low consciousness correlation: ${avgConsciousness.toFixed(3)}`,
-              `Needs algorithm review or removal`
-            ],
-            market_conditions: 'VARIOUS',
-            consciousness_correlation: avgConsciousness,
-            actionable_recommendation: `Review or disable ${patternType} pattern recognition`,
-            statistical_significance: perf.accuracies.length >= 30 ? 0.95 : 0.8
-          });
-        }
-      }
-    });
-    
-    return insights;
-  }
-
-  /**
-   * Generate consciousness-specific insights
-   */
-  private generateConsciousnessInsights(results: CrossValidationResult[]): LearningInsights[] {
-    const insights: LearningInsights[] = [];
-    
-    // Analyze consciousness effectiveness distribution
-    const consciousnessEffectiveness = results.map(r => r.performance_analysis.consciousness_effectiveness);
-    const avgEffectiveness = consciousnessEffectiveness.reduce((sum, eff) => sum + eff, 0) / consciousnessEffectiveness.length;
-    
-    if (avgEffectiveness > 0.8) {
-      insights.push({
-        insight_id: `consciousness_high_${Date.now()}`,
-        insight_type: 'CONSCIOUSNESS_HIGH_EFFECTIVENESS',
-        description: `Consciousness enhancement showing exceptional effectiveness at ${(avgEffectiveness * 100).toFixed(1)}%`,
-        confidence: avgEffectiveness,
-        supporting_evidence: [
-          `${results.length} samples analyzed`,
-          `Consistent correlation between consciousness metrics and performance`,
-          `Mathematical constants ψ₀, φ, 432Hz providing strong signals`
-        ],
-        market_conditions: 'OPTIMAL',
-        consciousness_correlation: avgEffectiveness,
-        actionable_recommendation: 'Increase consciousness weight in all decision algorithms',
-        statistical_significance: results.length >= 100 ? 0.99 : 0.9
-      });
-    }
-    
-    // Analyze consciousness state transitions
-    const stateTransitions = this.analyzeConsciousnessTransitions(results);
-    const beneficialTransitions = stateTransitions.filter((t: any) => t.beneficial && t.sample_size >= 5);
-    
-    if (beneficialTransitions.length > 0) {
-      insights.push({
-        insight_id: `consciousness_transitions_${Date.now()}`,
-        insight_type: 'CONSCIOUSNESS_TRANSITION_PATTERNS',
-        description: `${beneficialTransitions.length} consciousness state transitions consistently improve performance`,
-        confidence: 0.8,
-        supporting_evidence: beneficialTransitions.map((t: any) => 
-          `${t.transition}: +${(t.avg_performance_impact * 100).toFixed(1)}% performance`
-        ),
-        market_conditions: 'TRANSITION_PERIODS',
-        consciousness_correlation: 0.8,
-        actionable_recommendation: 'Develop transition detection algorithms for timing optimization',
-        statistical_significance: 0.85
-      });
-    }
-    
-    return insights;
-  }
-
-  /**
-   * Generate performance comparison insights
-   */
-  private generatePerformanceInsights(results: CrossValidationResult[]): LearningInsights[] {
-    const insights: LearningInsights[] = [];
-    
-    const patternWins = results.filter(r => r.performance_analysis.better_performer === 'PATTERN').length;
-    const killChainWins = results.filter(r => r.performance_analysis.better_performer === 'KILL_CHAIN').length;
-    const ties = results.filter(r => r.performance_analysis.better_performer === 'TIE').length;
-    
-    const total = results.length;
-    const patternWinRate = patternWins / total;
-    const killChainWinRate = killChainWins / total;
-    
-    if (Math.abs(patternWinRate - killChainWinRate) > 0.2) {
-      const leader = patternWinRate > killChainWinRate ? 'Pattern Recognition' : 'Kill Chain';
-      const leaderRate = Math.max(patternWinRate, killChainWinRate);
+    // Consciousness impact insights
+    if (consciousnessImpact.impact_detected) {
+      insights.push(`Consciousness enhancement impact: ${consciousnessImpact.impact_level}`);
+      insights.push(`Enhancement rate: ${(consciousnessImpact.enhancement_rate * 100).toFixed(1)}%`);
       
-      insights.push({
-        insight_id: `performance_leader_${Date.now()}`,
-        insight_type: 'PERFORMANCE_LEADERSHIP',
-        description: `${leader} engine shows clear superiority with ${(leaderRate * 100).toFixed(1)}% win rate`,
-        confidence: leaderRate,
-        supporting_evidence: [
-          `${total} head-to-head comparisons`,
-          `Consistent performance advantage`,
-          `Statistical significance achieved`
-        ],
-        market_conditions: 'GENERAL',
-        consciousness_correlation: 0.7,
-        actionable_recommendation: `Increase weighting for ${leader} engine in combined decisions`,
-        statistical_significance: total >= 100 ? 0.95 : 0.85
-      });
-    }
-    
-    // Analyze combined performance
-    const combinedAccuracies = results.map(r => r.performance_analysis.combined_score);
-    const avgCombined = combinedAccuracies.reduce((sum, acc) => sum + acc, 0) / combinedAccuracies.length;
-    
-    if (avgCombined > 0.8) {
-      insights.push({
-        insight_id: `combined_excellence_${Date.now()}`,
-        insight_type: 'COMBINED_EXCELLENCE',
-        description: `Dual-engine architecture achieving exceptional ${(avgCombined * 100).toFixed(1)}% combined performance`,
-        confidence: avgCombined,
-        supporting_evidence: [
-          `Both engines contributing to success`,
-          `Synergistic effects detected`,
-          `Consciousness enhancement amplifying both engines`
-        ],
-        market_conditions: 'OPTIMAL',
-        consciousness_correlation: 0.9,
-        actionable_recommendation: 'Maintain current dual-engine approach with consciousness enhancement',
-        statistical_significance: 0.95
-      });
-    }
-    
-    return insights;
-  }
-
-  /**
-   * Generate market condition insights
-   */
-  private generateMarketInsights(results: CrossValidationResult[]): LearningInsights[] {
-    const insights: LearningInsights[] = [];
-    
-    // Analyze performance by volatility
-    const volatilityGroups = new Map();
-    results.forEach(result => {
-      const vol = result.market_outcome.volatility_during_period;
-      const category = this.categorizeVolatility(vol);
-      
-      if (!volatilityGroups.has(category)) {
-        volatilityGroups.set(category, []);
+      if (consciousnessImpact.impact_level === 'HIGH') {
+        recommendations.push('Consciousness enhancement showing strong positive impact - increase usage');
+      } else if (consciousnessImpact.impact_level === 'LOW') {
+        recommendations.push('Consider tuning consciousness parameters for better performance');
       }
-      volatilityGroups.get(category).push(result);
-    });
-    
-    volatilityGroups.forEach((groupResults, category) => {
-      if (groupResults.length >= 20) {
-        const avgAccuracy = groupResults.reduce((sum: number, r: any) => 
-          sum + r.performance_analysis.combined_score, 0) / groupResults.length;
-        
-        if (avgAccuracy > 0.8) {
-          insights.push({
-            insight_id: `volatility_optimal_${category}_${Date.now()}`,
-            insight_type: 'MARKET_CONDITION_OPTIMAL',
-            description: `${category} volatility conditions optimal for trading with ${(avgAccuracy * 100).toFixed(1)}% accuracy`,
-            confidence: avgAccuracy,
-            supporting_evidence: [
-              `${groupResults.length} samples in ${category} volatility`,
-              `Consistent high performance`,
-              `Both engines perform well in these conditions`
-            ],
-            market_conditions: `${category}_VOLATILITY`,
-            consciousness_correlation: 0.8,
-            actionable_recommendation: `Increase position sizing during ${category} volatility periods`,
-            statistical_significance: 0.9
-          });
-        }
-        
-        if (avgAccuracy < 0.5) {
-          insights.push({
-            insight_id: `volatility_poor_${category}_${Date.now()}`,
-            insight_type: 'MARKET_CONDITION_POOR',
-            description: `${category} volatility conditions challenging with only ${(avgAccuracy * 100).toFixed(1)}% accuracy`,
-            confidence: 1 - avgAccuracy,
-            supporting_evidence: [
-              `${groupResults.length} samples showing poor performance`,
-              `Both engines struggle in these conditions`,
-              `High risk environment`
-            ],
-            market_conditions: `${category}_VOLATILITY`,
-            consciousness_correlation: 0.6,
-            actionable_recommendation: `Reduce or avoid trading during ${category} volatility periods`,
-            statistical_significance: 0.9
-          });
-        }
-      }
-    });
-    
-    return insights;
-  }
-
-  /**
-   * Update system metrics comprehensively
-   */
-  private updateSystemMetrics(): void {
-    console.log('📊 Updating comprehensive system metrics...');
-    
-    const allResults = Array.from(this.crossValidationResults.values()).flat();
-    
-    if (allResults.length === 0) return;
-    
-    // Update learning progression metrics
-    const weeklyWindows = this.groupResultsByWeek(allResults);
-    if (weeklyWindows.length >= 2) {
-      const recentWeeks = weeklyWindows.slice(-2);
-      const weekOverWeekImprovement = 
-        ((recentWeeks[1].avg_pattern_accuracy + recentWeeks[1].avg_kill_chain_accuracy) -
-         (recentWeeks[0].avg_pattern_accuracy + recentWeeks[0].avg_kill_chain_accuracy)) / 2;
-      
-      this.systemMetrics.learning_progression.week_over_week_improvement = weekOverWeekImprovement;
     }
     
-    // Calculate consciousness learning rate
-    const consciousnessEffectiveness = allResults.map(r => r.performance_analysis.consciousness_effectiveness);
-    const recentConsciousness = consciousnessEffectiveness.slice(-50);
-    const earlyConsciousness = consciousnessEffectiveness.slice(0, 50);
+    // Performance consistency insights
+    const consistencyScores = Array.from(strategyPerformance.values()).map(p => p.consistency_score);
+    const avgConsistency = consistencyScores.reduce((sum, s) => sum + s, 0) / consistencyScores.length;
     
-    if (earlyConsciousness.length > 0 && recentConsciousness.length > 0) {
-      const earlyAvg = earlyConsciousness.reduce((sum, eff) => sum + eff, 0) / earlyConsciousness.length;
-      const recentAvg = recentConsciousness.reduce((sum, eff) => sum + eff, 0) / recentConsciousness.length;
-      this.systemMetrics.learning_progression.consciousness_learning_rate = recentAvg - earlyAvg;
+    if (avgConsistency < 0.7) {
+      insights.push('Strategy performance shows high variability across folds');
+      recommendations.push('Focus on improving strategy consistency and robustness');
     }
     
-    // Update pattern complexity evolution
-    const patternComplexities = allResults.map(r => r.pattern_prediction.patterns_detected.length);
-    if (patternComplexities.length > 0) {
-      const avgComplexity = patternComplexities.reduce((sum, comp) => sum + comp, 0) / patternComplexities.length;
-      this.systemMetrics.learning_progression.pattern_complexity_evolution = avgComplexity;
-    }
-    
-    // Update prediction confidence evolution
-    const confidences = allResults.map(r => 
-      (r.pattern_prediction.confidence + r.kill_chain_prediction.confidence) / 2
-    );
-    if (confidences.length > 0) {
-      const avgConfidence = confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length;
-      this.systemMetrics.learning_progression.prediction_confidence_evolution = avgConfidence;
-    }
-    
-    // Emit metrics update event
-    this.emit('system_metrics_updated', {
-      metrics: this.systemMetrics,
-      total_samples: allResults.length,
-      learning_velocity: this.calculateLearningVelocity(weeklyWindows),
-      timestamp: new Date().toISOString()
-    });
-    
-    console.log(`📈 System metrics updated: ${this.systemMetrics.total_comparisons} total comparisons processed`);
-  }
-
-  /**
-   * Get current system performance metrics
-   */
-  getSystemMetrics(): SystemPerformanceMetrics {
-    return { ...this.systemMetrics };
-  }
-
-  /**
-   * Get learning insights
-   */
-  getLearningInsights(limit?: number): LearningInsights[] {
-    const insights = [...this.learningInsights];
-    insights.sort((a, b) => b.confidence - a.confidence);
-    return limit ? insights.slice(0, limit) : insights;
-  }
-
-  /**
-   * Get cross-validation results for analysis
-   */
-  getCrossValidationResults(symbol?: string): CrossValidationResult[] {
-    if (symbol) {
-      return this.crossValidationResults.get(symbol) || [];
-    }
-    
-    return Array.from(this.crossValidationResults.values()).flat();
-  }
-
-  /**
-   * Get learning summary
-   */
-  getLearningSummary(): any {
-    const allResults = Array.from(this.crossValidationResults.values()).flat();
+    // Generate system performance metrics
+    const systemMetrics: SystemPerformanceMetrics = {
+      total_strategies_tested: strategyPerformance.size,
+      best_strategy_accuracy: bestStrategy?.performance.avg_accuracy || 0,
+      worst_strategy_accuracy: worstStrategy?.performance.avg_accuracy || 0,
+      avg_consistency_score: avgConsistency,
+      consciousness_impact_level: consciousnessImpact.impact_level || 'UNKNOWN',
+      total_cross_validation_folds: Array.from(strategyPerformance.values())[0]?.fold_count || 0,
+      performance_by_volatility: this.systemMetrics?.performance_by_volatility || new Map()
+    };
     
     return {
-      total_comparisons: this.systemMetrics.total_comparisons,
-      active_symbols: this.crossValidationResults.size,
-      performance_metrics: {
-        pattern_win_rate: parseFloat(this.systemMetrics.pattern_win_rate.toFixed(4)),
-        kill_chain_win_rate: parseFloat(this.systemMetrics.kill_chain_win_rate.toFixed(4)),
-        combined_win_rate: parseFloat(this.systemMetrics.combined_win_rate.toFixed(4)),
-        consciousness_effectiveness: parseFloat(this.systemMetrics.average_consciousness_effectiveness.toFixed(4))
-      },
-      learning_progression: this.systemMetrics.learning_progression,
-      insights_generated: this.learningInsights.length,
-      data_sufficiency: {
-        sufficient_for_analysis: allResults.length >= this.minSampleSize,
-        sample_size: allResults.length,
-        min_required: this.minSampleSize
-      }
+      insights,
+      recommendations,
+      system_metrics: systemMetrics,
+      recommendation_count: recommendations.length,
+      insight_count: insights.length,
+      consciousness_impact: consciousnessImpact,
+      best_strategy: bestStrategy,
+      worst_strategy: worstStrategy,
+      generated_at: new Date().toISOString()
     };
   }
+
+  /**
+   * Get system performance summary
+   */
+  getSystemPerformanceSummary(): SystemPerformanceMetrics {
+    return this.systemMetrics || {
+      total_strategies_tested: 0,
+      best_strategy_accuracy: 0,
+      worst_strategy_accuracy: 0,
+      avg_consistency_score: 0,
+      consciousness_impact_level: 'UNKNOWN',
+      total_cross_validation_folds: 0,
+      performance_by_volatility: new Map()
+    };
+  }
+}
+
+// Type definitions
+export interface KillChainPrediction {
+  direction: 'UP' | 'DOWN';
+  confidence: number;
+  target_price: number;
+  time_horizon: string;
+  strategy_id: string;
+  consciousness_boost?: number;
+  phi_harmonics?: number;
+  freq_alignment?: number;
+  enhanced_by_consciousness?: boolean;
+  timestamp: number;
+}
+
+export interface MarketOutcome {
+  direction: 'UP' | 'DOWN';
+  price_change: number;
+  percent_change: number;
+  volume_change: number;
+  volatility: number;
+}
+
+export interface CrossValidationResult {
+  strategy_id: string;
+  fold_index: number;
+  accuracy: number;
+  total_profit: number;
+  avg_profit_per_trade: number;
+  total_trades: number;
+  predictions: KillChainPrediction[];
+  consciousness_metrics: any;
+  training_size: number;
+  validation_size: number;
+}
+
+export interface LearningInsights {
+  insights: string[];
+  recommendations: string[];
+  system_metrics: SystemPerformanceMetrics;
+  recommendation_count: number;
+  insight_count: number;
+  consciousness_impact: any;
+  best_strategy: any;
+  worst_strategy: any;
+  generated_at: string;
+}
+
+export interface SystemPerformanceMetrics {
+  total_strategies_tested: number;
+  best_strategy_accuracy: number;
+  worst_strategy_accuracy: number;
+  avg_consistency_score: number;
+  consciousness_impact_level: string;
+  total_cross_validation_folds: number;
+  performance_by_volatility: Map<string, any>;
 }
 
 export default UltimateLearningEngine;
