@@ -24,8 +24,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return <div>{children}</div>;
 };
 
-export default {
+// Theme utilities object
+const ThemeUtils = {
   useTheme,
   StyledComponent,
   ThemeProvider
 };
+
+export default ThemeUtils;
