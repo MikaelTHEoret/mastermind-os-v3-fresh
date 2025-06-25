@@ -276,8 +276,8 @@ export default function AgentManager() {
     }));
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
+  const getStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
       'idle': '#888888',
       'running': '#00ff00',
       'paused': '#ffff00',
@@ -287,8 +287,8 @@ export default function AgentManager() {
     return colors[status] || colors.idle;
   };
 
-  const getProviderIcon = (provider: string) => {
-    const icons = {
+  const getProviderIcon = (provider: string): string => {
+    const icons: Record<string, string> = {
       'deepseek': '🧠',
       'groq': '⚡',
       'openai': '🤖',
@@ -297,8 +297,8 @@ export default function AgentManager() {
     return icons[provider] || '🔮';
   };
 
-  const getCategoryIcon = (category: string) => {
-    const icons = {
+  const getCategoryIcon = (category: string): string => {
+    const icons: Record<string, string> = {
       'development': '⚡',
       'research': '🔍',
       'deployment': '🚀',
@@ -385,14 +385,14 @@ export default function AgentManager() {
               onClick={() => setActiveTab(tab.id)}
               onMouseOver={(e) => {
                 if (activeTab !== tab.id) {
-                  e.target.style.background = 'rgba(0, 255, 255, 0.1)';
-                  e.target.style.color = '#00ffff';
+                  (e.target as HTMLElement).style.background = 'rgba(0, 255, 255, 0.1)';
+                  (e.target as HTMLElement).style.color = '#00ffff';
                 }
               }}
               onMouseOut={(e) => {
                 if (activeTab !== tab.id) {
-                  e.target.style.background = 'rgba(0, 255, 255, 0.05)';
-                  e.target.style.color = '#888888';
+                  (e.target as HTMLElement).style.background = 'rgba(0, 255, 255, 0.05)';
+                  (e.target as HTMLElement).style.color = '#888888';
                 }
               }}
             >
@@ -617,12 +617,12 @@ export default function AgentManager() {
                     }}
                     onMouseOver={(e) => {
                       if (selectedTemplate !== template.id) {
-                        e.target.style.background = 'rgba(0, 255, 255, 0.1)';
+                        (e.target as HTMLElement).style.background = 'rgba(0, 255, 255, 0.1)';
                       }
                     }}
                     onMouseOut={(e) => {
                       if (selectedTemplate !== template.id) {
-                        e.target.style.background = 'rgba(0, 0, 0, 0.6)';
+                        (e.target as HTMLElement).style.background = 'rgba(0, 0, 0, 0.6)';
                       }
                     }}
                   >
