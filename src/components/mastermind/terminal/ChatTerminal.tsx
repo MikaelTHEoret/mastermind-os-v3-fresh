@@ -184,8 +184,8 @@ export default function ChatTerminal() {
     return sessionId;
   };
 
-  const getMessageTypeColor = (type: string) => {
-    const colors = {
+  const getMessageTypeColor = (type: string): string => {
+    const colors: Record<string, string> = {
       'user': 'bg-cyan-900/30 border-cyan-400/50 text-cyan-100',
       'assistant': 'bg-purple-900/30 border-purple-400/50 text-purple-100', 
       'system': 'bg-green-900/30 border-green-400/50 text-green-100',
@@ -194,8 +194,8 @@ export default function ChatTerminal() {
     return colors[type] || 'bg-gray-900/30 border-gray-400/50 text-gray-100';
   };
 
-  const getProviderIcon = (provider: string) => {
-    const icons = {
+  const getProviderIcon = (provider: string): string => {
+    const icons: Record<string, string> = {
       'deepseek': '🧠',
       'groq': '⚡',
       'openai': '🤖',
@@ -205,8 +205,8 @@ export default function ChatTerminal() {
     return icons[provider] || '🔮';
   };
 
-  const getTypeIcon = (type: string) => {
-    const icons = {
+  const getTypeIcon = (type: string): string => {
+    const icons: Record<string, string> = {
       'user': '👤',
       'assistant': '🤖',
       'system': '⚙️',
