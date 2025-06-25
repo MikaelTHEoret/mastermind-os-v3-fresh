@@ -7,7 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Loader2, UserPlus, LogIn } from 'lucide-react';
-import { toast } from 'sonner';
+
+// Simple toast replacement - no external dependency needed
+const toast = {
+  success: (message: string) => {
+    console.log(`✅ Success: ${message}`);
+    // Could be enhanced with actual toast UI later
+  },
+  error: (message: string) => {
+    console.error(`❌ Error: ${message}`);
+  }
+};
 
 interface RegisterFormProps {
   onToggleMode?: () => void;
