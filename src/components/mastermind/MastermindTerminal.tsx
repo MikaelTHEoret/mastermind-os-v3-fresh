@@ -19,7 +19,7 @@ export default function MastermindTerminal() {
   }, []);
 
   const getTabIcon = (tab: string) => {
-    const icons = {
+    const icons: Record<string, string> = {
       'chat': '🗣️',
       'logs': '📊',
       'search': '🔍',
