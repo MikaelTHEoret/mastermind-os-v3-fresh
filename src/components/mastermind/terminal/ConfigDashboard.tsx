@@ -786,25 +786,24 @@ export default function ConfigDashboard() {
                       }}>
                         Default LLM Provider
                       </label>
-                      <Select
+                      <select
                         value={systemPrefs.default_llm_provider}
-                        onValueChange={(value) => updateSystemPreferences({ default_llm_provider: value })}
-                      >
-                        <SelectTrigger style={{
+                        onChange={(e) => updateSystemPreferences({ default_llm_provider: e.target.value })}
+                        style={{
                           backgroundColor: 'rgba(0, 0, 0, 0.6)',
                           border: '1px solid #555555',
                           color: '#ffffff',
-                          fontSize: '12px'
-                        }}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="deepseek">🧠 DeepSeek</SelectItem>
-                          <SelectItem value="groq">⚡ Groq</SelectItem>
-                          <SelectItem value="openai">🤖 OpenAI</SelectItem>
-                          <SelectItem value="claude">🎭 Claude</SelectItem>
-                        </SelectContent>
-                      </Select>
+                          fontSize: '12px',
+                          padding: '8px',
+                          borderRadius: '4px',
+                          width: '100%'
+                        }}
+                      >
+                        <option value="deepseek">🧠 DeepSeek</option>
+                        <option value="groq">⚡ Groq</option>
+                        <option value="openai">🤖 OpenAI</option>
+                        <option value="claude">🎭 Claude</option>
+                      </select>
                     </div>
 
                     <div>
