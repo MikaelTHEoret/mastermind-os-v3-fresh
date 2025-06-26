@@ -38,12 +38,15 @@ interface FileItem {
   };
 }
 
+// FIXED: Use the same ConfiguredSource interface as ScrollExplorer
 interface ConfiguredSource {
   id: string;
+  type: string;
   name: string;
-  type: 'github' | 'pinata' | 'codeberg' | 'neon' | 'custom';
-  enabled: boolean;
-  config: any;
+  secrets: { [key: string]: string };
+  status: 'connected' | 'disconnected' | 'error';
+  lastUpdated: string;
+  isCustom?: boolean;
 }
 
 // Wallet state management
@@ -406,7 +409,7 @@ export default function ScrollsSection() {
     return /^0x[a-fA-F0-9]{40}$/.test(address);
   };
 
-  // Initialize demo files
+  // Initialize demo files and sources
   useEffect(() => {
     const demoFiles = new Map<string, FileItem>();
     
@@ -448,6 +451,22 @@ export default function ScrollsSection() {
     setFiles(demoFiles);
     setSelectedFile(demoFile);
     setActiveEditorTab(demoFile.id);
+    
+    // Initialize demo configured sources for ScrollExplorer
+    setConfiguredSources([
+      {
+        id: 'demo-github',
+        type: 'github',
+        name: 'Demo GitHub',
+        secrets: {
+          personal_access_token: 'demo_token',
+          username: 'demo_user',
+          repositories: 'demo-repo'
+        },
+        status: 'disconnected',
+        lastUpdated: new Date().toISOString()
+      }
+    ]);
     
     // Initialize minting data with demo file
     loadFileIntoMinter(demoFile);
