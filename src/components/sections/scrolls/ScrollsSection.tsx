@@ -643,23 +643,8 @@ export default function ScrollsSection() {
               <ScrollEditor 
                 selectedFile={selectedFile}
                 setSelectedFile={setSelectedFile}
-                files={Array.from(files.values())}
-                setFiles={(newFiles) => {
-                  if (Array.isArray(newFiles)) {
-                    const fileMap = new Map<string, FileItem>();
-                    newFiles.forEach(file => fileMap.set(file.id, file));
-                    setFiles(fileMap);
-                  } else {
-                    // Handle function update
-                    setFiles(prev => {
-                      const arrayFiles = Array.from(prev.values());
-                      const updatedFiles = typeof newFiles === 'function' ? newFiles(arrayFiles) : newFiles;
-                      const fileMap = new Map<string, FileItem>();
-                      updatedFiles.forEach(file => fileMap.set(file.id, file));
-                      return fileMap;
-                    });
-                  }
-                }}
+                files={files}
+                setFiles={setFiles}
                 configuredSources={configuredSources}
                 onContentChange={handleFileContentChange}
                 onFileLoad={loadFileIntoMinter}
@@ -711,23 +696,8 @@ export default function ScrollsSection() {
                 <ScrollEditor 
                   selectedFile={selectedFile}
                   setSelectedFile={setSelectedFile}
-                  files={Array.from(files.values())}
-                  setFiles={(newFiles) => {
-                    if (Array.isArray(newFiles)) {
-                      const fileMap = new Map<string, FileItem>();
-                      newFiles.forEach(file => fileMap.set(file.id, file));
-                      setFiles(fileMap);
-                    } else {
-                      // Handle function update
-                      setFiles(prev => {
-                        const arrayFiles = Array.from(prev.values());
-                        const updatedFiles = typeof newFiles === 'function' ? newFiles(arrayFiles) : newFiles;
-                        const fileMap = new Map<string, FileItem>();
-                        updatedFiles.forEach(file => fileMap.set(file.id, file));
-                        return fileMap;
-                      });
-                    }
-                  }}
+                  files={files}
+                  setFiles={setFiles}
                   configuredSources={configuredSources}
                   onContentChange={handleFileContentChange}
                   onFileLoad={loadFileIntoMinter}
