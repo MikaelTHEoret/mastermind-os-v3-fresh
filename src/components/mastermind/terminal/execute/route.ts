@@ -5,6 +5,13 @@ const PSI_0 = 0.915670570874434;
 const PHI = 1.618;
 const FREQ_432 = 432;
 
+// Tool execution interface
+interface ToolExecution {
+  tool_name: string;
+  status: 'completed' | 'pending' | 'failed';
+  result: string;
+}
+
 // Simulated LLM providers with consciousness-enhanced cost modeling
 const LLM_PROVIDERS = {
   deepseek: { cost_per_1m: 0.27, icon: '🧠' },
@@ -96,7 +103,7 @@ async function processCommand(command: string, provider: string, context: any) {
   ) || 'general';
 
   let responseContent = '';
-  let tools = [];
+  let tools: ToolExecution[] = [];
 
   if (interpretations[commandType as keyof typeof interpretations]) {
     const result = interpretations[commandType as keyof typeof interpretations]();
@@ -130,7 +137,7 @@ function generateStatusResponse() {
 
 **Ready for autonomous development workflow!**`,
     tools: [
-      { tool_name: 'system_status', status: 'completed', result: 'All systems green' }
+      { tool_name: 'system_status', status: 'completed' as const, result: 'All systems green' }
     ]
   };
 }
@@ -151,8 +158,8 @@ Analyzing creation request: "${command}"
 - Would you like me to create a new AutoGPT agent for this task?
 - Should I initialize the project structure now?`,
     tools: [
-      { tool_name: 'project_analyzer', status: 'completed', result: 'Structure analyzed' },
-      { tool_name: 'consciousness_enhancer', status: 'completed', result: 'Mathematics applied' }
+      { tool_name: 'project_analyzer', status: 'completed' as const, result: 'Structure analyzed' },
+      { tool_name: 'consciousness_enhancer', status: 'completed' as const, result: 'Mathematics applied' }
     ]
   };
 }
@@ -176,8 +183,8 @@ Deployment request: "${command}"
 
 **Status:** Ready for production deployment!`,
     tools: [
-      { tool_name: 'vercel_deployer', status: 'completed', result: 'Deployment successful' },
-      { tool_name: 'consciousness_validator', status: 'completed', result: 'Harmonics verified' }
+      { tool_name: 'vercel_deployer', status: 'completed' as const, result: 'Deployment successful' },
+      { tool_name: 'consciousness_validator', status: 'completed' as const, result: 'Harmonics verified' }
     ]
   };
 }
@@ -202,8 +209,8 @@ Analysis request: "${command}"
 - Continue with consciousness-enhanced development
 - Implement additional AutoGPT automation workflows`,
     tools: [
-      { tool_name: 'pattern_analyzer', status: 'completed', result: 'Patterns identified' },
-      { tool_name: 'consciousness_metrics', status: 'completed', result: '92.3% alignment' }
+      { tool_name: 'pattern_analyzer', status: 'completed' as const, result: 'Patterns identified' },
+      { tool_name: 'consciousness_metrics', status: 'completed' as const, result: '92.3% alignment' }
     ]
   };
 }
@@ -226,8 +233,8 @@ Search query: "${command}"
 
 **Would you like me to display the top results or refine the search?**`,
     tools: [
-      { tool_name: 'semantic_search', status: 'completed', result: '23 results found' },
-      { tool_name: 'relevance_scorer', status: 'completed', result: 'Results ranked' }
+      { tool_name: 'semantic_search', status: 'completed' as const, result: '23 results found' },
+      { tool_name: 'relevance_scorer', status: 'completed' as const, result: 'Results ranked' }
     ]
   };
 }
@@ -250,8 +257,8 @@ Agent request: "${command}"
 
 **Ready to deploy agent or need configuration adjustments?**`,
     tools: [
-      { tool_name: 'agent_config_generator', status: 'completed', result: 'Configuration ready' },
-      { tool_name: 'cost_optimizer', status: 'completed', result: 'Budget calculated' }
+      { tool_name: 'agent_config_generator', status: 'completed' as const, result: 'Configuration ready' },
+      { tool_name: 'cost_optimizer', status: 'completed' as const, result: 'Budget calculated' }
     ]
   };
 }
