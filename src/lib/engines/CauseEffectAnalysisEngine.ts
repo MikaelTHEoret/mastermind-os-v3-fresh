@@ -125,14 +125,14 @@ export class CauseEffectAnalysisEngine {
   }
 
   private createAggregatedEffect(effects: IndicatorEffect[]): IndicatorEffect {
-    const avgCauseValue = effects.reduce((sum, e) => sum + e.cause_value, 0) / effects.length;
-    const avgEffect = effects.reduce((sum, e) => sum + e.effect_magnitude, 0) / effects.length;
-    const avgTimeLag = effects.reduce((sum, e) => sum + e.time_lag, 0) / effects.length;
-    const avgSuccessRate = effects.reduce((sum, e) => sum + e.success_rate, 0) / effects.length;
-    const avgConsciousness = effects.reduce((sum, e) => sum + e.consciousness_enhancement, 0) / effects.length;
+    const avgCauseValue = effects.reduce((sum: number, e) => sum + e.cause_value, 0) / effects.length;
+    const avgEffect = effects.reduce((sum: number, e) => sum + e.effect_magnitude, 0) / effects.length;
+    const avgTimeLag = effects.reduce((sum: number, e) => sum + e.time_lag, 0) / effects.length;
+    const avgSuccessRate = effects.reduce((sum: number, e) => sum + e.success_rate, 0) / effects.length;
+    const avgConsciousness = effects.reduce((sum: number, e) => sum + e.consciousness_enhancement, 0) / effects.length;
 
     // Calculate confidence interval based on variance
-    const variance = effects.reduce((sum, e) => sum + Math.pow(e.effect_magnitude - avgEffect, 2), 0) / effects.length;
+    const variance = effects.reduce((sum: number, e) => sum + Math.pow(e.effect_magnitude - avgEffect, 2), 0) / effects.length;
     const stdDev = Math.sqrt(variance);
     
     return {
@@ -256,7 +256,7 @@ export class CauseEffectAnalysisEngine {
 
     // Calculate expected timing
     const timings = this.effectTimings.get(indicator.indicator_type) || [60000];
-    const avgTiming = timings.reduce((sum, t) => sum + t, 0) / timings.length;
+    const avgTiming = timings.reduce((sum: number, t) => sum + t, 0) / timings.length;
 
     return {
       primary_cause: indicator.indicator_type,
@@ -295,7 +295,7 @@ export class CauseEffectAnalysisEngine {
     
     if (effects.length === 0) return 0.5; // Default neutral
     
-    return effects.reduce((sum, effect) => sum + effect.success_rate, 0) / effects.length;
+    return effects.reduce((sum: number, effect) => sum + effect.success_rate, 0) / effects.length;
   }
 
   // Public API methods
@@ -304,7 +304,7 @@ export class CauseEffectAnalysisEngine {
     const effectiveness = new Map<string, number>();
     
     for (const [indicator, effects] of symbolEffects.entries()) {
-      const avgSuccessRate = effects.reduce((sum, e) => sum + e.success_rate, 0) / effects.length;
+      const avgSuccessRate = effects.reduce((sum: number, e) => sum + e.success_rate, 0) / effects.length;
       effectiveness.set(indicator, avgSuccessRate);
     }
     
@@ -326,7 +326,7 @@ export class CauseEffectAnalysisEngine {
       return { avg: 60000, min: 60000, max: 60000, count: 0 };
     }
     
-    const avg = timings.reduce((sum, t) => sum + t, 0) / timings.length;
+    const avg = timings.reduce((sum: number, t) => sum + t, 0) / timings.length;
     const min = Math.min(...timings);
     const max = Math.max(...timings);
     
