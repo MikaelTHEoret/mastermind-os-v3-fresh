@@ -13,10 +13,10 @@ export interface SnipeLearningSystemConfig {
 }
 
 export class IntegratedSnipeLearningSystem {
-  private snipeEngine: HighVelocitySnipeEngine;
-  private causeEffectEngine: CauseEffectAnalysisEngine;
-  private patternEngine: PatternRecognitionEngine;
-  private learningEngine: UltimateLearningEngine;
+  private snipeEngine!: HighVelocitySnipeEngine;
+  private causeEffectEngine!: CauseEffectAnalysisEngine;
+  private patternEngine!: PatternRecognitionEngine;
+  private learningEngine!: UltimateLearningEngine;
   private isInitialized: boolean = false;
   private config: SnipeLearningSystemConfig;
 
