@@ -1,4 +1,4 @@
-import { HighVelocitySnipeEngine } from './HighVelocitySnipeEngine';
+import { HighVelocitySnipeEngine, SnipeOpportunity } from './HighVelocitySnipeEngine';
 import { CauseEffectAnalysisEngine } from './CauseEffectAnalysisEngine';
 import PatternRecognitionEngine from './PatternRecognitionEngine';
 import { UltimateLearningEngine } from './UltimateLearningEngine';
@@ -31,6 +31,14 @@ interface ValidatedInsights {
   }>;
   consciousness_enhanced_signals: any[];
   system_performance_metrics: any;
+}
+
+interface EnhancedSnipeOpportunity extends SnipeOpportunity {
+  pattern_validation?: {
+    confidence: number;
+    consciousness_effectiveness: number;
+  };
+  enhanced_confidence?: number;
 }
 
 export class IntegratedSnipeLearningSystem {
@@ -143,7 +151,7 @@ export class IntegratedSnipeLearningSystem {
     await this.correlateEngineData(activeSnipes, patternStats, volatilityRankings);
   }
 
-  private async correlateEngineData(snipes: any[], patternStats: any, volatilityRankings: Map<string, number>): Promise<void> {
+  private async correlateEngineData(snipes: SnipeOpportunity[], patternStats: any, volatilityRankings: Map<string, number>): Promise<void> {
     // Correlate active snipes with pattern recognition insights
     for (const snipe of snipes) {
       const volatility = volatilityRankings.get(snipe.symbol) || 0;
@@ -314,6 +322,9 @@ export class IntegratedSnipeLearningSystem {
     
     // Enhance opportunities with pattern insights
     for (const opportunity of snipeOpportunities) {
+      // Create enhanced opportunity with additional properties
+      const enhancedOpportunity: EnhancedSnipeOpportunity = { ...opportunity };
+      
       // Get pattern insights from learning statistics
       const patternStats = this.patternEngine.getLearningStatistics();
       
@@ -322,26 +333,26 @@ export class IntegratedSnipeLearningSystem {
       const symbolVolatility = volatilityRankings.get(opportunity.symbol) || 0;
       
       // Update opportunity with enhanced insights
-      opportunity.pattern_validation = {
+      enhancedOpportunity.pattern_validation = {
         confidence: patternStats.average_success_rate || 0.5,
         consciousness_effectiveness: patternStats.average_consciousness_effectiveness || 0.5
       };
       
-      opportunity.enhanced_confidence = this.calculateEnhancedConfidence(
+      enhancedOpportunity.enhanced_confidence = this.calculateEnhancedConfidence(
         opportunity, 
-        opportunity.pattern_validation, 
+        enhancedOpportunity.pattern_validation, 
         { probability: symbolVolatility }
       );
       
       // Execute if enhanced confidence exceeds threshold
-      if (opportunity.enhanced_confidence > this.config.confidence_threshold) {
-        console.log(`🚀 EXECUTING ENHANCED SNIPE: ${opportunity.symbol} (${opportunity.enhanced_confidence.toFixed(3)})`);
-        await this.executeSnipeWithLearning(opportunity);
+      if (enhancedOpportunity.enhanced_confidence > this.config.confidence_threshold) {
+        console.log(`🚀 EXECUTING ENHANCED SNIPE: ${enhancedOpportunity.symbol} (${enhancedOpportunity.enhanced_confidence.toFixed(3)})`);
+        await this.executeSnipeWithLearning(enhancedOpportunity);
       }
     }
   }
 
-  private calculateEnhancedConfidence(opportunity: any, patternValidation: any, volatilityInsights: any): number {
+  private calculateEnhancedConfidence(opportunity: SnipeOpportunity, patternValidation: any, volatilityInsights: any): number {
     const baseConfidence = opportunity.confidence || 0.5;
     const patternBonus = (patternValidation?.confidence || 0) * 0.2;
     const volatilityBonus = (volatilityInsights?.probability || 0) * 0.2;
@@ -350,7 +361,7 @@ export class IntegratedSnipeLearningSystem {
     return Math.min(0.95, baseConfidence + patternBonus + volatilityBonus + consciousnessBonus);
   }
 
-  private async executeSnipeWithLearning(opportunity: any): Promise<void> {
+  private async executeSnipeWithLearning(opportunity: EnhancedSnipeOpportunity): Promise<void> {
     // Execute snipe and record results for learning
     const startTime = Date.now();
     
