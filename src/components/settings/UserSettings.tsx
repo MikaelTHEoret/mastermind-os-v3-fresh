@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { User, Save, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -240,59 +239,47 @@ export function UserSettings({ user }: UserSettingsProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-zinc-200">Timezone</Label>
-                <Select
+                <select
                   value={formData.timezone}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, timezone: value }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, timezone: e.target.value }))}
+                  className="w-full p-2 bg-zinc-800 border border-zinc-700 rounded-md text-white"
                 >
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">
-                    {timezones.map(tz => (
-                      <SelectItem key={tz.value} value={tz.value}>
-                        {tz.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {timezones.map(tz => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="space-y-2">
                 <Label className="text-zinc-200">Language</Label>
-                <Select
+                <select
                   value={formData.language}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, language: value }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, language: e.target.value }))}
+                  className="w-full p-2 bg-zinc-800 border border-zinc-700 rounded-md text-white"
                 >
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">
-                    {languages.map(lang => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {languages.map(lang => (
+                    <option key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               
               <div className="space-y-2">
                 <Label className="text-zinc-200">Theme</Label>
-                <Select
+                <select
                   value={formData.theme}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, theme: value }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, theme: e.target.value }))}
+                  className="w-full p-2 bg-zinc-800 border border-zinc-700 rounded-md text-white"
                 >
-                  <SelectTrigger className="bg-zinc-800 border-zinc-700 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-zinc-800 border-zinc-700">
-                    {themes.map(theme => (
-                      <SelectItem key={theme.value} value={theme.value}>
-                        {theme.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {themes.map(theme => (
+                    <option key={theme.value} value={theme.value}>
+                      {theme.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             
