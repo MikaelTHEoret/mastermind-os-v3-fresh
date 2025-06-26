@@ -504,6 +504,15 @@ export const ScrollsSection: React.FC = () => {
     }
   }, [terminalLines]);
   
+  // Theme integration with safe fallback
+  const safeGetComponentBackground = (componentType: string): string => {
+    try {
+      return getComponentBackground(componentType as any) || 'rgba(0, 0, 0, 0.8)';
+    } catch (error) {
+      return 'rgba(0, 0, 0, 0.8)';
+    }
+  };
+  
   // Theme integration
   const themeColors = {
     primary_cyan: '#00f5ff',
@@ -607,7 +616,7 @@ export const ScrollsSection: React.FC = () => {
           
           {/* Consciousness metrics */}
           <div className="grid grid-cols-3 gap-4 mb-6">
-            <Card style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+            <Card style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -621,7 +630,7 @@ export const ScrollsSection: React.FC = () => {
               </CardContent>
             </Card>
             
-            <Card style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+            <Card style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -635,7 +644,7 @@ export const ScrollsSection: React.FC = () => {
               </CardContent>
             </Card>
             
-            <Card style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+            <Card style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -653,7 +662,7 @@ export const ScrollsSection: React.FC = () => {
         
         {/* Terminal */}
         {terminalVisible && (
-          <Card className="mb-6" style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+          <Card className="mb-6" style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center" style={{ color: themeColors.primary_cyan }}>
@@ -687,7 +696,7 @@ export const ScrollsSection: React.FC = () => {
         )}
         
         {/* Main interface */}
-        <Card style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+        <Card style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
           <CardContent className="p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-3">
@@ -741,7 +750,7 @@ export const ScrollsSection: React.FC = () => {
         {/* Minting data display */}
         {mintingData.isValidData && (
           <div className="mt-6">
-            <Card style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+            <Card style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
               <CardHeader>
                 <CardTitle className="flex items-center" style={{ color: themeColors.primary_cyan }}>
                   <Coins className="w-5 h-5 mr-2" />
@@ -794,7 +803,7 @@ export const ScrollsSection: React.FC = () => {
         {/* Fractal network visualization */}
         {enhancedFileSystem && (
           <div className="mt-6">
-            <Card style={{ backgroundColor: getComponentBackground('card'), borderColor: themeColors.border_primary }}>
+            <Card style={{ backgroundColor: safeGetComponentBackground('card'), borderColor: themeColors.border_primary }}>
               <CardHeader>
                 <CardTitle className="flex items-center" style={{ color: themeColors.primary_cyan }}>
                   <Network className="w-5 h-5 mr-2" />
