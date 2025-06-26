@@ -80,10 +80,14 @@ export default function ScrollsSection() {
   const [explorerWidth, setExplorerWidth] = useState(300);
   const [terminalHeight, setTerminalHeight] = useState(200);
   
-  // File management
-  const [files, setFiles] = useState<FileItem[]>([]);
+  // File management - FIXED: Use Map<string, FileItem> to match ScrollExplorer
+  const [files, setFiles] = useState<Map<string, FileItem>>(new Map());
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [configuredSources, setConfiguredSources] = useState<ConfiguredSource[]>([]);
+  
+  // Search functionality for ScrollExplorer
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeEditorTab, setActiveEditorTab] = useState<string | null>(null);
   
   // Terminal state
   const [terminalOutput, setTerminalOutput] = useState<string[]>(['🌀 MasterMind OS v3 ScrollMinter Terminal Ready']);
@@ -157,8 +161,8 @@ export default function ScrollsSection() {
       addTerminalLine('  wallet - Check wallet status');
       addTerminalLine('  mint - Show minting status');
     } else if (cmd === 'files') {
-      addTerminalLine(`Files loaded: ${files.length}`);
-      files.forEach(file => addTerminalLine(`  ${file.name} (${file.storage})`));
+      addTerminalLine(`Files loaded: ${files.size}`);
+      Array.from(files.values()).forEach(file => addTerminalLine(`  ${file.name} (${file.storage})`));
     } else if (cmd === 'wallet') {
       if (walletState.connected) {
         addTerminalLine(`Wallet: ${walletState.address}`);
@@ -179,31 +183,36 @@ export default function ScrollsSection() {
     setTerminalOutput(prev => [...prev, line]);
   }, []);
 
-  // File content change handler
-  const handleFileContentChange = useCallback((content: string) => {
-    if (selectedFile) {
-      setFiles(prevFiles => 
-        prevFiles.map(file => 
-          file.id === selectedFile.id 
-            ? { ...file, content }
-            : file
-        )
-      );
-      
-      // Update minting data
-      setMintingData(prev => ({
-        ...prev,
-        content,
-        title: selectedFile.name,
-        fileId: selectedFile.id
-      }));
-    }
-  }, [selectedFile]);
+  // ScrollExplorer callback functions
+  const createFile = useCallback((name: string): FileItem | null => {
+    const newFile: FileItem = {
+      id: `file-${Date.now()}`,
+      name,
+      type: 'file',
+      path: `/${name}`,
+      content: '',
+      lastModified: new Date().toISOString(),
+      storage: 'native'
+    };
+    
+    setFiles(prev => {
+      const updated = new Map(prev);
+      updated.set(newFile.id, newFile);
+      return updated;
+    });
+    
+    return newFile;
+  }, []);
 
-  // File load handler
-  const handleFileLoad = useCallback(async (file: FileItem) => {
+  const openFileInEditor = useCallback((file: FileItem) => {
+    setSelectedFile(file);
+    setActiveEditorTab(file.id);
+    addTerminalLine(`📝 Opened file: ${file.name}`);
+  }, [addTerminalLine]);
+
+  const loadFileIntoMinter = useCallback(async (file: FileItem) => {
     try {
-      addTerminalLine(`📁 Loading file: ${file.name}`);
+      addTerminalLine(`📁 Loading file into minter: ${file.name}`);
       
       // Extract metadata from file
       const metadata = {
@@ -236,13 +245,41 @@ export default function ScrollsSection() {
         validated: metadata.isValidData
       }));
       
-      addTerminalLine(`✅ File loaded: ${metadata.title}`);
+      addTerminalLine(`✅ File loaded into minter: ${metadata.title}`);
       
     } catch (error) {
       console.error('File load error:', error);
-      addTerminalLine(`❌ Failed to load file: ${file.name}`);
+      addTerminalLine(`❌ Failed to load file into minter: ${file.name}`);
     }
   }, [user, addTerminalLine]);
+
+  const formatFileSize = useCallback((bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }, []);
+
+  // File content change handler
+  const handleFileContentChange = useCallback((content: string) => {
+    if (selectedFile) {
+      setFiles(prevFiles => {
+        const updated = new Map(prevFiles);
+        const updatedFile = { ...selectedFile, content };
+        updated.set(selectedFile.id, updatedFile);
+        return updated;
+      });
+      
+      // Update minting data
+      setMintingData(prev => ({
+        ...prev,
+        content,
+        title: selectedFile.name,
+        fileId: selectedFile.id
+      }));
+    }
+  }, [selectedFile]);
 
   // 🌀 ENHANCED WEB3 WALLET CONNECTION WITH CONSCIOUSNESS CONSTANTS
   const connectWallet = async (): Promise<boolean> => {
@@ -368,35 +405,50 @@ export default function ScrollsSection() {
 
   // Initialize demo files
   useEffect(() => {
-    const demoFiles: FileItem[] = [
-      {
-        id: 'demo-1',
-        name: 'consciousness-trading.md',
-        type: 'file',
-        path: '/demo/consciousness-trading.md',
-        size: 1024,
-        content: '# Consciousness-Enhanced Trading\\n\\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
-        cid: 'bafkreiabcdef123456789',
-        hash: '0xabcdef123456789',
-        lastModified: new Date().toISOString(),
-        storage: 'native',
-        metadata: {
-          title: 'Consciousness-Enhanced Trading Intelligence',
-          author: 'Mikael Theoret',
-          version: 'v1.0',
-          isValidData: true
-        }
+    const demoFiles = new Map<string, FileItem>();
+    
+    // Add native root
+    demoFiles.set('native-root', {
+      id: 'native-root',
+      name: '📁 Native Files',
+      type: 'folder',
+      path: '/native',
+      lastModified: new Date().toISOString(),
+      storage: 'native',
+      children: ['demo-1'],
+      isExpanded: false
+    });
+    
+    // Add demo file
+    const demoFile: FileItem = {
+      id: 'demo-1',
+      name: 'consciousness-trading.md',
+      type: 'file',
+      path: '/demo/consciousness-trading.md',
+      size: 1024,
+      content: '# Consciousness-Enhanced Trading\n\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
+      cid: 'bafkreiabcdef123456789',
+      hash: '0xabcdef123456789',
+      lastModified: new Date().toISOString(),
+      storage: 'native',
+      parent: 'native-root',
+      metadata: {
+        title: 'Consciousness-Enhanced Trading Intelligence',
+        author: 'Mikael Theoret',
+        version: 'v1.0',
+        isValidData: true
       }
-    ];
+    };
+    
+    demoFiles.set('demo-1', demoFile);
     
     setFiles(demoFiles);
-    setSelectedFile(demoFiles[0]);
+    setSelectedFile(demoFile);
+    setActiveEditorTab(demoFile.id);
     
     // Initialize minting data with demo file
-    if (demoFiles[0]) {
-      handleFileLoad(demoFiles[0]);
-    }
-  }, [handleFileLoad]);
+    loadFileIntoMinter(demoFile);
+  }, [loadFileIntoMinter]);
 
   // Update minting data validation
   useEffect(() => {
@@ -541,10 +593,16 @@ export default function ScrollsSection() {
               <ScrollExplorer 
                 files={files}
                 setFiles={setFiles}
-                selectedFile={selectedFile}
-                setSelectedFile={setSelectedFile}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                activeEditorTab={activeEditorTab}
+                createFile={createFile}
+                openFileInEditor={openFileInEditor}
+                loadFileIntoMinter={loadFileIntoMinter}
+                formatFileSize={formatFileSize}
+                storageUsed={1024}
+                maxStorage={1024 * 1024 * 1024}
                 configuredSources={configuredSources}
-                onFileLoad={handleFileLoad}
                 theme={{ 
                   primaryColor: themeColors.primary_cyan, 
                   secondaryColor: themeColors.text_secondary, 
@@ -563,11 +621,26 @@ export default function ScrollsSection() {
               <ScrollEditor 
                 selectedFile={selectedFile}
                 setSelectedFile={setSelectedFile}
-                files={files}
-                setFiles={setFiles}
+                files={Array.from(files.values())}
+                setFiles={(newFiles) => {
+                  if (Array.isArray(newFiles)) {
+                    const fileMap = new Map<string, FileItem>();
+                    newFiles.forEach(file => fileMap.set(file.id, file));
+                    setFiles(fileMap);
+                  } else {
+                    // Handle function update
+                    setFiles(prev => {
+                      const arrayFiles = Array.from(prev.values());
+                      const updatedFiles = typeof newFiles === 'function' ? newFiles(arrayFiles) : newFiles;
+                      const fileMap = new Map<string, FileItem>();
+                      updatedFiles.forEach(file => fileMap.set(file.id, file));
+                      return fileMap;
+                    });
+                  }
+                }}
                 configuredSources={configuredSources}
                 onContentChange={handleFileContentChange}
-                onFileLoad={handleFileLoad}
+                onFileLoad={loadFileIntoMinter}
                 theme={{ 
                   primaryColor: themeColors.primary_cyan, 
                   secondaryColor: themeColors.text_secondary, 
@@ -616,11 +689,26 @@ export default function ScrollsSection() {
                 <ScrollEditor 
                   selectedFile={selectedFile}
                   setSelectedFile={setSelectedFile}
-                  files={files}
-                  setFiles={setFiles}
+                  files={Array.from(files.values())}
+                  setFiles={(newFiles) => {
+                    if (Array.isArray(newFiles)) {
+                      const fileMap = new Map<string, FileItem>();
+                      newFiles.forEach(file => fileMap.set(file.id, file));
+                      setFiles(fileMap);
+                    } else {
+                      // Handle function update
+                      setFiles(prev => {
+                        const arrayFiles = Array.from(prev.values());
+                        const updatedFiles = typeof newFiles === 'function' ? newFiles(arrayFiles) : newFiles;
+                        const fileMap = new Map<string, FileItem>();
+                        updatedFiles.forEach(file => fileMap.set(file.id, file));
+                        return fileMap;
+                      });
+                    }
+                  }}
                   configuredSources={configuredSources}
                   onContentChange={handleFileContentChange}
-                  onFileLoad={handleFileLoad}
+                  onFileLoad={loadFileIntoMinter}
                   theme={{ 
                     primaryColor: themeColors.primary_cyan, 
                     secondaryColor: themeColors.text_secondary, 
