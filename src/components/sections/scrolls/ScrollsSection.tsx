@@ -432,7 +432,7 @@ export default function ScrollsSection() {
       type: 'file',
       path: '/demo/consciousness-trading.md',
       size: 1024,
-      content: '# Consciousness-Enhanced Trading\n\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
+      content: '# Consciousness-Enhanced Trading\\n\\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
       cid: 'bafkreiabcdef123456789',
       hash: '0xabcdef123456789',
       lastModified: new Date().toISOString(),
