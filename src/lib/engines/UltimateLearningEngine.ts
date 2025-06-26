@@ -105,7 +105,7 @@ export class UltimateLearningEngine {
     const trainedStrategy = await this.trainStrategyWithConsciousness(strategy, trainingData);
     
     // Test on validation data
-    const predictions: KillChainPrediction[] = [];
+    const predictions: LearningKillChainPrediction[] = [];
     let totalProfit = 0;
     let correctPredictions = 0;
     let totalTrades = 0;
@@ -195,7 +195,7 @@ export class UltimateLearningEngine {
     strategy: any,
     marketData: any,
     timeIndex: number
-  ): Promise<KillChainPrediction> {
+  ): Promise<LearningKillChainPrediction> {
     
     // Base prediction using strategy logic
     const basePrediction = this.generateBasePrediction(strategy, marketData);
@@ -289,7 +289,7 @@ export class UltimateLearningEngine {
   /**
    * Evaluate prediction accuracy
    */
-  private evaluatePredictionAccuracy(prediction: KillChainPrediction, outcome: MarketOutcome): boolean {
+  private evaluatePredictionAccuracy(prediction: LearningKillChainPrediction, outcome: MarketOutcome): boolean {
     // Direction accuracy
     const directionCorrect = prediction.direction === outcome.direction;
     
@@ -304,7 +304,7 @@ export class UltimateLearningEngine {
   /**
    * Calculate trade profit/loss
    */
-  private calculateTradeProfitLoss(prediction: KillChainPrediction, outcome: MarketOutcome): number {
+  private calculateTradeProfitLoss(prediction: LearningKillChainPrediction, outcome: MarketOutcome): number {
     const baseProfitLoss = outcome.percent_change * (prediction.direction === outcome.direction ? 1 : -1);
     const confidenceMultiplier = prediction.confidence;
     const consciousnessBonus = prediction.consciousness_boost || 0;
@@ -332,7 +332,7 @@ export class UltimateLearningEngine {
   /**
    * Calculate consciousness metrics for predictions
    */
-  private calculateConsciousnessMetrics(predictions: KillChainPrediction[]): any {
+  private calculateConsciousnessMetrics(predictions: LearningKillChainPrediction[]): any {
     const totalPredictions = predictions.length;
     const consciousnessEnhanced = predictions.filter(p => p.enhanced_by_consciousness).length;
     const avgConfidence = predictions.reduce((sum, p) => sum + p.confidence, 0) / totalPredictions;
@@ -618,8 +618,8 @@ export class UltimateLearningEngine {
   }
 }
 
-// Type definitions
-export interface KillChainPrediction {
+// Type definitions - using unique naming to avoid conflicts
+export interface LearningKillChainPrediction {
   direction: 'UP' | 'DOWN';
   confidence: number;
   target_price: number;
@@ -647,7 +647,7 @@ export interface CrossValidationResult {
   total_profit: number;
   avg_profit_per_trade: number;
   total_trades: number;
-  predictions: KillChainPrediction[];
+  predictions: LearningKillChainPrediction[];
   consciousness_metrics: any;
   training_size: number;
   validation_size: number;
@@ -676,10 +676,3 @@ export interface SystemPerformanceMetrics {
 }
 
 export default UltimateLearningEngine;
-export type { 
-  KillChainPrediction, 
-  MarketOutcome, 
-  CrossValidationResult, 
-  LearningInsights, 
-  SystemPerformanceMetrics 
-};
