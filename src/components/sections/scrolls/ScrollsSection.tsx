@@ -27,6 +27,9 @@ interface FileItem {
   storage: 'native' | 'ipfs' | 'github' | 'pinata' | 'codeberg' | 'neon' | 'custom';
   parent?: string;
   children?: string[];
+  isExpanded?: boolean;
+  requiresAuth?: boolean;
+  mimeType?: string;
   metadata?: {
     title?: string;
     author?: string;
