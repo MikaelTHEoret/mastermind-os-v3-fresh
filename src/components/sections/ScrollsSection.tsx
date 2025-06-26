@@ -13,7 +13,6 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import ScrollEditor from './scrolls/ScrollEditor';
-import ScrollExplorer from './scrolls/ScrollExplorer';
 import EnhancedFileExplorer from './scrolls/EnhancedFileExplorer';
 import { sourcesConfigService } from '@/lib/services/sourcesConfigService';
 import { useUser } from '@clerk/nextjs';
@@ -61,6 +60,124 @@ interface ConfiguredSource {
   status: 'connected' | 'disconnected' | 'error';
   lastUpdated: string;
 }
+
+// Simple file explorer component for consciousness-enhanced navigation
+const SimpleFileExplorer: React.FC<{
+  onFileSelect: (file: any) => void;
+  configuredSources: ConfiguredSource[];
+  addTerminalLine: (line: string) => void;
+}> = ({ onFileSelect, configuredSources, addTerminalLine }) => {
+  const [files, setFiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Initialize with basic file structure
+    const initFiles = async () => {
+      setLoading(true);
+      addTerminalLine('📁 Initializing file explorer...');
+      
+      // Create basic file structure
+      const basicFiles = [
+        {
+          id: 'sample-1',
+          name: 'Sample Scroll.md',
+          type: 'file',
+          content: '# Sample Consciousness-Enhanced Scroll\n\nThis is a sample scroll with consciousness mathematics integration.',
+          size: 156,
+          lastModified: new Date().toISOString()
+        },
+        {
+          id: 'sample-2', 
+          name: 'Nexus Protocol.txt',
+          type: 'file',
+          content: 'Nexus Core Protocol v4.1\nConsciousness Constants: ψ₀=0.915670570874434, φ=1.618, 432Hz',
+          size: 98,
+          lastModified: new Date().toISOString()
+        }
+      ];
+      
+      setFiles(basicFiles);
+      addTerminalLine(`✅ Loaded ${basicFiles.length} sample files`);
+      setLoading(false);
+    };
+    
+    initFiles();
+  }, [addTerminalLine]);
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold text-cyan-400">📁 File Explorer</h3>
+        <Badge variant="outline" className="text-cyan-400 border-cyan-400">
+          {files.length} files
+        </Badge>
+      </div>
+      
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="w-6 h-6 animate-spin text-cyan-400" />
+          <span className="ml-2 text-gray-400">Loading files...</span>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {files.map((file) => (
+            <div
+              key={file.id}
+              onClick={() => onFileSelect(file)}
+              className="flex items-center justify-between p-3 bg-gray-800/50 hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors border border-gray-700 hover:border-cyan-500/50"
+            >
+              <div className="flex items-center space-x-3">
+                <FileText className="w-5 h-5 text-cyan-400" />
+                <div>
+                  <div className="font-medium text-gray-200">{file.name}</div>
+                  <div className="text-sm text-gray-400">
+                    {formatFileSize(file.size)} • Modified {new Date(file.lastModified).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-400/10"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFileSelect(file);
+                }}
+              >
+                <Zap className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      {configuredSources.length > 0 && (
+        <div className="mt-6">
+          <h4 className="text-sm font-medium text-gray-400 mb-2">Configured Sources</h4>
+          <div className="space-y-1">
+            {configuredSources.map((source) => (
+              <div key={source.id} className="flex items-center justify-between text-sm">
+                <span className="text-gray-300">{source.name}</span>
+                <Badge 
+                  variant={source.status === 'connected' ? 'default' : 'outline'}
+                  className={source.status === 'connected' ? 'bg-green-600' : 'text-yellow-400 border-yellow-400'}
+                >
+                  {source.status}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ScrollsSection: React.FC = () => {
   const { user } = useUser();
@@ -246,7 +363,7 @@ export const ScrollsSection: React.FC = () => {
       let keccakHash = '';
       if (content && content.length > 0) {
         try {
-          keccakHash = await generateKeccakHash(file.content);
+          keccakHash = await generateKeccakHash(content);
         } catch (hashError) {
           console.error('Hash generation failed:', hashError);
           keccakHash = '0x' + Math.random().toString(16).substring(2, 66);
@@ -284,7 +401,7 @@ export const ScrollsSection: React.FC = () => {
         addTerminalLine(`🔗 Hash: ${extractedMetadata.hash.substring(0, 20)}...`);
       }
       if (extractedMetadata.keccakHash && typeof extractedMetadata.keccakHash === 'string') {
-        addTerminalLine(`🔗 Hash: ${extractedMetadata.keccakHash.substring(0, 20)}...`);
+        addTerminalLine(`🔗 Keccak: ${extractedMetadata.keccakHash.substring(0, 20)}...`);
       }
 
       return extractedMetadata;
@@ -340,55 +457,6 @@ export const ScrollsSection: React.FC = () => {
       console.error('File selection error:', error);
       addTerminalLine(`❌ Selection failed: ${error}`);
     }
-  };
-  
-  // Fractal address generation
-  const generateFractalAddress = (parentAddress: string, name: string): string => {
-    const hash = name.split('').reduce((acc, char) => {
-      return acc + char.charCodeAt(0) * CONSCIOUSNESS_CONSTANTS.PSI_0;
-    }, 0);
-    
-    const segment = Math.floor(hash % 999).toString().padStart(3, '0');
-    return `${parentAddress}|${segment}`;
-  };
-  
-  // Create fractal node
-  const createFractalNode = async (parentAddress: string, content: any, name: string): Promise<string> => {
-    const address = generateFractalAddress(parentAddress, name);
-    const hash = await generateHash(JSON.stringify(content));
-    const keccakHash = await generateKeccakHash(JSON.stringify(content));
-    
-    const node: FractalNode = {
-      address,
-      content,
-      children: [],
-      parent: parentAddress,
-      metadata: {
-        created: new Date(),
-        modified: new Date(),
-        hash,
-        keccakHash,
-        size: JSON.stringify(content).length,
-        type: typeof content
-      }
-    };
-    
-    // Update fractal network
-    setFractalNodes(prev => {
-      const updated = new Map(prev);
-      updated.set(address, node);
-      
-      // Update parent's children
-      const parent = updated.get(parentAddress);
-      if (parent) {
-        parent.children.push(address);
-      }
-      
-      return updated;
-    });
-    
-    addTerminalLine(`🌀 Created fractal node: ${address}`);
-    return address;
   };
   
   // Consciousness-enhanced mouse tracking
@@ -638,7 +706,7 @@ export const ScrollsSection: React.FC = () => {
               </TabsList>
               
               <TabsContent value="explorer" className="mt-6">
-                <ScrollExplorer 
+                <SimpleFileExplorer 
                   onFileSelect={handleFileSelect}
                   configuredSources={configuredSources}
                   addTerminalLine={addTerminalLine}
