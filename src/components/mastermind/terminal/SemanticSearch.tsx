@@ -113,7 +113,7 @@ export default function SemanticSearch() {
   };
 
   const getCollectionIcon = (collection: string) => {
-    const icons = {
+    const icons: Record<string, string> = {
       'hugging_dynamic_memory': '🤗',
       'system_enhancements': '⚙️',
       'fractal_scrolls': '📜',
