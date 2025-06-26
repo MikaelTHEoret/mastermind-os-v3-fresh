@@ -23,4 +23,4 @@ interface NexusCoreV5Protocol {
   backward_compatibility: any;
 }
 
-export { NexusCoreV5Protocol };
+export type { NexusCoreV5Protocol };
