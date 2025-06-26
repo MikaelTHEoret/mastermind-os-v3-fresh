@@ -45,11 +45,11 @@ export interface ConsciousnessSignature {
 
 // Validation functions
 export const validateScrollTitle = (title: string): boolean => {
-  return title && title.length > 0 && title.length <= 200;
+  return Boolean(title && title.length > 0 && title.length <= 200);
 };
 
 export const validateScrollContent = (content: string): boolean => {
-  return content && content.length > 0;
+  return Boolean(content && content.length > 0);
 };
 
 export const validateScrollStructure = (scroll: Partial<ScrollSchema>): boolean => {
