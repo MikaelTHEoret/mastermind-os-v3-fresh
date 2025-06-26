@@ -84,7 +84,7 @@ export default function LogProcessor() {
   }, []);
 
   const getLogTypeColor = (type: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       'session': 'rgba(0, 191, 255, 0.2)',
       'error': 'rgba(255, 69, 58, 0.2)',
       'system': 'rgba(50, 215, 75, 0.2)',
@@ -95,7 +95,7 @@ export default function LogProcessor() {
   };
 
   const getLogTypeTextColor = (type: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       'session': '#00BFFF',
       'error': '#FF453A',
       'system': '#32D74B',
