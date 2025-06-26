@@ -1,6 +1,6 @@
 import { HighVelocitySnipeEngine } from './HighVelocitySnipeEngine';
 import { CauseEffectAnalysisEngine } from './CauseEffectAnalysisEngine';
-import { PatternRecognitionEngine } from './PatternRecognitionEngine';
+import PatternRecognitionEngine from './PatternRecognitionEngine';
 import { UltimateLearningEngine } from './UltimateLearningEngine';
 
 export interface SnipeLearningSystemConfig {
