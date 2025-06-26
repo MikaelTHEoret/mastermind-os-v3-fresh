@@ -226,21 +226,18 @@ export function UserSecretsManager() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="serviceName">Service</Label>
-                  <Select
+                  <select
                     value={formData.serviceName}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, serviceName: value }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, serviceName: e.target.value }))}
+                    className="w-full p-2 bg-zinc-800 border border-zinc-700 rounded-md text-white"
                   >
-                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
-                      <SelectValue placeholder="Select a service" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-800 border-zinc-700">
-                      {commonServices.map(service => (
-                        <SelectItem key={service.value} value={service.value}>
-                          {service.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <option value="">Select a service</option>
+                    {commonServices.map(service => (
+                      <option key={service.value} value={service.value}>
+                        {service.label}
+                      </option>
+                    ))}
+                  </select>
                   {formData.serviceName === 'custom' && (
                     <Input
                       placeholder="Enter custom service name"
@@ -253,20 +250,16 @@ export function UserSecretsManager() {
                 
                 <div className="space-y-2">
                   <Label htmlFor="secretType">Type</Label>
-                  <Select
+                  <select
                     value={formData.secretType}
-                    onValueChange={(value: any) => setFormData(prev => ({ ...prev, secretType: value }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, secretType: e.target.value as any }))}
+                    className="w-full p-2 bg-zinc-800 border border-zinc-700 rounded-md text-white"
                   >
-                    <SelectTrigger className="bg-zinc-800 border-zinc-700">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-zinc-800 border-zinc-700">
-                      <SelectItem value="api_key">API Key</SelectItem>
-                      <SelectItem value="oauth_token">OAuth Token</SelectItem>
-                      <SelectItem value="password">Password</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <option value="api_key">API Key</option>
+                    <option value="oauth_token">OAuth Token</option>
+                    <option value="password">Password</option>
+                    <option value="custom">Custom</option>
+                  </select>
                 </div>
                 
                 <div className="space-y-2">
