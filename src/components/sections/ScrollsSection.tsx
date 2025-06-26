@@ -730,10 +730,8 @@ export const ScrollsSection: React.FC = () => {
               
               <TabsContent value="enhanced" className="mt-6">
                 <EnhancedFileExplorer 
-                  files={files}
                   onFileSelect={handleFileSelect}
                   configuredSources={configuredSources}
-                  addTerminalLine={addTerminalLine}
                 />
               </TabsContent>
             </Tabs>
