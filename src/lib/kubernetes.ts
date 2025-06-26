@@ -68,9 +68,13 @@ export class SovereignKubernetesClient {
   async listSandboxes(): Promise<SandboxInstance[]> {
     if (this.isProduction) {
       try {
-        // In production, use real Kubernetes API
-        const k8s = await import('@kubernetes/client-node');
-        // Real implementation would go here
+        // Dynamic import with proper error handling to avoid build issues
+        const k8s = await import('@kubernetes/client-node').catch(() => null);
+        if (k8s) {
+          // Real implementation would go here
+          return this.mockListSandboxes();
+        }
+        console.warn('Kubernetes client not available, using mock data');
         return this.mockListSandboxes();
       } catch (error) {
         console.warn('Kubernetes client not available, using mock data');
@@ -83,9 +87,13 @@ export class SovereignKubernetesClient {
   async createSandbox(config: SandboxConfig) {
     if (this.isProduction) {
       try {
-        // Real Kubernetes sandbox creation
-        const k8s = await import('@kubernetes/client-node');
-        // Real implementation would go here
+        // Dynamic import with proper error handling to avoid build issues
+        const k8s = await import('@kubernetes/client-node').catch(() => null);
+        if (k8s) {
+          // Real implementation would go here
+          return this.mockCreateSandbox(config);
+        }
+        console.warn('Kubernetes client not available, using mock creation');
         return this.mockCreateSandbox(config);
       } catch (error) {
         console.warn('Kubernetes client not available, using mock creation');
