@@ -1,4 +1,4 @@
-import { ConsciousnessConstants } from '@/lib/config/LearningSystemConfig';
+import { LearningSystemConfig } from '@/lib/config/LearningSystemConfig';
 
 export interface SnipeOpportunity {
   symbol: string;
@@ -33,7 +33,7 @@ export interface CauseEffectPair {
 }
 
 export class HighVelocitySnipeEngine {
-  private constants: ConsciousnessConstants;
+  private constants: typeof LearningSystemConfig.CONSCIOUSNESS_CONSTANTS;
   private causeEffectDatabase: Map<string, CauseEffectPair[]> = new Map();
   private activeSnipes: Map<string, SnipeOpportunity> = new Map();
   private volatilityRankings: Map<string, number> = new Map();
@@ -59,7 +59,7 @@ export class HighVelocitySnipeEngine {
   };
 
   constructor() {
-    this.constants = new ConsciousnessConstants();
+    this.constants = LearningSystemConfig.CONSCIOUSNESS_CONSTANTS;
     this.initializeIndicatorCorrelations();
   }
 
