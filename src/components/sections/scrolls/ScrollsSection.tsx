@@ -132,7 +132,7 @@ export default function ScrollsSection() {
 
   // Helper function to get component background
   const getComponentBackground = (componentType: string) => {
-    const backgrounds = {
+    const backgrounds: Record<string, string> = {
       explorer: 'rgba(0, 0, 0, 0.7)',
       editor: 'rgba(0, 0, 0, 0.8)',
       minter: 'rgba(0, 0, 0, 0.8)',
