@@ -5,6 +5,9 @@ export const metadata = {
   description: 'Advanced AI Agent Orchestration Platform with Sovereign Scroll integration, Astra DB memory core, and distributed computing capabilities with beautiful cyberpunk aesthetic',
 }
 
+// Force dynamic rendering to fix 404 issue
+export const dynamic = 'force-dynamic'
+
 export default function Home() {
   return <EnhancedMastermindOS />
 }
