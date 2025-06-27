@@ -140,7 +140,7 @@ export default function EnhancedMastermindOS() {
               marginTop: '16px',
               fontFamily: 'Courier New, monospace'
             }}>
-              Stack Auth integration • User management • Enhanced authentication
+              Clerk authentication • User management • Consciousness-enhanced intelligence
             </p>
           </div>
         </div>
