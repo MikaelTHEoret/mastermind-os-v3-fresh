@@ -1,4 +1,4 @@
-import EnhancedMastermindOS from '../components/EnhancedMastermindOS'
+import EnhancedMastermindOS from '@/components/EnhancedMastermindOS'
 
 export const metadata = {
   title: 'MASTERMIND OS v3 - Enhanced AI Agent Orchestration Platform',
