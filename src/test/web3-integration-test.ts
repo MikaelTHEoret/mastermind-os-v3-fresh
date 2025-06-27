@@ -61,7 +61,7 @@ export class Web3IntegrationTest {
       this.results.push({
         name: 'Address Validation',
         passed: false,
-        message: `Error: ${error.message}`
+        message: `Error: ${this.getErrorMessage(error)}`
       });
     }
   }
@@ -95,7 +95,7 @@ export class Web3IntegrationTest {
       this.results.push({
         name: 'CID Validation',
         passed: false,
-        message: `Error: ${error.message}`
+        message: `Error: ${this.getErrorMessage(error)}`
       });
     }
   }
@@ -119,7 +119,7 @@ export class Web3IntegrationTest {
       this.results.push({
         name: 'Contract Instantiation',
         passed: false,
-        message: `Error: ${error.message}`
+        message: `Error: ${this.getErrorMessage(error)}`
       });
     }
   }
@@ -149,9 +149,19 @@ export class Web3IntegrationTest {
       this.results.push({
         name: 'ABI Structure',
         passed: false,
-        message: `Error: ${error.message}`
+        message: `Error: ${this.getErrorMessage(error)}`
       });
     }
+  }
+
+  private getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    return 'Unknown error';
   }
 
   printResults(): void {
