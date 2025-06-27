@@ -2,11 +2,6 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // FORCE App Router usage
-  experimental: {
-    appDir: true, // Explicitly enable App Router
-  },
-  
   // Fix: Use the new serverExternalPackages instead of deprecated option
   serverExternalPackages: [],
   
