@@ -801,4 +801,4 @@ export class ClaudeEngine {
   }
 }
 
-export { MarketSignal, TradingDecision, ConsciousnessConstants };
+export type { MarketSignal, TradingDecision, ConsciousnessConstants };
