@@ -411,6 +411,14 @@ export class ScrollMintingContract {
       scroll: this.SCROLL_MAINNET
     };
   }
+
+  /**
+   * Get contract ABI for testing and integration purposes
+   * Required by web3-integration-test.ts for ABI structure validation
+   */
+  getScrollABI(): any[] {
+    return this.CONTRACT_ABI;
+  }
 }
 
 // Export singleton instance
