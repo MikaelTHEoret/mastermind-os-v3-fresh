@@ -1,6 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  
+  // Force App Router to be used properly
+  experimental: {
+    appDir: true
+  },
+  
   // Ensure proper module resolution
   webpack: (config, { isServer }) => {
     // Fix for Node.js modules in browser
@@ -14,6 +20,7 @@ const nextConfig = {
     }
     return config;
   },
+  
   // Allow localhost API calls in development
   async headers() {
     return [
