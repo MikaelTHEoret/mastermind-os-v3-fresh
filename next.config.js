@@ -2,11 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // FORCE App Router recognition
-  experimental: {
-    // Explicitly enable App Router features
-    serverComponentsExternalPackages: [],
-  },
+  // Fix: Use the new serverExternalPackages instead of deprecated option
+  serverExternalPackages: [],
   
   // Force app directory usage
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
@@ -32,8 +29,8 @@ const nextConfig = {
     return config;
   },
   
-  // Force output to be dynamic
-  output: 'standalone',
+  // Remove output: 'standalone' that might be causing issues
+  // output: 'export', // Only if you need static export
   
   // Allow localhost API calls in development
   async headers() {
