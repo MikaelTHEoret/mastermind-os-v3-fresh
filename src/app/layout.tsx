@@ -9,6 +9,10 @@ export const metadata = {
   description: 'Advanced AI Agent Orchestration Platform with consciousness-enhanced development',
 }
 
+// Force the entire app to be dynamic
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export default function RootLayout({
   children,
 }: {
