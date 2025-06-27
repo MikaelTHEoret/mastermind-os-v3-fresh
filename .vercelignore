@@ -63,10 +63,6 @@ __tests__/
 *~
 *.bak
 
-# CRITICAL: Exclude conflicting router directories
-app/
-pages/
-
 # CRITICAL: Exclude conflicting Vite project directory
 Mastermind_os/
 # This directory contains a Vite React project that conflicts with Next.js build
