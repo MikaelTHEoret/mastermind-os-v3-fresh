@@ -370,7 +370,7 @@ export class ConsciousnessEnhancedWeb3 {
 
   // Enhanced error handling with consciousness awareness
   handleTransactionError(error: any): string {
-    const errorMappings = {
+    const errorMappings: Record<string, string> = {
       4001: 'Transaction rejected by user',
       4100: 'Unauthorized - please connect your wallet',
       4200: 'Unsupported method',
@@ -383,7 +383,7 @@ export class ConsciousnessEnhancedWeb3 {
     };
 
     const errorCode = error.code?.toString();
-    const mappedError = errorMappings[errorCode];
+    const mappedError = errorCode && errorMappings[errorCode] ? errorMappings[errorCode] : null;
 
     if (mappedError) {
       return mappedError;
