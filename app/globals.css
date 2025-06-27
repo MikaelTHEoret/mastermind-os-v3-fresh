@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;  
+@tailwind utilities;
+
+/* Enhanced Nexus Core Protocol v3.0 - Custom Cyberpunk Styles */
+body {
+  background: transparent; /* Remove background - let EnhancedNexusBackground handle everything */
+  color: #00ffff;
+  font-family: 'Courier New', monospace;
+}
+
+/* Cyberpunk glow effects */
+.nexus-glow {
+  text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff, 0 0 30px #00ffff;
+}
+
+.nexus-border {
+  border: 1px solid #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.nexus-button {
+  background: linear-gradient(45deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2));
+  border: 1px solid #00ffff;
+  color: #00ffff;
+  transition: all 0.3s ease;
+}
+
+.nexus-button:hover {
+  background: linear-gradient(45deg, rgba(0, 255, 255, 0.4), rgba(255, 0, 255, 0.4));
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+}
+
+/* FORCE CLERK CYBERPUNK STYLING - Override all default styles */
+.cl-modal,
+.cl-modalContent,
+.cl-card,
+.cl-signIn-start,
+.cl-signUp-start,
+.cl-userProfile-root {
+  background: linear-gradient(145deg, rgba(10, 5, 30, 0.98) 0%, rgba(20, 10, 40, 0.98) 100%) !important;
+  border: 2px solid rgba(0, 255, 255, 0.4) !important;
+  border-radius: 20px !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 0 50px rgba(0, 255, 255, 0.3) !important;
+}
+
+.cl-modalBackdrop {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+.cl-headerTitle,
+.cl-headerSubtitle,
+.cl-formFieldLabel,
+.cl-footerActionText,
+.cl-text,
+.cl-userProfile-sectionTitle {
+  color: #00ffff !important;
+}
+
+.cl-headerTitle {
+  font-family: "Orbitron", monospace !important;
+}
+
+.cl-formFieldInput,
+.cl-formFieldInputShowPasswordButton {
+  background: rgba(0, 255, 255, 0.1) !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  border-radius: 12px !important;
+  color: #00ffff !important;
+}
+
+.cl-formFieldInput:focus {
+  border-color: rgba(0, 255, 255, 0.6) !important;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.3) !important;
+}
+
+.cl-formButtonPrimary,
+.cl-userProfile-formButtonPrimary {
+  background: linear-gradient(45deg, rgba(0, 255, 255, 0.3), rgba(255, 0, 255, 0.3)) !important;
+  border: 2px solid rgba(0, 255, 255, 0.5) !important;
+  border-radius: 25px !important;
+  color: #00ffff !important;
+  font-family: "Orbitron", monospace !important;
+  text-transform: uppercase !important;
+}
+
+.cl-formButtonPrimary:hover,
+.cl-userProfile-formButtonPrimary:hover {
+  background: linear-gradient(45deg, rgba(0, 255, 255, 0.5), rgba(255, 0, 255, 0.5)) !important;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.5) !important;
+}
+
+.cl-socialButtonsBlockButton {
+  background: rgba(0, 255, 255, 0.1) !important;
+  border: 1px solid rgba(0, 255, 255, 0.3) !important;
+  color: #00ffff !important;
+}
+
+.cl-footerActionLink {
+  color: #00ffff !important;
+}
+
+.cl-footer {
+  background: transparent !important;
+}
