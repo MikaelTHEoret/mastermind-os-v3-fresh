@@ -2,10 +2,14 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Force dynamic rendering for all pages
+  // FORCE App Router recognition
   experimental: {
-    // Remove appDir as it's stable in Next.js 15
+    // Explicitly enable App Router features
+    serverComponentsExternalPackages: [],
   },
+  
+  // Force app directory usage
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   
   // Ensure proper module resolution
   webpack: (config, { isServer }) => {
@@ -18,8 +22,18 @@ const nextConfig = {
         tls: false,
       };
     }
+    
+    // Force App Router recognition
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': './src',
+    };
+    
     return config;
   },
+  
+  // Force output to be dynamic
+  output: 'standalone',
   
   // Allow localhost API calls in development
   async headers() {
