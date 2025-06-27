@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   
+  // FORCE App Router usage
+  experimental: {
+    appDir: true, // Explicitly enable App Router
+  },
+  
   // Fix: Use the new serverExternalPackages instead of deprecated option
   serverExternalPackages: [],
   
@@ -28,9 +33,6 @@ const nextConfig = {
     
     return config;
   },
-  
-  // Remove output: 'standalone' that might be causing issues
-  // output: 'export', // Only if you need static export
   
   // Allow localhost API calls in development
   async headers() {
