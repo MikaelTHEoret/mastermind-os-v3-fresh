@@ -2,9 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Force App Router to be used properly
+  // Force dynamic rendering for all pages
   experimental: {
-    appDir: true
+    // Remove appDir as it's stable in Next.js 15
   },
   
   // Ensure proper module resolution
