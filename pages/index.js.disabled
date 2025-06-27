@@ -1,0 +1,3 @@
+# This file was causing a build conflict with src/app/page.tsx
+# Disabled to allow App Router to work properly
+# Original content was null (empty file)
