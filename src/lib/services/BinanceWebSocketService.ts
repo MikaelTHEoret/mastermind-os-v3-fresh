@@ -75,7 +75,7 @@ interface ConsciousnessEnhancedStreamData {
   };
 }
 
-class ConsciousnessEnhancedBinanceWebSocket extends EventEmitter {
+export class BinanceWebSocketService extends EventEmitter {
   private connections: Map<string, WebSocket> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
   private maxReconnectAttempts = 5;
@@ -101,6 +101,21 @@ class ConsciousnessEnhancedBinanceWebSocket extends EventEmitter {
       for (const streamType of streamTypes) {
         await this.createConnection(symbol, streamType);
       }
+    }
+  }
+
+  /**
+   * Legacy subscribe method for backward compatibility
+   */
+  async subscribe(symbol: string, streamType: string, callback?: (data: any) => void) {
+    await this.connectToStreams([symbol], [streamType]);
+    
+    if (callback) {
+      this.on('enhanced_data', (data) => {
+        if (data.symbol === symbol && data.streamType === streamType) {
+          callback(data.data);
+        }
+      });
     }
   }
 
@@ -591,5 +606,11 @@ class ConsciousnessEnhancedBinanceWebSocket extends EventEmitter {
   }
 }
 
-export default ConsciousnessEnhancedBinanceWebSocket;
+// Named export (for import { BinanceWebSocketService })
+export { BinanceWebSocketService };
+
+// Default export (for import BinanceWebSocketService)
+export default BinanceWebSocketService;
+
+// Type exports
 export type { ConsciousnessEnhancedStreamData, BinanceTickerData, BinanceTradeData, BinanceDepthData };
