@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         encrypted_secrets, encryption_key_hash, status
       ) VALUES (
         ${testId}, ${userId}, 'test', 'Simple Test',
-        ${'{"test": "data"}'), 'test_hash', 'disconnected'
+        ${'{"test": "data"}'}, 'test_hash', 'disconnected'
       )
     `;
     console.log('✅ Insert successful');
