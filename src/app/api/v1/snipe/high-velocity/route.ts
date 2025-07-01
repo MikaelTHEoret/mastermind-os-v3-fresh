@@ -66,15 +66,18 @@ export async function POST(request: NextRequest) {
       const causeEffectStats = await snipeEngine.getCauseEffectStats(symbol);
       const indicatorEffectiveness = await causeEffectEngine.getIndicatorEffectiveness(symbol);
 
+      // Fix: Add proper null checking for Map.get() operation
+      const volatilityScore = volatilityRankings.get(symbol) ?? 0;
+
       return NextResponse.json({
         success: true,
         symbol,
         analysis: {
           current_price: marketData.market_data.price,
-          volatility_score: volatilityRankings.get(symbol) || 0,
+          volatility_score: volatilityScore,
           cause_effect_stats: causeEffectStats,
           indicator_effectiveness: Object.fromEntries(indicatorEffectiveness),
-          snipe_potential: volatilityRankings.get(symbol) > 0.05 ? 'HIGH' : 'LOW'
+          snipe_potential: volatilityScore > 0.05 ? 'HIGH' : 'LOW'
         },
         timestamp: new Date().toISOString()
       });
