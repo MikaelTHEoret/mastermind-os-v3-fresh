@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs';
+import { currentUser } from '@clerk/nextjs/server';
 
 // 🌀 MASTERMIND LLM PROVIDER TEST API
 // Enhanced Nexus Core Protocol v6.0 - Provider Health Check
@@ -7,10 +7,11 @@ import { auth } from '@clerk/nextjs';
 // POST: Test LLM provider connection
 export async function POST(
   request: NextRequest,
-  { params }: { params: { provider: string } }
+  context: { params: Promise<{ provider: string }> }
 ) {
   try {
-    const { userId } = await auth();
+    const user = await currentUser();
+    const userId = user?.id;
     
     if (!userId) {
       return NextResponse.json(
@@ -19,7 +20,7 @@ export async function POST(
       );
     }
 
-    const provider = params.provider;
+    const { provider } = await context.params;
 
     // Validate provider
     const validProviders = ['deepseek', 'groq', 'openai', 'claude'];
@@ -43,7 +44,7 @@ export async function POST(
     });
 
   } catch (error) {
-    console.error(`Provider ${params.provider} test error:`, error);
+    console.error(`Provider test error:`, error);
     return NextResponse.json(
       { error: 'Failed to test provider connection' },
       { status: 500 }
