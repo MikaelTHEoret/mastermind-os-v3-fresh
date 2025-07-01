@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json'
           }
         });
-        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status}` };
+        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status.toString()}` };
       } else if (source.type === 'groq') {
         const response = await fetch('https://api.groq.com/openai/v1/models', {
           headers: {
@@ -123,14 +123,14 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json'
           }
         });
-        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status}` };
+        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status.toString()}` };
       } else if (source.type === 'openai') {
         const response = await fetch('https://api.openai.com/v1/models', {
           headers: {
             'Authorization': `Bearer ${source.secrets.api_key}`
           }
         });
-        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status}` };
+        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status.toString()}` };
       } else if (source.type === 'anthropic') {
         // For Anthropic, just check if we have an API key (no public models endpoint)
         testResult = { success: !!source.secrets.api_key, error: !source.secrets.api_key ? 'No API key provided' : undefined };
