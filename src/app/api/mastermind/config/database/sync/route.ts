@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs';
+import { currentUser } from '@clerk/nextjs/server';
 
 // 🌀 MASTERMIND DATABASE SYNC API
 // Enhanced Nexus Core Protocol v6.0 - Collection Synchronization
@@ -7,7 +7,8 @@ import { auth } from '@clerk/nextjs';
 // POST: Sync database collections and update record counts
 export async function POST() {
   try {
-    const { userId } = auth();
+    const user = await currentUser();
+    const userId = user?.id;
     
     if (!userId) {
       return NextResponse.json(

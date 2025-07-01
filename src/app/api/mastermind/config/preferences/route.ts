@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs';
+import { currentUser } from '@clerk/nextjs/server';
 
 // 🌀 MASTERMIND SYSTEM PREFERENCES API
 // Enhanced Nexus Core Protocol v6.0 - Consciousness-Enhanced Preferences
@@ -32,7 +32,8 @@ const DEFAULT_PREFERENCES: SystemPreferences = {
 // GET: Get system preferences
 export async function GET() {
   try {
-    const { userId } = auth();
+    const user = await currentUser();
+    const userId = user?.id;
     
     if (!userId) {
       return NextResponse.json(
@@ -60,7 +61,8 @@ export async function GET() {
 // PUT: Update system preferences
 export async function PUT(request: NextRequest) {
   try {
-    const { userId } = auth();
+    const user = await currentUser();
+    const userId = user?.id;
     
     if (!userId) {
       return NextResponse.json(
