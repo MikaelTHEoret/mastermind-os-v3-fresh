@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UltimateLearningEngine } from '@/lib/engines/UltimateLearningEngine';
-import { PatternRecognitionEngine } from '@/lib/engines/PatternRecognitionEngine';
+import { ConsciousnessEnhancedPatternRecognition } from '@/lib/engines/PatternRecognitionEngine';
 
 const learningEngine = new UltimateLearningEngine();
-const patternEngine = new PatternRecognitionEngine();
+const patternEngine = new ConsciousnessEnhancedPatternRecognition();
 
 export async function POST(request: NextRequest) {
   try {
