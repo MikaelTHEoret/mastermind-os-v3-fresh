@@ -1,5 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// TypeScript interfaces for log stream events
+interface BaseMetadata {
+  processing_quality: string;
+  processing_required: boolean;
+  priority: number;
+  [key: string]: any; // Allow additional properties
+}
+
+interface LogEvent {
+  type: string;
+  timestamp: string;
+  source: string;
+  log_type: string;
+  content: string;
+  metadata: BaseMetadata;
+  requires_processing: boolean;
+}
+
 // Server-Sent Events endpoint for real-time log streaming
 export async function GET(request: NextRequest) {
   // Check if the client accepts SSE
@@ -47,7 +65,7 @@ export async function GET(request: NextRequest) {
   return new NextResponse(stream, { headers });
 }
 
-function generateSampleLogEvent() {
+function generateSampleLogEvent(): LogEvent {
   const logTypes = ['session', 'system', 'agent', 'tool', 'error'];
   const sources = [
     'mastermind_terminal',
@@ -79,7 +97,7 @@ function generateSampleLogEvent() {
   const source = sources[Math.floor(Math.random() * sources.length)];
   const content = sampleContents[Math.floor(Math.random() * sampleContents.length)];
   
-  const metadata = {
+  const metadata: BaseMetadata = {
     processing_quality: ['HIGH', 'MEDIUM', 'STANDARD', 'LOW'][Math.floor(Math.random() * 4)],
     processing_required: Math.random() > 0.3,
     priority: Math.floor(Math.random() * 5) + 1
@@ -117,7 +135,7 @@ export async function POST(request: NextRequest) {
     const { last_timestamp, limit = 10 } = await request.json();
     
     // Generate recent logs since last_timestamp
-    const logs = [];
+    const logs: LogEvent[] = [];
     const now = Date.now();
     const startTime = last_timestamp ? new Date(last_timestamp).getTime() : now - 300000; // Last 5 minutes
     
