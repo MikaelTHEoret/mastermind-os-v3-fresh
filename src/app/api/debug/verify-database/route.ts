@@ -41,14 +41,16 @@ export async function GET() {
         const migrationPath = path.join(process.cwd(), 'database', 'migrations', 'create_user_sources_config_table.sql');
         const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
         
-        // Execute migration
+        // Execute migration with proper transaction syntax
         await sql.transaction(async (tx) => {
           const statements = migrationSQL.split(';').filter(stmt => stmt.trim());
+          const queries = [];
           for (const statement of statements) {
             if (statement.trim()) {
-              await tx.unsafe(statement);
+              queries.push(tx.unsafe(statement));
             }
           }
+          return queries;
         });
         
         tablesCreated = true;
