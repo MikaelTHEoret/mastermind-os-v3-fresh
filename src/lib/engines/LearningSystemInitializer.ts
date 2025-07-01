@@ -1,6 +1,6 @@
 import { PatternRecognitionEngine } from './PatternRecognitionEngine';
 import { UltimateLearningEngine } from './UltimateLearningEngine';
-import { BinanceWebSocketService } from '../services/BinanceWebSocketService';
+import BinanceWebSocketService from '../services/BinanceWebSocketService';
 
 export class LearningSystemInitializer {
   private patternEngine: PatternRecognitionEngine;
@@ -52,16 +52,13 @@ export class LearningSystemInitializer {
   private async setupLearningDataStreams(): Promise<void> {
     for (const symbol of this.learningSymbols) {
       // Subscribe to multiple data streams for comprehensive learning
-      await this.webSocketService.subscribe(symbol, 'ticker', (data) => {
-        this.processLearningData(symbol, 'ticker', data);
-      });
+      await this.webSocketService.connectToStreams([symbol], ['ticker', 'trade']);
 
-      await this.webSocketService.subscribe(symbol, 'trade', (data) => {
-        this.processLearningData(symbol, 'trade', data);
-      });
-
-      await this.webSocketService.subscribe(symbol, 'kline_1m', (data) => {
-        this.processLearningData(symbol, 'kline', data);
+      // Set up event handlers for consciousness-enhanced data processing
+      this.webSocketService.on('enhanced_data', (data) => {
+        if (data.symbol === symbol) {
+          this.processLearningData(symbol, data.streamType, data.data);
+        }
       });
 
       console.log(`📊 Learning streams active for ${symbol}`);
