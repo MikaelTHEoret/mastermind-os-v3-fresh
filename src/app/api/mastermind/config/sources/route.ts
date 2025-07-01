@@ -5,6 +5,11 @@ import { sourcesConfigService } from '@/lib/services/sourcesConfigService';
 // 🌀 MASTERMIND SOURCES CONFIGURATION API
 // Enhanced Nexus Core Protocol v6.0 - Encrypted Database Integration
 
+interface TestResult {
+  success: boolean;
+  error?: string;
+}
+
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -104,7 +109,7 @@ export async function POST(request: NextRequest) {
     // Test connection directly with the source data (don't wait for DB lookup)
     console.log('🧪 Testing connection...');
     
-    let testResult = { success: false, error: 'Unknown error' };
+    let testResult: TestResult = { success: false, error: 'Unknown error' };
     
     try {
       // Test connection based on source type
@@ -115,7 +120,10 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json'
           }
         });
-        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status.toString()}` };
+        testResult = { 
+          success: response.ok, 
+          error: response.ok ? undefined : `HTTP ${String(response.status)}` 
+        };
       } else if (source.type === 'groq') {
         const response = await fetch('https://api.groq.com/openai/v1/models', {
           headers: {
@@ -123,22 +131,37 @@ export async function POST(request: NextRequest) {
             'Content-Type': 'application/json'
           }
         });
-        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status.toString()}` };
+        testResult = { 
+          success: response.ok, 
+          error: response.ok ? undefined : `HTTP ${String(response.status)}` 
+        };
       } else if (source.type === 'openai') {
         const response = await fetch('https://api.openai.com/v1/models', {
           headers: {
             'Authorization': `Bearer ${source.secrets.api_key}`
           }
         });
-        testResult = { success: response.ok, error: response.ok ? undefined : `HTTP ${response.status.toString()}` };
+        testResult = { 
+          success: response.ok, 
+          error: response.ok ? undefined : `HTTP ${String(response.status)}` 
+        };
       } else if (source.type === 'anthropic') {
         // For Anthropic, just check if we have an API key (no public models endpoint)
-        testResult = { success: !!source.secrets.api_key, error: !source.secrets.api_key ? 'No API key provided' : undefined };
+        testResult = { 
+          success: !!source.secrets.api_key, 
+          error: !source.secrets.api_key ? 'No API key provided' : undefined 
+        };
       } else {
-        testResult = { success: !!source.secrets.api_key, error: !source.secrets.api_key ? 'No API key provided' : undefined };
+        testResult = { 
+          success: !!source.secrets.api_key, 
+          error: !source.secrets.api_key ? 'No API key provided' : undefined 
+        };
       }
     } catch (error) {
-      testResult = { success: false, error: error instanceof Error ? error.message : 'Connection test failed' };
+      testResult = { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Connection test failed' 
+      };
     }
     
     console.log('🔬 Test result:', testResult);
