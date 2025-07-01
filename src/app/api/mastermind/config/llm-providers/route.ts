@@ -144,7 +144,7 @@ export async function PUT(request: NextRequest) {
         api_key: updates.api_key || '',
         base_url: updates.base_url || ''
       },
-      status: 'disconnected' as const,
+      status: 'disconnected' as 'disconnected' | 'connected' | 'error',
       lastUpdated: new Date().toISOString()
     };
 
