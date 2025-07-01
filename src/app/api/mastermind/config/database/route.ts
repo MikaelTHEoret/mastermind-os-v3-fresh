@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs';
+import { currentUser } from '@clerk/nextjs/server';
 
 // 🌀 MASTERMIND DATABASE CONFIGURATION API
 // Enhanced Nexus Core Protocol v6.0 - Vector Memory Database Layer
@@ -19,7 +19,8 @@ interface DatabaseConfig {
 // GET: Get database configuration and collection status
 export async function GET() {
   try {
-    const { userId } = auth();
+    const user = await currentUser();
+    const userId = user?.id;
     
     if (!userId) {
       return NextResponse.json(
