@@ -19,7 +19,7 @@ export default function MastermindTerminal() {
   }, []);
 
   const getTabIcon = (tab: string) => {
-    const icons = {
+    const icons: { [key: string]: string } = {
       'chat': '🗣️',
       'logs': '📊',
       'search': '🔍',
@@ -120,14 +120,14 @@ export default function MastermindTerminal() {
                     }}
                     onMouseOver={(e) => {
                       if (activeTab !== tab.id) {
-                        e.target.style.color = '#00ffff';
-                        e.target.style.background = 'rgba(0, 255, 255, 0.05)';
+                        (e.target as HTMLElement).style.color = '#00ffff';
+                        (e.target as HTMLElement).style.background = 'rgba(0, 255, 255, 0.05)';
                       }
                     }}
                     onMouseOut={(e) => {
                       if (activeTab !== tab.id) {
-                        e.target.style.color = '#888888';
-                        e.target.style.background = 'transparent';
+                        (e.target as HTMLElement).style.color = '#888888';
+                        (e.target as HTMLElement).style.background = 'transparent';
                       }
                     }}
                   >
