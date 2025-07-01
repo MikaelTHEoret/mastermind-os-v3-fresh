@@ -16,7 +16,7 @@ export async function POST() {
       }, { status: 401 });
     }
 
-    // Create a test source configuration
+    // Create a test source configuration with correct type
     const testSource = {
       id: `test_deepseek_${Date.now()}`,
       type: 'deepseek',
@@ -25,7 +25,7 @@ export async function POST() {
         api_key: 'test_api_key_123',
         base_url: 'https://api.deepseek.com'
       },
-      status: 'disconnected',
+      status: 'disconnected' as const, // Fix: Use const assertion for literal type
       lastUpdated: new Date().toISOString()
     };
 
