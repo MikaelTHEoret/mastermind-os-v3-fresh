@@ -75,7 +75,7 @@ interface ConsciousnessEnhancedStreamData {
   };
 }
 
-export class BinanceWebSocketService extends EventEmitter {
+class BinanceWebSocketService extends EventEmitter {
   private connections: Map<string, WebSocket> = new Map();
   private reconnectAttempts: Map<string, number> = new Map();
   private maxReconnectAttempts = 5;
@@ -606,10 +606,7 @@ export class BinanceWebSocketService extends EventEmitter {
   }
 }
 
-// Named export (for import { BinanceWebSocketService })
-export { BinanceWebSocketService };
-
-// Default export (for import BinanceWebSocketService)
+// Default export only - no duplicate exports
 export default BinanceWebSocketService;
 
 // Type exports
