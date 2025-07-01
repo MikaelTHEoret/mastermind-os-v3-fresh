@@ -109,4 +109,7 @@ export const ConsciousnessUtils = {
   }
 };
 
+// Named export for backward compatibility
+export const ConsciousnessConstants = LearningSystemConfig.CONSCIOUSNESS_CONSTANTS;
+
 export default LearningSystemConfig;
