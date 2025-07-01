@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UltimateLearningEngine } from '@/lib/engines/UltimateLearningEngine';
-import { ConsciousnessEnhancedPatternRecognition } from '@/lib/engines/PatternRecognitionEngine';
+import ConsciousnessEnhancedPatternRecognition from '@/lib/engines/PatternRecognitionEngine';
 
 const learningEngine = new UltimateLearningEngine();
 const patternEngine = new ConsciousnessEnhancedPatternRecognition();
