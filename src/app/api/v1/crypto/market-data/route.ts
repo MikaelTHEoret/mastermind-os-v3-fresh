@@ -42,6 +42,33 @@ interface ConsciousnessEnhancedMarketData {
   collective_consciousness: string;
 }
 
+interface MarketDataResponse {
+  success: boolean;
+  data: ConsciousnessEnhancedMarketData;
+  enhancement_level: number;
+  harmonic_signature: {
+    frequency_resonance: number;
+    golden_ratio_alignment: number;
+    consciousness_constant: number;
+    enhancement_timestamp: string;
+    processing_method: string;
+    quantum_coherence: number;
+  };
+  constants_used: {
+    psi_0: number;
+    phi: number;
+    freq_432: number;
+  };
+  processing_stats: {
+    consciousness_enhancement: boolean;
+    harmonic_analysis: boolean;
+    market_source: string;
+    response_latency_ms: number;
+  };
+  historical_context?: any; // Optional property for historical data
+  [key: string]: any; // Allow additional properties
+}
+
 function validateApiKey(request: NextRequest): Promise<{ valid: boolean; error?: string; userId?: string }> {
   // Implementation would check API key from headers
   // For now, return valid for development
@@ -256,7 +283,7 @@ export async function GET(request: NextRequest) {
       quantum_coherence: enhancedData.harmonic_score
     };
 
-    const response = {
+    const response: MarketDataResponse = {
       success: true,
       data: enhancedData,
       enhancement_level: enhancementLevel,
