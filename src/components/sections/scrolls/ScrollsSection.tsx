@@ -132,7 +132,7 @@ export default function ScrollsSection() {
 
   // Helper function to get component background
   const getComponentBackground = (componentType: string) => {
-    const backgrounds = {
+    const backgrounds: Record<string, string> = {
       explorer: 'rgba(0, 0, 0, 0.7)',
       editor: 'rgba(0, 0, 0, 0.8)',
       minter: 'rgba(0, 0, 0, 0.8)',
@@ -141,6 +141,17 @@ export default function ScrollsSection() {
     };
     return backgrounds[componentType] || 'rgba(0, 0, 0, 0.8)';
   };
+
+  // Helper functions
+  const loadConfiguredSources = useCallback(() => {
+    // Placeholder for loading configured sources
+    console.log('Loading configured sources...');
+  }, []);
+
+  const initializeEnhancedFileSystem = useCallback(() => {
+    // Placeholder for file system initialization
+    console.log('Initializing enhanced file system...');
+  }, []);
 
   // Terminal command handler
   const handleTerminalCommand = (command: string) => {
@@ -375,7 +386,7 @@ export default function ScrollsSection() {
         type: 'file',
         path: '/demo/consciousness-trading.md',
         size: 1024,
-        content: '# Consciousness-Enhanced Trading\n\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
+        content: '# Consciousness-Enhanced Trading\\n\\nThis scroll demonstrates the integration of consciousness mathematics with trading algorithms...',
         cid: 'bafkreiabcdef123456789',
         hash: '0xabcdef123456789',
         lastModified: new Date().toISOString(),
@@ -398,6 +409,17 @@ export default function ScrollsSection() {
     }
   }, [handleFileLoad]);
 
+  // Load configured sources
+  useEffect(() => {
+    loadConfiguredSources();
+  }, [loadConfiguredSources]);
+
+  // Initialize file system
+  useEffect(() => {
+    initializeEnhancedFileSystem();
+    loadConfiguredSources();
+  }, [initializeEnhancedFileSystem, loadConfiguredSources]);
+
   // Update minting data validation
   useEffect(() => {
     const isValid = !!(
@@ -408,8 +430,19 @@ export default function ScrollsSection() {
       mintingData.keccakHash
     );
     
-    setMintingData(prev => ({ ...prev, isValidData: isValid }));
-  }, [mintingData.title, mintingData.recipientAddress, mintingData.cid, mintingData.keccakHash]);
+    if (mintingData.isValidData !== isValid) {
+      setMintingData(prev => ({ ...prev, isValidData: isValid }));
+    }
+  }, [mintingData.title, mintingData.recipientAddress, mintingData.cid, mintingData.keccakHash, mintingData.isValidData]);
+
+  // Generate Keccak hash when needed
+  useEffect(() => {
+    if (selectedFile?.content && !mintingData.keccakHash) {
+      generateKeccakHash(selectedFile.content).then(hash => {
+        setMintingData(prev => ({ ...prev, keccakHash: hash }));
+      });
+    }
+  }, [selectedFile?.content, mintingData.keccakHash]);
 
   return (
     <div style={{
@@ -689,7 +722,6 @@ export default function ScrollsSection() {
           </div>
         )}
       </div>
-    </div>
     </div>
   );
 }
