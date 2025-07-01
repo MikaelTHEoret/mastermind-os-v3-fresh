@@ -5,10 +5,10 @@ let executions: any[] = [];
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     
     // TODO: Get agent from database
     // const agent = await getAgentById(id);
@@ -124,7 +124,7 @@ async function initiateAgentExecution(agent: any, execution: any) {
 
     console.log(`🏁 Agent ${agent.id} execution ${execution.status}`);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Agent execution error:', error);
     execution.status = 'failed';
     execution.end_time = new Date();
