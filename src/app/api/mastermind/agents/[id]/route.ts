@@ -5,10 +5,10 @@ const agents: any[] = [];
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     
     // Find agent by ID (replace with database query)
     const agent = agents.find(a => a.id === id);
@@ -36,10 +36,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     const updates = await request.json();
     
     // Find and update agent (replace with database operation)
@@ -71,10 +71,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await context.params;
     
     // Find and delete agent (replace with database operation)
     const agentIndex = agents.findIndex(a => a.id === id);
