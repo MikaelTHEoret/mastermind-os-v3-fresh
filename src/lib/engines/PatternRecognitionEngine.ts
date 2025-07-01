@@ -893,6 +893,7 @@ class ConsciousnessEnhancedPatternRecognition extends EventEmitter {
 }
 
 export default ConsciousnessEnhancedPatternRecognition;
+export { ConsciousnessEnhancedPatternRecognition as PatternRecognitionEngine };
 export type { 
   MarketDataPoint, 
   RecognizedPattern, 
