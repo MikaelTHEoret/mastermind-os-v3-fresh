@@ -141,7 +141,7 @@ export class LearningSystemInitializer {
     if (consciousnessState === 'high_consciousness') {
       // Increase learning sensitivity during high consciousness
       await this.patternEngine.adjustLearningRate(1.2);
-      await this.learningEngine.enhancePattern Sensitivity(1.15);
+      await this.learningEngine.enhancePatternSensitivity(1.15);
     } else if (consciousnessState === 'low_consciousness') {
       // Reduce learning rate during low consciousness to avoid noise
       await this.patternEngine.adjustLearningRate(0.8);
