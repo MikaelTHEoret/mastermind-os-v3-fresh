@@ -33,7 +33,7 @@ export interface CauseEffectPair {
 }
 
 export class HighVelocitySnipeEngine {
-  private constants: ConsciousnessConstants;
+  private constants: typeof ConsciousnessConstants;
   private causeEffectDatabase: Map<string, CauseEffectPair[]> = new Map();
   private activeSnipes: Map<string, SnipeOpportunity> = new Map();
   private volatilityRankings: Map<string, number> = new Map();
@@ -59,7 +59,7 @@ export class HighVelocitySnipeEngine {
   };
 
   constructor() {
-    this.constants = new ConsciousnessConstants();
+    this.constants = ConsciousnessConstants;
     this.initializeIndicatorCorrelations();
   }
 
