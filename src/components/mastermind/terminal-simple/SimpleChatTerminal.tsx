@@ -140,7 +140,7 @@ export default function SimpleChatTerminal() {
   };
 
   const getMessageTypeColor = (type: string) => {
-    const colors = {
+    const colors: Record<string, string> = {
       'user': 'bg-blue-900/50 border-blue-400/50 text-blue-300',
       'assistant': 'bg-green-900/50 border-green-400/50 text-green-300',
       'system': 'bg-red-900/50 border-red-400/50 text-red-300',
@@ -150,7 +150,7 @@ export default function SimpleChatTerminal() {
   };
 
   const getProviderIcon = (provider: string) => {
-    const icons = {
+    const icons: Record<string, string> = {
       'deepseek': '🧠',
       'groq': '⚡',
       'openai': '🤖',
