@@ -10,13 +10,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser } from '@clerk/nextjs';
 
+// Type definitions for type safety
+type HealthStatus = 'healthy' | 'unhealthy' | 'unknown';
+
 interface LLMProviderConfig {
   name: string;
   enabled: boolean;
   api_key: string;
   cost_per_1m: number;
   capabilities: string[];
-  health_status: 'healthy' | 'unhealthy' | 'unknown';
+  health_status: HealthStatus;
   last_tested?: Date;
 }
 
@@ -54,6 +57,28 @@ interface SystemStats {
   mcp_connections: number;
   uptime_hours: number;
 }
+
+// Type-safe color mappings
+const HEALTH_STATUS_COLORS: Record<HealthStatus, string> = {
+  'healthy': '#00ff88',
+  'unhealthy': '#ff4444',
+  'unknown': '#888888'
+};
+
+const PROVIDER_ICONS: Record<string, string> = {
+  'deepseek': '🧠',
+  'groq': '⚡',
+  'openai': '🤖',
+  'claude': '🎭',
+  'ollama': '🏠'
+};
+
+const COLLECTION_ICONS: Record<string, string> = {
+  'hugging_dynamic_memory': '🤗',
+  'system_enhancements': '⚙️',
+  'fractal_scrolls': '📜',
+  'autogpt_task_memory': '🤖'
+};
 
 export default function ConfigDashboard() {
   const { user } = useUser();
@@ -290,34 +315,17 @@ export default function ConfigDashboard() {
     URL.revokeObjectURL(url);
   };
 
-  const getHealthStatusColor = (status: string) => {
-    const colors = {
-      'healthy': '#00ff88',
-      'unhealthy': '#ff4444',
-      'unknown': '#888888'
-    };
-    return colors[status] || colors.unknown;
+  // Type-safe helper functions
+  const getHealthStatusColor = (status: HealthStatus) => {
+    return HEALTH_STATUS_COLORS[status] || HEALTH_STATUS_COLORS.unknown;
   };
 
   const getProviderIcon = (name: string) => {
-    const icons = {
-      'deepseek': '🧠',
-      'groq': '⚡',
-      'openai': '🤖',
-      'claude': '🎭',
-      'ollama': '🏠'
-    };
-    return icons[name] || '🔮';
+    return PROVIDER_ICONS[name] || '🔮';
   };
 
   const getCollectionIcon = (name: string) => {
-    const icons = {
-      'hugging_dynamic_memory': '🤗',
-      'system_enhancements': '⚙️',
-      'fractal_scrolls': '📜',
-      'autogpt_task_memory': '🤖'
-    };
-    return icons[name] || '📄';
+    return COLLECTION_ICONS[name] || '📄';
   };
 
   if (loading) {
