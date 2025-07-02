@@ -111,7 +111,9 @@ export class CauseEffectAnalysisEngine {
     // Create aggregated effects for groups with sufficient samples
     const aggregatedEffects: IndicatorEffect[] = [];
     
-    for (const [groupKey, groupEffects] of groups.entries()) {
+    // FIX: Use Array.from() instead of direct Map.entries() iteration
+    const groupEntries = Array.from(groups.entries());
+    for (const [groupKey, groupEffects] of groupEntries) {
       if (groupEffects.length >= 3) { // Need at least 3 samples for statistical significance
         const aggregated = this.createAggregatedEffect(groupEffects);
         aggregatedEffects.push(aggregated);
@@ -303,7 +305,9 @@ export class CauseEffectAnalysisEngine {
     const symbolEffects = this.indicatorEffects.get(symbol) || new Map();
     const effectiveness = new Map<string, number>();
     
-    for (const [indicator, effects] of symbolEffects.entries()) {
+    // FIX: Use Array.from() for Map iteration
+    const symbolEffectEntries = Array.from(symbolEffects.entries());
+    for (const [indicator, effects] of symbolEffectEntries) {
       const avgSuccessRate = effects.reduce((sum, e) => sum + e.success_rate, 0) / effects.length;
       effectiveness.set(indicator, avgSuccessRate);
     }
