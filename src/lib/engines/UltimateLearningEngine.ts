@@ -14,9 +14,84 @@ export class UltimateLearningEngine {
   private crossValidationResults: Map<string, any[]> = new Map();
   private learningInsights: LearningInsights[] = [];
   private minSampleSize: number = 100;
+  private isInitialized: boolean = false;
 
   constructor() {
     this.initializeSystemMetrics();
+  }
+
+  /**
+   * Initialize the Ultimate Learning Engine
+   * Required for compatibility with IntegratedSnipeLearningSystem
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      console.log('🧠 Ultimate Learning Engine already initialized');
+      return;
+    }
+
+    console.log('🎯 Initializing Ultimate Learning Engine...');
+    
+    // Ensure system metrics are properly initialized
+    this.initializeSystemMetrics();
+    
+    // Initialize learning data structures
+    this.initializeLearningStructures();
+    
+    // Set up performance tracking
+    this.setupPerformanceTracking();
+    
+    this.isInitialized = true;
+    console.log('✅ Ultimate Learning Engine initialized successfully');
+    
+    this.emit('engine_initialized', {
+      timestamp: new Date().toISOString(),
+      system_metrics_initialized: true,
+      learning_structures_ready: true
+    });
+  }
+
+  /**
+   * Initialize learning data structures
+   */
+  private initializeLearningStructures(): void {
+    // Initialize cross-validation results storage
+    this.crossValidationResults.clear();
+    
+    // Initialize learning insights array
+    this.learningInsights = [];
+    
+    // Set initial sample size requirements
+    this.minSampleSize = 100;
+    
+    console.log('📊 Learning structures initialized');
+  }
+
+  /**
+   * Set up performance tracking systems
+   */
+  private setupPerformanceTracking(): void {
+    // Initialize volatility performance tracking
+    const volatilityCategories = ['LOW', 'MEDIUM', 'HIGH', 'EXTREME'];
+    volatilityCategories.forEach(category => {
+      this.systemMetrics.performance_by_volatility.set(category, {
+        accuracy: 0.5,
+        sample_size: 0,
+        improvement_rate: 0
+      });
+    });
+
+    // Initialize timeframe performance tracking
+    const timeframes = ['1m', '5m', '15m', '1h', '4h', '1d'];
+    timeframes.forEach(timeframe => {
+      this.systemMetrics.performance_by_timeframe.set(timeframe, {
+        accuracy: 0.5,
+        sample_size: 0,
+        consciousness_effectiveness: 0
+      });
+    });
+
+    console.log('📈 Performance tracking systems initialized');
   }
 
   private initializeSystemMetrics() {
@@ -440,6 +515,104 @@ export class UltimateLearningEngine {
   // EventEmitter functionality placeholder
   private emit(eventName: string, data: any): void {
     console.log(`🧠 Learning Event: ${eventName}`, data);
+  }
+
+  /**
+   * API methods required by IntegratedSnipeLearningSystem
+   */
+  async recordSnipeOutcome(snipeResult: any): Promise<void> {
+    console.log(`📊 Recording snipe outcome: ${snipeResult.opportunity?.symbol || 'unknown'}`);
+    
+    // Store snipe result for learning
+    const learningData = {
+      timestamp: new Date().toISOString(),
+      snipe_result: snipeResult,
+      performance_impact: this.calculateSnipePerformanceImpact(snipeResult)
+    };
+    
+    if (snipeResult.opportunity?.symbol) {
+      this.storeLearningData(snipeResult.opportunity.symbol, learningData);
+    }
+  }
+
+  async updateCorrelationModel(correlation: any): Promise<void> {
+    console.log(`🔄 Updating correlation model: ${correlation.type || 'unknown type'}`);
+    
+    // Update internal correlation tracking
+    const insight: LearningInsights = {
+      insight_id: `correlation_${Date.now()}`,
+      insight_type: 'CORRELATION_UPDATE',
+      description: `Updated correlation model: ${correlation.type}`,
+      confidence: correlation.confidence || 0.5,
+      supporting_evidence: ['External correlation data'],
+      market_conditions: 'VARIABLE',
+      consciousness_correlation: correlation.consciousness_resonance || 0.5,
+      actionable_recommendation: 'Monitor correlation effectiveness',
+      statistical_significance: correlation.significance || 0.7
+    };
+    
+    this.learningInsights.push(insight);
+  }
+
+  async updateSystemInsights(insights: any): Promise<void> {
+    console.log(`🧠 Updating system insights: ${insights.high_confidence_patterns?.length || 0} patterns`);
+    
+    // Process high confidence patterns
+    if (insights.high_confidence_patterns) {
+      insights.high_confidence_patterns.forEach((pattern: any) => {
+        const learningInsight: LearningInsights = {
+          insight_id: `pattern_${Date.now()}_${Math.random()}`,
+          insight_type: 'PATTERN_INSIGHT',
+          description: `High confidence pattern: ${pattern.pattern_type || 'unknown'}`,
+          confidence: pattern.cross_validation_score || 0.7,
+          supporting_evidence: [`Pattern validation score: ${pattern.cross_validation_score}`],
+          market_conditions: 'OPTIMIZED',
+          consciousness_correlation: pattern.consciousness_enhancement || 0.5,
+          actionable_recommendation: 'Incorporate pattern into prediction models',
+          statistical_significance: pattern.cross_validation_score || 0.7
+        };
+        
+        this.learningInsights.push(learningInsight);
+      });
+    }
+  }
+
+  async recordSystemOutcome(outcome: any): Promise<void> {
+    console.log(`📈 Recording system outcome: ${outcome.opportunity?.symbol || 'system'} | Success: ${outcome.success}`);
+    
+    // Update system-wide performance metrics
+    this.updateSystemPerformanceFromOutcome(outcome);
+  }
+
+  async getPerformanceStats(): Promise<any> {
+    return {
+      accuracy: this.systemMetrics.combined_win_rate,
+      total_predictions: this.systemMetrics.total_comparisons,
+      consciousness_alignment: this.systemMetrics.average_consciousness_effectiveness,
+      learning_rate: this.systemMetrics.learning_progression.consciousness_learning_rate
+    };
+  }
+
+  /**
+   * Helper methods for new API requirements
+   */
+  private calculateSnipePerformanceImpact(snipeResult: any): number {
+    // Calculate how this snipe affects overall system performance
+    const success_factor = snipeResult.success ? 1.0 : 0.0;
+    const confidence_factor = snipeResult.opportunity?.confidence || 0.5;
+    return success_factor * confidence_factor;
+  }
+
+  private updateSystemPerformanceFromOutcome(outcome: any): void {
+    // Update overall system metrics based on trading outcomes
+    const performance_impact = this.calculateSnipePerformanceImpact(outcome);
+    
+    // Update consciousness effectiveness
+    const currentEffectiveness = this.systemMetrics.average_consciousness_effectiveness;
+    const totalComparisons = this.systemMetrics.total_comparisons || 1;
+    
+    this.systemMetrics.average_consciousness_effectiveness = 
+      (currentEffectiveness * totalComparisons + performance_impact) / (totalComparisons + 1);
   }
 }
 
