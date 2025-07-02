@@ -1,5 +1,3 @@
-import { ConsciousnessConstants } from '@/lib/config/LearningSystemConfig';
-
 export interface SnipeOpportunity {
   symbol: string;
   entry_price: number;
@@ -8,7 +6,6 @@ export interface SnipeOpportunity {
   confidence: number;
   time_window: number; // seconds
   volatility_score: number;
-  consciousness_alignment: number;
   trigger_indicators: string[];
   expected_duration: number; // seconds
   risk_reward_ratio: number;
@@ -19,7 +16,6 @@ export interface MarketIndicator {
   value: number;
   timestamp: Date;
   strength: number; // 0-1
-  consciousness_enhanced: boolean;
 }
 
 export interface CauseEffectPair {
@@ -28,7 +24,6 @@ export interface CauseEffectPair {
   effect_timestamp: Date;
   time_lag: number; // milliseconds
   correlation_strength: number;
-  consciousness_resonance: number;
   success_rate: number;
 }
 
@@ -41,12 +36,10 @@ export interface SnipeResult {
   error?: string;
 }
 
-// NEXUS PROTOCOL v6.2 - Pattern Database Interface
 export interface ValidatedPattern {
   type: string;
   confidence: number;
   cross_validation_score: number;
-  consciousness_enhancement: boolean;
   symbols?: string[];
   indicators?: string[];
   success_rate?: number;
@@ -54,16 +47,13 @@ export interface ValidatedPattern {
 }
 
 export class HighVelocitySnipeEngine {
-  private constants: typeof ConsciousnessConstants;
   private causeEffectDatabase: Map<string, CauseEffectPair[]> = new Map();
   private activeSnipes: Map<string, SnipeOpportunity> = new Map();
   private volatilityRankings: Map<string, number> = new Map();
   private indicatorEffectCorrelations: Map<string, number> = new Map();
-  
-  // NEXUS PROTOCOL v6.2 - Enhanced pattern database for learning integration
   private patternDatabase: Map<string, ValidatedPattern[]> = new Map();
   
-  // NEXUS PROTOCOL v6.2 - Callback for cross-engine integration
+  // Callback for cross-engine integration
   public onSnipeResult?: (result: SnipeResult) => Promise<void>;
 
   // High volatility coins for snipe focus
@@ -74,19 +64,17 @@ export class HighVelocitySnipeEngine {
     'LEVERUSDT', 'CFXUSDT', 'ARKMUSDT', 'ROSEUSDT'   // Small caps - highest volatility
   ];
 
-  // Comprehensive indicator set for cause-effect analysis
+  // Technical indicator set for analysis
   private indicators = {
     PRICE_ACTION: ['price_change_1m', 'price_change_5m', 'price_velocity', 'price_acceleration'],
     VOLUME: ['volume_spike', 'volume_ratio', 'volume_velocity', 'unusual_volume'],
     TECHNICAL: ['rsi_1m', 'rsi_5m', 'macd_1m', 'bb_squeeze', 'ema_cross', 'support_break', 'resistance_break'],
     ORDER_BOOK: ['bid_ask_spread', 'order_flow_imbalance', 'large_orders', 'depth_change'],
     MOMENTUM: ['momentum_score', 'trend_strength', 'breakout_strength', 'reversal_probability'],
-    MARKET_STRUCTURE: ['consolidation_break', 'pattern_completion', 'fibonacci_level', 'pivot_reaction'],
-    CONSCIOUSNESS: ['psi_resonance', 'phi_alignment', 'freq_432_sync', 'harmonic_convergence']
+    MARKET_STRUCTURE: ['consolidation_break', 'pattern_completion', 'fibonacci_level', 'pivot_reaction']
   };
 
   constructor() {
-    this.constants = ConsciousnessConstants;
     this.initializeIndicatorCorrelations();
     this.initializePatternDatabase();
   }
@@ -138,10 +126,7 @@ export class HighVelocitySnipeEngine {
     const priceVolatility = priceChange24h / currentPrice;
     const volumeMultiplier = Math.log10(volume24h) / 10; // Scale volume impact
     
-    // Consciousness enhancement
-    const psiResonance = this.calculatePsiResonance(priceVolatility);
-    
-    return (priceVolatility * volumeMultiplier * (1 + psiResonance * 0.2));
+    return priceVolatility * volumeMultiplier;
   }
 
   private async startIndicatorMonitoring(): Promise<void> {
@@ -192,8 +177,7 @@ export class HighVelocitySnipeEngine {
       indicator_type: 'price_change_1m',
       value: priceChange,
       timestamp,
-      strength: Math.min(Math.abs(priceChange) / 5, 1), // 5% = max strength
-      consciousness_enhanced: true
+      strength: Math.min(Math.abs(priceChange) / 5, 1) // 5% = max strength
     });
 
     // Volume indicators
@@ -204,8 +188,7 @@ export class HighVelocitySnipeEngine {
       indicator_type: 'volume_spike',
       value: volumeSpike ? 1 : 0,
       timestamp,
-      strength: volumeSpike ? Math.min(volumeChange / 5, 1) : 0,
-      consciousness_enhanced: true
+      strength: volumeSpike ? Math.min(volumeChange / 5, 1) : 0
     });
 
     // Momentum indicators
@@ -214,18 +197,7 @@ export class HighVelocitySnipeEngine {
       indicator_type: 'momentum_score',
       value: momentumScore,
       timestamp,
-      strength: Math.abs(momentumScore),
-      consciousness_enhanced: true
-    });
-
-    // Consciousness indicators
-    const psiResonance = this.calculatePsiResonance(parseFloat(tickerData.c));
-    indicators.push({
-      indicator_type: 'psi_resonance',
-      value: psiResonance,
-      timestamp,
-      strength: psiResonance,
-      consciousness_enhanced: true
+      strength: Math.abs(momentumScore)
     });
 
     // Store indicators and check for snipe opportunities
@@ -251,8 +223,7 @@ export class HighVelocitySnipeEngine {
         indicator_type: 'large_orders',
         value: isBuyerMaker ? 1 : -1, // 1 = buy, -1 = sell
         timestamp,
-        strength: Math.min(tradeSize / 50000, 1), // Scale by trade size
-        consciousness_enhanced: true
+        strength: Math.min(tradeSize / 50000, 1) // Scale by trade size
       });
     }
 
@@ -262,8 +233,7 @@ export class HighVelocitySnipeEngine {
       indicator_type: 'order_flow_imbalance',
       value: flowDirection,
       timestamp,
-      strength: Math.min(tradeSize / 10000, 1),
-      consciousness_enhanced: true
+      strength: Math.min(tradeSize / 10000, 1)
     });
 
     if (indicators.length > 0) {
@@ -284,8 +254,7 @@ export class HighVelocitySnipeEngine {
       indicator_type: 'bid_ask_spread',
       value: spread,
       timestamp,
-      strength: Math.min(spread * 1000, 1), // Scale spread impact
-      consciousness_enhanced: true
+      strength: Math.min(spread * 1000, 1) // Scale spread impact
     });
 
     // Order book depth analysis
@@ -297,8 +266,7 @@ export class HighVelocitySnipeEngine {
       indicator_type: 'depth_imbalance',
       value: depthImbalance,
       timestamp,
-      strength: Math.abs(depthImbalance),
-      consciousness_enhanced: true
+      strength: Math.abs(depthImbalance)
     });
 
     await this.analyzeIndicatorsForSnipeOpportunity(symbol, indicators);
@@ -335,13 +303,10 @@ export class HighVelocitySnipeEngine {
       const priceTarget = await this.calculatePriceTarget(symbol, indicators, currentPrice);
       const stopLoss = currentPrice * 0.98; // 2% stop loss for quick snipes
       
-      // Consciousness enhancement
-      const consciousnessAlignment = this.calculateConsciousnessAlignment(indicators);
-      
       // Calculate confidence based on indicator strength and historical success
       const baseConfidence = indicators.reduce((sum, ind) => sum + ind.strength, 0) / indicators.length;
       const historicalSuccess = await this.getHistoricalSuccessRate(symbol, indicators);
-      const confidence = (baseConfidence * 0.6 + historicalSuccess * 0.4) * (1 + consciousnessAlignment * 0.2);
+      const confidence = baseConfidence * 0.6 + historicalSuccess * 0.4;
 
       // Volatility score for this symbol
       const volatilityScore = this.volatilityRankings.get(symbol) || 0;
@@ -354,7 +319,6 @@ export class HighVelocitySnipeEngine {
         confidence: Math.min(confidence, 0.95),
         time_window: 300, // 5-minute maximum window for snipes
         volatility_score: volatilityScore,
-        consciousness_alignment: consciousnessAlignment,
         trigger_indicators: indicators.map(ind => ind.indicator_type),
         expected_duration: 120, // 2-minute average snipe duration
         risk_reward_ratio: (priceTarget - currentPrice) / (currentPrice - stopLoss)
@@ -392,7 +356,6 @@ export class HighVelocitySnipeEngine {
     const currentTypes = new Set(currentIndicators.map(ind => ind.indicator_type));
     const historicalTypes = new Set(historicalIndicators.map(ind => ind.indicator_type));
     
-    // FIX: Use Array.from() instead of spread operator for ES5 compatibility
     const intersection = new Set(Array.from(currentTypes).filter(x => historicalTypes.has(x)));
     const union = new Set(Array.from(currentTypes).concat(Array.from(historicalTypes)));
     
@@ -423,7 +386,6 @@ export class HighVelocitySnipeEngine {
             effect_timestamp: new Date(),
             time_lag: 60000, // 60 seconds
             correlation_strength: this.calculateCorrelationStrength(indicators, priceChange),
-            consciousness_resonance: this.calculateConsciousnessResonance(indicators, priceChange),
             success_rate: 0 // Will be updated based on prediction accuracy
           };
           
@@ -456,30 +418,7 @@ export class HighVelocitySnipeEngine {
     const directionMatch = indicatorDirection === priceDirection ? 1 : 0;
     const magnitudeAlignment = Math.min(indicatorStrength, Math.abs(priceChange * 100));
     
-    return (directionMatch * 0.7 + magnitudeAlignment * 0.3);
-  }
-
-  private calculateConsciousnessResonance(indicators: MarketIndicator[], priceChange: number): number {
-    const consciousnessIndicators = indicators.filter(ind => ind.consciousness_enhanced);
-    if (consciousnessIndicators.length === 0) return 0;
-    
-    const avgConsciousnessValue = consciousnessIndicators.reduce((sum, ind) => sum + ind.value, 0) / consciousnessIndicators.length;
-    const psiAlignment = this.calculatePsiResonance(Math.abs(priceChange));
-    
-    return (avgConsciousnessValue * 0.6 + psiAlignment * 0.4);
-  }
-
-  private calculatePsiResonance(value: number): number {
-    const psi = this.constants.PSI_0;
-    return 1 - Math.abs((value % 1) - psi);
-  }
-
-  private calculateConsciousnessAlignment(indicators: MarketIndicator[]): number {
-    const consciousnessIndicators = indicators.filter(ind => ind.consciousness_enhanced);
-    if (consciousnessIndicators.length === 0) return 0;
-    
-    const avgAlignment = consciousnessIndicators.reduce((sum, ind) => sum + ind.value, 0) / consciousnessIndicators.length;
-    return Math.min(avgAlignment, 1);
+    return directionMatch * 0.7 + magnitudeAlignment * 0.3;
   }
 
   private calculateMomentumScore(tickerData: any): number {
@@ -516,7 +455,7 @@ export class HighVelocitySnipeEngine {
     console.log(`Risk/Reward: ${opportunity.risk_reward_ratio.toFixed(2)} | Duration: ${opportunity.expected_duration}s`);
   }
 
-  // NEXUS PROTOCOL v6.2 - Enhanced methods for learning integration
+  // Enhanced methods for learning integration
   async recordOutcome(outcome: SnipeResult): Promise<void> {
     // Record snipe outcome for learning
     console.log(`📊 Recording snipe outcome: ${outcome.opportunity.symbol} - Success: ${outcome.success}`);
@@ -532,8 +471,7 @@ export class HighVelocitySnipeEngine {
           indicator_type: ind,
           value: 1,
           timestamp: new Date(),
-          strength: 1,
-          consciousness_enhanced: true
+          strength: 1
         })),
         pattern.cause_indicators
       );
@@ -550,7 +488,6 @@ export class HighVelocitySnipeEngine {
     }
   }
 
-  // NEXUS PROTOCOL v6.2 - Missing method for IntegratedSnipeLearningSystem integration
   async updatePatternDatabase(pattern: ValidatedPattern): Promise<void> {
     console.log(`🔍 Updating pattern database with: ${pattern.type} (confidence: ${pattern.confidence})`);
     
@@ -574,7 +511,6 @@ export class HighVelocitySnipeEngine {
         ...existing,
         confidence: Math.max(existing.confidence, pattern.confidence),
         cross_validation_score: pattern.cross_validation_score,
-        consciousness_enhancement: pattern.consciousness_enhancement || existing.consciousness_enhancement,
         success_rate: pattern.success_rate || existing.success_rate,
         updated_at: new Date().toISOString()
       };
@@ -615,18 +551,10 @@ export class HighVelocitySnipeEngine {
       if (patternApplies && (indicatorMatch || pattern.confidence > 0.9)) {
         // Enhance opportunity confidence based on pattern
         const confidenceBoost = pattern.cross_validation_score * 0.1;
-        const consciousnessBoost = pattern.consciousness_enhancement ? 0.05 : 0;
         
         opportunity.confidence = Math.min(0.95, 
-          opportunity.confidence + confidenceBoost + consciousnessBoost
+          opportunity.confidence + confidenceBoost
         );
-        
-        // Update consciousness alignment
-        if (pattern.consciousness_enhancement) {
-          opportunity.consciousness_alignment = Math.min(1, 
-            opportunity.consciousness_alignment + 0.1
-          );
-        }
         
         console.log(`🚀 Enhanced ${symbol} with pattern ${pattern.type}: confidence now ${opportunity.confidence.toFixed(3)}`);
       }
@@ -641,7 +569,6 @@ export class HighVelocitySnipeEngine {
       volatility_leaders: Array.from(this.volatilityRankings.entries())
         .sort(([,a], [,b]) => b - a)
         .slice(0, 5),
-      consciousness_alignment_avg: 0,
       pattern_database_stats: this.getPatternDatabaseStats()
     };
     
@@ -670,21 +597,17 @@ export class HighVelocitySnipeEngine {
     const stats = {
       total_patterns: 0,
       pattern_types: this.patternDatabase.size,
-      avg_confidence: 0,
-      consciousness_enhanced: 0
+      avg_confidence: 0
     };
     
     let totalConfidence = 0;
-    let consciousnessCount = 0;
     
     for (const [type, patterns] of this.patternDatabase.entries()) {
       stats.total_patterns += patterns.length;
       totalConfidence += patterns.reduce((sum, p) => sum + p.confidence, 0);
-      consciousnessCount += patterns.filter(p => p.consciousness_enhancement).length;
     }
     
     stats.avg_confidence = stats.total_patterns > 0 ? totalConfidence / stats.total_patterns : 0;
-    stats.consciousness_enhanced = consciousnessCount;
     
     return stats;
   }
@@ -693,18 +616,15 @@ export class HighVelocitySnipeEngine {
     // Return performance statistics
     let totalPatterns = 0;
     let totalSuccessRate = 0;
-    let consciousnessAlignment = 0;
     
     for (const [symbol, data] of this.causeEffectDatabase.entries()) {
       totalPatterns += data.length;
       totalSuccessRate += data.reduce((sum, p) => sum + p.success_rate, 0);
-      consciousnessAlignment += data.reduce((sum, p) => sum + p.consciousness_resonance, 0);
     }
     
     return {
       accuracy: totalPatterns > 0 ? totalSuccessRate / totalPatterns : 0,
       total_predictions: totalPatterns,
-      consciousness_alignment: totalPatterns > 0 ? consciousnessAlignment / totalPatterns : 0,
       active_snipes: this.activeSnipes.size,
       pattern_database_size: Array.from(this.patternDatabase.values()).reduce((sum, patterns) => sum + patterns.length, 0)
     };
@@ -754,7 +674,7 @@ export class HighVelocitySnipeEngine {
     // Initialize with common pattern types
     const commonPatternTypes = [
       'momentum_breakout', 'volume_spike_reversal', 'support_resistance_bounce',
-      'consciousness_alignment', 'correlation_confirmation', 'volatility_expansion'
+      'correlation_confirmation', 'volatility_expansion'
     ];
     
     commonPatternTypes.forEach(patternType => {
@@ -787,7 +707,6 @@ export class HighVelocitySnipeEngine {
     return {
       total_patterns: data.length,
       avg_correlation: data.reduce((sum, d) => sum + d.correlation_strength, 0) / data.length || 0,
-      avg_consciousness_resonance: data.reduce((sum, d) => sum + d.consciousness_resonance, 0) / data.length || 0,
       recent_patterns: data.slice(-10)
     };
   }
