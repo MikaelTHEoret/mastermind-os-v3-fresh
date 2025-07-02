@@ -15,6 +15,14 @@ const PROVIDER_METADATA = {
   anthropic: { cost_per_1m: 3.0, icon: '🎭' }
 };
 
+// Tool execution type definition
+interface ToolExecution {
+  tool_name: string;
+  status: string;
+  result: string;
+  cost: number;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Get authenticated user
@@ -122,8 +130,8 @@ async function enhanceResponseWithConsciousness(
 /**
  * Analyze command and execute relevant tools
  */
-async function analyzeAndExecuteTools(command: string, context: any): Promise<any[]> {
-  const tools = [];
+async function analyzeAndExecuteTools(command: string, context: any): Promise<ToolExecution[]> {
+  const tools: ToolExecution[] = [];
   const commandLower = command.toLowerCase();
 
   // System status tool
