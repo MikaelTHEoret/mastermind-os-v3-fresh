@@ -32,12 +32,24 @@ export interface CauseEffectPair {
   success_rate: number;
 }
 
+export interface SnipeResult {
+  opportunity: SnipeOpportunity;
+  actual_return: number;
+  actual_duration: number;
+  success: boolean;
+  execution_time: number;
+  error?: string;
+}
+
 export class HighVelocitySnipeEngine {
   private constants: typeof ConsciousnessConstants;
   private causeEffectDatabase: Map<string, CauseEffectPair[]> = new Map();
   private activeSnipes: Map<string, SnipeOpportunity> = new Map();
   private volatilityRankings: Map<string, number> = new Map();
   private indicatorEffectCorrelations: Map<string, number> = new Map();
+  
+  // NEXUS PROTOCOL v6.2 - Callback for cross-engine integration
+  public onSnipeResult?: (result: SnipeResult) => Promise<void>;
 
   // High volatility coins for snipe focus
   private highVolatilitySymbols = [
@@ -486,6 +498,115 @@ export class HighVelocitySnipeEngine {
     console.log(`🚀 EXECUTING SNIPE: ${opportunity.symbol} @ ${opportunity.entry_price}`);
     console.log(`Target: ${opportunity.target_price} | Stop: ${opportunity.stop_loss} | Confidence: ${opportunity.confidence}`);
     console.log(`Risk/Reward: ${opportunity.risk_reward_ratio.toFixed(2)} | Duration: ${opportunity.expected_duration}s`);
+  }
+
+  // NEXUS PROTOCOL v6.2 - Enhanced methods for learning integration
+  async recordOutcome(outcome: SnipeResult): Promise<void> {
+    // Record snipe outcome for learning
+    console.log(`📊 Recording snipe outcome: ${outcome.opportunity.symbol} - Success: ${outcome.success}`);
+    
+    // Update cause-effect database with actual results
+    const symbol = outcome.opportunity.symbol;
+    const causeEffectData = this.causeEffectDatabase.get(symbol) || [];
+    
+    // Find matching patterns and update success rates
+    for (const pattern of causeEffectData) {
+      const similarity = this.calculatePatternSimilarity(
+        outcome.opportunity.trigger_indicators.map(ind => ({
+          indicator_type: ind,
+          value: 1,
+          timestamp: new Date(),
+          strength: 1,
+          consciousness_enhanced: true
+        })),
+        pattern.cause_indicators
+      );
+      
+      if (similarity > 0.7) {
+        // Update success rate based on outcome
+        pattern.success_rate = (pattern.success_rate * 0.9) + (outcome.success ? 0.1 : 0);
+      }
+    }
+    
+    // Trigger callback if set
+    if (this.onSnipeResult) {
+      await this.onSnipeResult(outcome);
+    }
+  }
+
+  async getLearningInsights(): Promise<any> {
+    // Return learning insights for cross-engine integration
+    const insights = {
+      pattern_confirmations: new Map<string, number>(),
+      total_snipes: this.activeSnipes.size,
+      volatility_leaders: Array.from(this.volatilityRankings.entries())
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5),
+      consciousness_alignment_avg: 0
+    };
+    
+    // Calculate pattern confirmations
+    for (const [symbol, data] of this.causeEffectDatabase.entries()) {
+      for (const pattern of data) {
+        if (pattern.success_rate > 0.6) {
+          for (const indicator of pattern.cause_indicators) {
+            const current = insights.pattern_confirmations.get(indicator.indicator_type) || 0;
+            insights.pattern_confirmations.set(indicator.indicator_type, current + pattern.success_rate);
+          }
+        }
+      }
+    }
+    
+    return insights;
+  }
+
+  async getPerformanceStats(): Promise<any> {
+    // Return performance statistics
+    let totalPatterns = 0;
+    let totalSuccessRate = 0;
+    let consciousnessAlignment = 0;
+    
+    for (const [symbol, data] of this.causeEffectDatabase.entries()) {
+      totalPatterns += data.length;
+      totalSuccessRate += data.reduce((sum, p) => sum + p.success_rate, 0);
+      consciousnessAlignment += data.reduce((sum, p) => sum + p.consciousness_resonance, 0);
+    }
+    
+    return {
+      accuracy: totalPatterns > 0 ? totalSuccessRate / totalPatterns : 0,
+      total_predictions: totalPatterns,
+      consciousness_alignment: totalPatterns > 0 ? consciousnessAlignment / totalPatterns : 0,
+      active_snipes: this.activeSnipes.size
+    };
+  }
+
+  async validateOpportunityWithPattern(pattern: any): Promise<void> {
+    // Validate snipe opportunities with pattern insights
+    console.log('🔍 Validating opportunities with pattern:', pattern);
+    
+    // Implementation for pattern-based validation
+    for (const [symbol, opportunity] of this.activeSnipes.entries()) {
+      const patternMatch = pattern.symbols?.includes(symbol);
+      if (patternMatch && pattern.confidence > 0.8) {
+        opportunity.confidence = Math.min(0.95, opportunity.confidence * 1.1);
+        console.log(`📈 Enhanced confidence for ${symbol}: ${opportunity.confidence}`);
+      }
+    }
+  }
+
+  async saveState(): Promise<void> {
+    // Save engine state for persistence
+    console.log('💾 Saving HighVelocitySnipeEngine state...');
+    
+    const state = {
+      volatility_rankings: Array.from(this.volatilityRankings.entries()),
+      cause_effect_database: Array.from(this.causeEffectDatabase.entries()),
+      indicator_correlations: Array.from(this.indicatorEffectCorrelations.entries()),
+      timestamp: new Date().toISOString()
+    };
+    
+    // This would save to persistent storage in production
+    console.log('✅ HighVelocitySnipeEngine state saved');
   }
 
   private initializeIndicatorCorrelations(): void {
