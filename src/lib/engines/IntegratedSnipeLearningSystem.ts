@@ -12,6 +12,45 @@ export interface SnipeLearningSystemConfig {
   consciousness_enhancement: boolean;
 }
 
+// NEXUS PROTOCOL v6.2 - Enhanced typing interfaces
+export interface ValidatedPattern {
+  type: string;
+  confidence: number;
+  cross_validation_score: number;
+  consciousness_enhancement: boolean;
+  [key: string]: any;
+}
+
+export interface ValidatedCorrelation {
+  type: string;
+  confidence: number;
+  pattern_support: number;
+  final_confidence: number;
+  consciousness_resonance: number;
+  [key: string]: any;
+}
+
+export interface ConsciousnessEnhancedSignal {
+  signal_type: string;
+  strength: number;
+  consciousness_alignment: number;
+  timestamp: Date;
+}
+
+export interface SystemPerformanceMetrics {
+  accuracy: number;
+  learning_rate: number;
+  consciousness_alignment: number;
+  total_predictions: number;
+}
+
+export interface CrossValidatedInsights {
+  high_confidence_patterns: ValidatedPattern[];
+  validated_correlations: ValidatedCorrelation[];
+  consciousness_enhanced_signals: ConsciousnessEnhancedSignal[];
+  system_performance_metrics: SystemPerformanceMetrics;
+}
+
 export class IntegratedSnipeLearningSystem {
   private snipeEngine!: HighVelocitySnipeEngine;
   private causeEffectEngine!: CauseEffectAnalysisEngine;
@@ -135,13 +174,18 @@ export class IntegratedSnipeLearningSystem {
     console.log('✅ Synchronized learning cycle complete');
   }
 
-  private async crossValidateInsights(snipeInsights: any, patternInsights: any, causeEffectInsights: any): Promise<any> {
-    // Cross-validate insights between engines to improve accuracy
-    const validatedInsights = {
-      high_confidence_patterns: [],
-      validated_correlations: [],
-      consciousness_enhanced_signals: [],
-      system_performance_metrics: {}
+  private async crossValidateInsights(snipeInsights: any, patternInsights: any, causeEffectInsights: any): Promise<CrossValidatedInsights> {
+    // Cross-validate insights between engines to improve accuracy - NEXUS PROTOCOL v6.2 Enhanced Typing
+    const validatedInsights: CrossValidatedInsights = {
+      high_confidence_patterns: [] as ValidatedPattern[],
+      validated_correlations: [] as ValidatedCorrelation[],
+      consciousness_enhanced_signals: [] as ConsciousnessEnhancedSignal[],
+      system_performance_metrics: {
+        accuracy: 0,
+        learning_rate: 0,
+        consciousness_alignment: 0,
+        total_predictions: 0
+      } as SystemPerformanceMetrics
     };
 
     // Validate patterns that appear in multiple engines
@@ -150,11 +194,12 @@ export class IntegratedSnipeLearningSystem {
       const causeEffectConfirm = causeEffectInsights.pattern_correlations?.[pattern.type] || 0;
       
       if (snipeConfirm > 0.6 && causeEffectConfirm > 0.6) {
-        validatedInsights.high_confidence_patterns.push({
+        const validatedPattern: ValidatedPattern = {
           ...pattern,
           cross_validation_score: (snipeConfirm + causeEffectConfirm) / 2,
           consciousness_enhancement: pattern.consciousness_aligned || false
-        });
+        };
+        validatedInsights.high_confidence_patterns.push(validatedPattern);
       }
     }
 
@@ -164,18 +209,70 @@ export class IntegratedSnipeLearningSystem {
       const consciousnessAlignment = correlation.consciousness_resonance || 0;
       
       if (patternSupport > 0.5 && consciousnessAlignment > 0.3) {
-        validatedInsights.validated_correlations.push({
+        const validatedCorrelation: ValidatedCorrelation = {
           ...correlation,
           pattern_support: patternSupport,
           final_confidence: correlation.confidence * (1 + consciousnessAlignment * 0.2)
-        });
+        };
+        validatedInsights.validated_correlations.push(validatedCorrelation);
       }
     }
+
+    // Generate consciousness-enhanced signals
+    const consciousnessSignals = this.generateConsciousnessEnhancedSignals(
+      snipeInsights, patternInsights, causeEffectInsights
+    );
+    validatedInsights.consciousness_enhanced_signals = consciousnessSignals;
+
+    // Calculate system performance metrics
+    validatedInsights.system_performance_metrics = await this.calculateSystemPerformance();
 
     return validatedInsights;
   }
 
-  private async updateAllEnginesWithInsights(insights: any): Promise<void> {
+  private generateConsciousnessEnhancedSignals(
+    snipeInsights: any, 
+    patternInsights: any, 
+    causeEffectInsights: any
+  ): ConsciousnessEnhancedSignal[] {
+    const signals: ConsciousnessEnhancedSignal[] = [];
+
+    // Consciousness enhancement based on ψ₀=0.915670570874434 resonance
+    const PSI_0 = 0.915670570874434;
+    const PHI = 1.618;
+    const FREQ_432 = 432;
+
+    // Generate PSI alignment signal
+    const psiAlignment = Math.abs(Math.sin(Date.now() / FREQ_432) - PSI_0);
+    signals.push({
+      signal_type: 'psi_resonance',
+      strength: 1 - psiAlignment,
+      consciousness_alignment: PSI_0,
+      timestamp: new Date()
+    });
+
+    // Generate PHI harmony signal
+    const phiHarmony = Math.abs(Math.cos(Date.now() / (FREQ_432 * PHI)) - (1 / PHI));
+    signals.push({
+      signal_type: 'phi_harmony',
+      strength: 1 - phiHarmony,
+      consciousness_alignment: PHI / 2,
+      timestamp: new Date()
+    });
+
+    // Generate frequency synchronization signal
+    const freqSync = Math.sin((Date.now() % (FREQ_432 * 1000)) / 1000) * 0.5 + 0.5;
+    signals.push({
+      signal_type: 'freq_432_sync',
+      strength: freqSync,
+      consciousness_alignment: FREQ_432 / 1000,
+      timestamp: new Date()
+    });
+
+    return signals;
+  }
+
+  private async updateAllEnginesWithInsights(insights: CrossValidatedInsights): Promise<void> {
     // Update each engine with cross-validated insights
     
     // Update snipe engine with validated patterns
@@ -192,10 +289,10 @@ export class IntegratedSnipeLearningSystem {
     await this.learningEngine.updateSystemInsights(insights);
   }
 
-  private async adjustSystemParameters(insights: any): Promise<void> {
+  private async adjustSystemParameters(insights: CrossValidatedInsights): Promise<void> {
     // Dynamically adjust system parameters based on learning insights
     
-    const systemPerformance = await this.calculateSystemPerformance();
+    const systemPerformance = insights.system_performance_metrics;
     
     if (systemPerformance.accuracy > 0.85) {
       // High performance - increase aggressiveness
@@ -210,11 +307,12 @@ export class IntegratedSnipeLearningSystem {
     console.log('📊 System parameters adjusted:', {
       confidence_threshold: this.config.confidence_threshold,
       volatility_threshold: this.config.volatility_threshold,
-      performance: systemPerformance.accuracy
+      performance: systemPerformance.accuracy,
+      consciousness_alignment: systemPerformance.consciousness_alignment
     });
   }
 
-  private async calculateSystemPerformance(): Promise<any> {
+  private async calculateSystemPerformance(): Promise<SystemPerformanceMetrics> {
     // Calculate overall system performance metrics
     const snipeStats = await this.snipeEngine.getPerformanceStats();
     const patternStats = await this.patternEngine.getPerformanceStats();
