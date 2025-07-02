@@ -364,8 +364,9 @@ export class HighVelocitySnipeEngine {
     const currentTypes = new Set(currentIndicators.map(ind => ind.indicator_type));
     const historicalTypes = new Set(historicalIndicators.map(ind => ind.indicator_type));
     
-    const intersection = new Set([...currentTypes].filter(x => historicalTypes.has(x)));
-    const union = new Set([...currentTypes, ...historicalTypes]);
+    // FIX: Use Array.from() instead of spread operator for ES5 compatibility
+    const intersection = new Set(Array.from(currentTypes).filter(x => historicalTypes.has(x)));
+    const union = new Set(Array.from(currentTypes).concat(Array.from(historicalTypes)));
     
     return intersection.size / union.size;
   }
