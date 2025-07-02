@@ -31,6 +31,31 @@ interface ToolExecution {
   result?: any;
 }
 
+// Type-safe message colors mapping
+type MessageType = 'user' | 'assistant' | 'system' | 'tool';
+
+const MESSAGE_TYPE_COLORS: Record<MessageType, string> = {
+  'user': 'bg-cyan-900/30 border-cyan-400/50 text-cyan-100',
+  'assistant': 'bg-purple-900/30 border-purple-400/50 text-purple-100', 
+  'system': 'bg-green-900/30 border-green-400/50 text-green-100',
+  'tool': 'bg-orange-900/30 border-orange-400/50 text-orange-100'
+};
+
+const PROVIDER_ICONS: Record<string, string> = {
+  'deepseek': '🧠',
+  'groq': '⚡',
+  'openai': '🤖',
+  'claude': '🎭',
+  'ollama': '🏠'
+};
+
+const TYPE_ICONS: Record<MessageType, string> = {
+  'user': '👤',
+  'assistant': '🤖',
+  'system': '⚙️',
+  'tool': '🔧'
+};
+
 export default function ChatTerminal() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -184,35 +209,16 @@ export default function ChatTerminal() {
     return sessionId;
   };
 
-  const getMessageTypeColor = (type: string) => {
-    const colors = {
-      'user': 'bg-cyan-900/30 border-cyan-400/50 text-cyan-100',
-      'assistant': 'bg-purple-900/30 border-purple-400/50 text-purple-100', 
-      'system': 'bg-green-900/30 border-green-400/50 text-green-100',
-      'tool': 'bg-orange-900/30 border-orange-400/50 text-orange-100'
-    };
-    return colors[type] || 'bg-gray-900/30 border-gray-400/50 text-gray-100';
+  const getMessageTypeColor = (type: MessageType) => {
+    return MESSAGE_TYPE_COLORS[type] || 'bg-gray-900/30 border-gray-400/50 text-gray-100';
   };
 
   const getProviderIcon = (provider: string) => {
-    const icons = {
-      'deepseek': '🧠',
-      'groq': '⚡',
-      'openai': '🤖',
-      'claude': '🎭',
-      'ollama': '🏠'
-    };
-    return icons[provider] || '🔮';
+    return PROVIDER_ICONS[provider] || '🔮';
   };
 
-  const getTypeIcon = (type: string) => {
-    const icons = {
-      'user': '👤',
-      'assistant': '🤖',
-      'system': '⚙️',
-      'tool': '🔧'
-    };
-    return icons[type] || '💬';
+  const getTypeIcon = (type: MessageType) => {
+    return TYPE_ICONS[type] || '💬';
   };
 
   return (
