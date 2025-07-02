@@ -163,12 +163,12 @@ export default function SimpleTerminal() {
             }}
             onMouseOver={(e) => {
               if (!isLoading && input.trim()) {
-                e.target.style.background = 'rgba(0, 255, 255, 0.6)';
+                (e.target as HTMLButtonElement).style.background = 'rgba(0, 255, 255, 0.6)';
               }
             }}
             onMouseOut={(e) => {
               if (!isLoading && input.trim()) {
-                e.target.style.background = 'rgba(0, 255, 255, 0.4)';
+                (e.target as HTMLButtonElement).style.background = 'rgba(0, 255, 255, 0.4)';
               }
             }}
           >
