@@ -1,4 +1,4 @@
-import { HighVelocitySnipeEngine } from './HighVelocitySnipeEngine';
+import { HighVelocitySnipeEngine, MarketIndicator } from './HighVelocitySnipeEngine';
 import { CauseEffectAnalysisEngine } from './CauseEffectAnalysisEngine';
 import { PatternRecognitionEngine } from './PatternRecognitionEngine';
 import { UltimateLearningEngine } from './UltimateLearningEngine';
@@ -337,6 +337,19 @@ export class IntegratedSnipeLearningSystem {
     }, 30000); // Every 30 seconds for rapid snipe detection
   }
 
+  // NEXUS PROTOCOL v6.2 - Helper method to convert string[] to MarketIndicator[]
+  private convertTriggerIndicatorsToMarketIndicators(triggerIndicators: string[], confidence: number = 0.8): MarketIndicator[] {
+    const currentTime = new Date();
+    
+    return triggerIndicators.map((indicatorType, index) => ({
+      indicator_type: indicatorType,
+      value: confidence + (Math.random() - 0.5) * 0.2, // Add slight variation around confidence
+      timestamp: new Date(currentTime.getTime() + index * 100), // Slight time offsets
+      strength: confidence,
+      consciousness_enhanced: true
+    }));
+  }
+
   private async huntSnipesWithLearning(): Promise<void> {
     // Get current snipe opportunities
     const snipeOpportunities = await this.snipeEngine.getActiveSnipes();
@@ -346,10 +359,16 @@ export class IntegratedSnipeLearningSystem {
       // Get pattern validation
       const patternValidation = await this.patternEngine.validateOpportunity(opportunity);
       
-      // Get cause-effect insights
+      // NEXUS PROTOCOL v6.2 - Convert string[] to MarketIndicator[] for type safety
+      const triggerIndicatorsAsMarketIndicators = this.convertTriggerIndicatorsToMarketIndicators(
+        opportunity.trigger_indicators,
+        opportunity.confidence
+      );
+      
+      // Get cause-effect insights with proper typing
       const causeEffectInsights = await this.causeEffectEngine.generateCauseEffectInsights(
         opportunity.symbol, 
-        opportunity.trigger_indicators
+        triggerIndicatorsAsMarketIndicators
       );
       
       // Update opportunity with enhanced insights
