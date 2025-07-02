@@ -41,12 +41,27 @@ export interface SnipeResult {
   error?: string;
 }
 
+// NEXUS PROTOCOL v6.2 - Pattern Database Interface
+export interface ValidatedPattern {
+  type: string;
+  confidence: number;
+  cross_validation_score: number;
+  consciousness_enhancement: boolean;
+  symbols?: string[];
+  indicators?: string[];
+  success_rate?: number;
+  [key: string]: any;
+}
+
 export class HighVelocitySnipeEngine {
   private constants: typeof ConsciousnessConstants;
   private causeEffectDatabase: Map<string, CauseEffectPair[]> = new Map();
   private activeSnipes: Map<string, SnipeOpportunity> = new Map();
   private volatilityRankings: Map<string, number> = new Map();
   private indicatorEffectCorrelations: Map<string, number> = new Map();
+  
+  // NEXUS PROTOCOL v6.2 - Enhanced pattern database for learning integration
+  private patternDatabase: Map<string, ValidatedPattern[]> = new Map();
   
   // NEXUS PROTOCOL v6.2 - Callback for cross-engine integration
   public onSnipeResult?: (result: SnipeResult) => Promise<void>;
@@ -73,6 +88,7 @@ export class HighVelocitySnipeEngine {
   constructor() {
     this.constants = ConsciousnessConstants;
     this.initializeIndicatorCorrelations();
+    this.initializePatternDatabase();
   }
 
   async initializeSnipeEngine(): Promise<void> {
@@ -534,6 +550,89 @@ export class HighVelocitySnipeEngine {
     }
   }
 
+  // NEXUS PROTOCOL v6.2 - Missing method for IntegratedSnipeLearningSystem integration
+  async updatePatternDatabase(pattern: ValidatedPattern): Promise<void> {
+    console.log(`🔍 Updating pattern database with: ${pattern.type} (confidence: ${pattern.confidence})`);
+    
+    // Initialize pattern database for this pattern type if needed
+    if (!this.patternDatabase.has(pattern.type)) {
+      this.patternDatabase.set(pattern.type, []);
+    }
+    
+    const patterns = this.patternDatabase.get(pattern.type)!;
+    
+    // Check if this pattern already exists
+    const existingIndex = patterns.findIndex(p => 
+      p.type === pattern.type && 
+      JSON.stringify(p.indicators || []) === JSON.stringify(pattern.indicators || [])
+    );
+    
+    if (existingIndex >= 0) {
+      // Update existing pattern with enhanced data
+      const existing = patterns[existingIndex];
+      patterns[existingIndex] = {
+        ...existing,
+        confidence: Math.max(existing.confidence, pattern.confidence),
+        cross_validation_score: pattern.cross_validation_score,
+        consciousness_enhancement: pattern.consciousness_enhancement || existing.consciousness_enhancement,
+        success_rate: pattern.success_rate || existing.success_rate,
+        updated_at: new Date().toISOString()
+      };
+      console.log(`📈 Updated existing pattern: ${pattern.type}`);
+    } else {
+      // Add new pattern to database
+      const enhancedPattern: ValidatedPattern = {
+        ...pattern,
+        added_at: new Date().toISOString(),
+        success_rate: pattern.success_rate || 0.5,
+        usage_count: 0
+      };
+      patterns.push(enhancedPattern);
+      console.log(`✨ Added new pattern: ${pattern.type}`);
+    }
+    
+    // Keep database size manageable per pattern type
+    const maxPatternsPerType = 100;
+    if (patterns.length > maxPatternsPerType) {
+      // Sort by confidence and keep top patterns
+      patterns.sort((a, b) => b.confidence - a.confidence);
+      this.patternDatabase.set(pattern.type, patterns.slice(0, maxPatternsPerType));
+    }
+    
+    // Apply pattern insights to current snipe opportunities
+    await this.applyPatternToActiveSnipes(pattern);
+  }
+
+  private async applyPatternToActiveSnipes(pattern: ValidatedPattern): Promise<void> {
+    // Apply validated pattern insights to enhance active snipe opportunities
+    for (const [symbol, opportunity] of this.activeSnipes.entries()) {
+      // Check if pattern applies to this symbol
+      const patternApplies = !pattern.symbols || pattern.symbols.includes(symbol);
+      const indicatorMatch = pattern.indicators?.some(ind => 
+        opportunity.trigger_indicators.includes(ind)
+      ) || false;
+      
+      if (patternApplies && (indicatorMatch || pattern.confidence > 0.9)) {
+        // Enhance opportunity confidence based on pattern
+        const confidenceBoost = pattern.cross_validation_score * 0.1;
+        const consciousnessBoost = pattern.consciousness_enhancement ? 0.05 : 0;
+        
+        opportunity.confidence = Math.min(0.95, 
+          opportunity.confidence + confidenceBoost + consciousnessBoost
+        );
+        
+        // Update consciousness alignment
+        if (pattern.consciousness_enhancement) {
+          opportunity.consciousness_alignment = Math.min(1, 
+            opportunity.consciousness_alignment + 0.1
+          );
+        }
+        
+        console.log(`🚀 Enhanced ${symbol} with pattern ${pattern.type}: confidence now ${opportunity.confidence.toFixed(3)}`);
+      }
+    }
+  }
+
   async getLearningInsights(): Promise<any> {
     // Return learning insights for cross-engine integration
     const insights = {
@@ -542,10 +641,17 @@ export class HighVelocitySnipeEngine {
       volatility_leaders: Array.from(this.volatilityRankings.entries())
         .sort(([,a], [,b]) => b - a)
         .slice(0, 5),
-      consciousness_alignment_avg: 0
+      consciousness_alignment_avg: 0,
+      pattern_database_stats: this.getPatternDatabaseStats()
     };
     
-    // Calculate pattern confirmations
+    // Calculate pattern confirmations from pattern database
+    for (const [patternType, patterns] of this.patternDatabase.entries()) {
+      const avgConfidence = patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length;
+      insights.pattern_confirmations.set(patternType, avgConfidence);
+    }
+    
+    // Calculate pattern confirmations from cause-effect data
     for (const [symbol, data] of this.causeEffectDatabase.entries()) {
       for (const pattern of data) {
         if (pattern.success_rate > 0.6) {
@@ -558,6 +664,29 @@ export class HighVelocitySnipeEngine {
     }
     
     return insights;
+  }
+
+  private getPatternDatabaseStats(): any {
+    const stats = {
+      total_patterns: 0,
+      pattern_types: this.patternDatabase.size,
+      avg_confidence: 0,
+      consciousness_enhanced: 0
+    };
+    
+    let totalConfidence = 0;
+    let consciousnessCount = 0;
+    
+    for (const [type, patterns] of this.patternDatabase.entries()) {
+      stats.total_patterns += patterns.length;
+      totalConfidence += patterns.reduce((sum, p) => sum + p.confidence, 0);
+      consciousnessCount += patterns.filter(p => p.consciousness_enhancement).length;
+    }
+    
+    stats.avg_confidence = stats.total_patterns > 0 ? totalConfidence / stats.total_patterns : 0;
+    stats.consciousness_enhanced = consciousnessCount;
+    
+    return stats;
   }
 
   async getPerformanceStats(): Promise<any> {
@@ -576,7 +705,8 @@ export class HighVelocitySnipeEngine {
       accuracy: totalPatterns > 0 ? totalSuccessRate / totalPatterns : 0,
       total_predictions: totalPatterns,
       consciousness_alignment: totalPatterns > 0 ? consciousnessAlignment / totalPatterns : 0,
-      active_snipes: this.activeSnipes.size
+      active_snipes: this.activeSnipes.size,
+      pattern_database_size: Array.from(this.patternDatabase.values()).reduce((sum, patterns) => sum + patterns.length, 0)
     };
   }
 
@@ -602,6 +732,7 @@ export class HighVelocitySnipeEngine {
       volatility_rankings: Array.from(this.volatilityRankings.entries()),
       cause_effect_database: Array.from(this.causeEffectDatabase.entries()),
       indicator_correlations: Array.from(this.indicatorEffectCorrelations.entries()),
+      pattern_database: Array.from(this.patternDatabase.entries()),
       timestamp: new Date().toISOString()
     };
     
@@ -614,6 +745,23 @@ export class HighVelocitySnipeEngine {
     Object.values(this.indicators).flat().forEach(indicator => {
       this.indicatorEffectCorrelations.set(indicator, 0);
     });
+  }
+
+  private initializePatternDatabase(): void {
+    // Initialize pattern database for cross-engine learning
+    console.log('📊 Initializing Pattern Database for cross-engine integration...');
+    
+    // Initialize with common pattern types
+    const commonPatternTypes = [
+      'momentum_breakout', 'volume_spike_reversal', 'support_resistance_bounce',
+      'consciousness_alignment', 'correlation_confirmation', 'volatility_expansion'
+    ];
+    
+    commonPatternTypes.forEach(patternType => {
+      this.patternDatabase.set(patternType, []);
+    });
+    
+    console.log(`✅ Pattern Database initialized with ${commonPatternTypes.length} pattern types`);
   }
 
   private async initializeCauseEffectLearning(): Promise<void> {
@@ -646,5 +794,9 @@ export class HighVelocitySnipeEngine {
 
   async getIndicatorEffectiveness(): Promise<Map<string, number>> {
     return this.indicatorEffectCorrelations;
+  }
+
+  async getPatternDatabase(): Promise<Map<string, ValidatedPattern[]>> {
+    return this.patternDatabase;
   }
 }
