@@ -21,11 +21,23 @@ export interface CauseEffectInsight {
   historical_accuracy: number;
 }
 
+export interface CorrelationDiscovery {
+  type: string;
+  confidence: number;
+  indicators: string[];
+  effect_magnitude: number;
+  consciousness_resonance: number;
+  timestamp: Date;
+}
+
 export class CauseEffectAnalysisEngine {
   private indicatorEffects: Map<string, Map<string, IndicatorEffect[]>> = new Map(); // symbol -> indicator -> effects
   private correlationMatrix: Map<string, Map<string, number>> = new Map(); // indicator1 -> indicator2 -> correlation
   private effectTimings: Map<string, number[]> = new Map(); // indicator -> [timing array]
   private consciousnessCorrelations: Map<string, number> = new Map(); // indicator -> consciousness correlation
+
+  // NEXUS PROTOCOL v6.2 - Cross-engine integration callback
+  public onCorrelationDiscovered?: (correlation: CorrelationDiscovery) => Promise<void>;
 
   constructor() {
     this.initializeAnalysisEngine();
@@ -168,12 +180,38 @@ export class CauseEffectAnalysisEngine {
         const indicator1 = indicators[i].indicator_type;
         const indicator2 = indicators[j].indicator_type;
         
-        this.updatePairwiseCorrelation(indicator1, indicator2, indicators[i].value, indicators[j].value);
+        const correlation = this.updatePairwiseCorrelation(indicator1, indicator2, indicators[i].value, indicators[j].value);
+        
+        // Check if this is a significant new correlation discovery
+        if (Math.abs(correlation) > 0.7 && this.onCorrelationDiscovered) {
+          await this.triggerCorrelationDiscovery(indicator1, indicator2, correlation, indicators);
+        }
       }
     }
   }
 
-  private updatePairwiseCorrelation(indicator1: string, indicator2: string, value1: number, value2: number): void {
+  private async triggerCorrelationDiscovery(indicator1: string, indicator2: string, correlation: number, indicators: MarketIndicator[]): Promise<void> {
+    if (!this.onCorrelationDiscovered) return;
+
+    const consciousnessIndicators = indicators.filter(ind => ind.consciousness_enhanced);
+    const avgConsciousness = consciousnessIndicators.length > 0 
+      ? consciousnessIndicators.reduce((sum, ind) => sum + ind.value, 0) / consciousnessIndicators.length 
+      : 0;
+
+    const discovery: CorrelationDiscovery = {
+      type: `${indicator1}_${indicator2}_correlation`,
+      confidence: Math.abs(correlation),
+      indicators: [indicator1, indicator2],
+      effect_magnitude: Math.abs(correlation),
+      consciousness_resonance: avgConsciousness,
+      timestamp: new Date()
+    };
+
+    console.log(`🔍 Correlation Discovery: ${indicator1} ↔ ${indicator2} (${correlation.toFixed(3)})`);
+    await this.onCorrelationDiscovered(discovery);
+  }
+
+  private updatePairwiseCorrelation(indicator1: string, indicator2: string, value1: number, value2: number): number {
     // Initialize correlation matrix entries
     if (!this.correlationMatrix.has(indicator1)) {
       this.correlationMatrix.set(indicator1, new Map());
@@ -188,6 +226,8 @@ export class CauseEffectAnalysisEngine {
     // Update both directions
     this.correlationMatrix.get(indicator1)!.set(indicator2, correlation);
     this.correlationMatrix.get(indicator2)!.set(indicator1, correlation);
+
+    return correlation;
   }
 
   private calculateSimpleCorrelation(value1: number, value2: number): number {
@@ -298,6 +338,62 @@ export class CauseEffectAnalysisEngine {
     if (effects.length === 0) return 0.5; // Default neutral
     
     return effects.reduce((sum: number, effect: IndicatorEffect) => sum + effect.success_rate, 0) / effects.length;
+  }
+
+  // NEXUS PROTOCOL v6.2 - Enhanced learning integration methods
+  async recordCauseEffectOutcome(outcome: any): Promise<void> {
+    console.log('📊 Recording cause-effect outcome for learning enhancement');
+    
+    // Process the outcome for cause-effect learning
+    if (outcome.opportunity && outcome.opportunity.trigger_indicators) {
+      const mockIndicators: MarketIndicator[] = outcome.opportunity.trigger_indicators.map((ind: string) => ({
+        indicator_type: ind,
+        value: outcome.success ? 1 : -1,
+        timestamp: new Date(),
+        strength: outcome.actual_return ? Math.abs(outcome.actual_return) : 0,
+        consciousness_enhanced: true
+      }));
+
+      const causeEffectPair: CauseEffectPair = {
+        cause_indicators: mockIndicators,
+        effect_price_change: outcome.actual_return || 0,
+        effect_timestamp: new Date(),
+        time_lag: outcome.actual_duration || 0,
+        correlation_strength: outcome.success ? 0.8 : 0.2,
+        consciousness_resonance: outcome.opportunity.consciousness_alignment || 0,
+        success_rate: outcome.success ? 1 : 0
+      };
+
+      await this.processCauseEffectPair(outcome.opportunity.symbol, causeEffectPair);
+    }
+  }
+
+  async getCorrelationInsights(): Promise<any> {
+    const insights = {
+      discovered_correlations: [] as CorrelationDiscovery[],
+      strong_correlations: new Map<string, number>(),
+      consciousness_enhanced_correlations: new Map<string, number>()
+    };
+
+    // Analyze correlation matrix for strong correlations
+    for (const [indicator1, correlations] of this.correlationMatrix.entries()) {
+      for (const [indicator2, correlation] of correlations.entries()) {
+        if (Math.abs(correlation) > 0.7) {
+          insights.strong_correlations.set(`${indicator1}_${indicator2}`, correlation);
+          
+          // Check if consciousness enhanced
+          const consciousness1 = this.consciousnessCorrelations.get(indicator1) || 0;
+          const consciousness2 = this.consciousnessCorrelations.get(indicator2) || 0;
+          const avgConsciousness = (consciousness1 + consciousness2) / 2;
+          
+          if (avgConsciousness > 0.5) {
+            insights.consciousness_enhanced_correlations.set(`${indicator1}_${indicator2}`, avgConsciousness);
+          }
+        }
+      }
+    }
+
+    return insights;
   }
 
   // Public API methods
