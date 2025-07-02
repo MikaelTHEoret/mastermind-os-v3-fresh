@@ -6,11 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 
+// Type definitions for type safety
+type LogType = 'session' | 'error' | 'system' | 'agent' | 'tool';
+
 interface RawLog {
   id: string;
   timestamp: Date;
   source: string;
-  type: 'session' | 'error' | 'system' | 'agent' | 'tool';
+  type: LogType;
   raw_content: string;
   processed: boolean;
   metadata?: any;
@@ -25,6 +28,23 @@ interface ProcessedMemory {
   storage_collection: string;
   processing_status: 'pending' | 'stored' | 'failed';
 }
+
+// Type-safe color mappings
+const LOG_TYPE_COLORS: Record<LogType, string> = {
+  'session': 'rgba(0, 191, 255, 0.2)',
+  'error': 'rgba(255, 69, 58, 0.2)',
+  'system': 'rgba(50, 215, 75, 0.2)',
+  'agent': 'rgba(191, 90, 242, 0.2)',
+  'tool': 'rgba(255, 159, 10, 0.2)'
+};
+
+const LOG_TYPE_TEXT_COLORS: Record<LogType, string> = {
+  'session': '#00BFFF',
+  'error': '#FF453A',
+  'system': '#32D74B',
+  'agent': '#BF5AF2',
+  'tool': '#FF9F0A'
+};
 
 export default function LogProcessor() {
   const [rawLogs, setRawLogs] = useState<RawLog[]>([]);
@@ -83,26 +103,13 @@ export default function LogProcessor() {
     });
   }, []);
 
-  const getLogTypeColor = (type: string) => {
-    const colors = {
-      'session': 'rgba(0, 191, 255, 0.2)',
-      'error': 'rgba(255, 69, 58, 0.2)',
-      'system': 'rgba(50, 215, 75, 0.2)',
-      'agent': 'rgba(191, 90, 242, 0.2)',
-      'tool': 'rgba(255, 159, 10, 0.2)'
-    };
-    return colors[type] || 'rgba(128, 128, 128, 0.2)';
+  // Type-safe helper functions
+  const getLogTypeColor = (type: LogType) => {
+    return LOG_TYPE_COLORS[type] || 'rgba(128, 128, 128, 0.2)';
   };
 
-  const getLogTypeTextColor = (type: string) => {
-    const colors = {
-      'session': '#00BFFF',
-      'error': '#FF453A',
-      'system': '#32D74B',
-      'agent': '#BF5AF2',
-      'tool': '#FF9F0A'
-    };
-    return colors[type] || '#888888';
+  const getLogTypeTextColor = (type: LogType) => {
+    return LOG_TYPE_TEXT_COLORS[type] || '#888888';
   };
 
   const filteredLogs = selectedLogType === 'all' 
