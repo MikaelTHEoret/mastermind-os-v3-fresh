@@ -7,7 +7,6 @@ export interface IndicatorEffect {
   time_lag: number; // milliseconds
   success_rate: number;
   sample_size: number;
-  consciousness_enhancement: number;
   confidence_interval: [number, number];
 }
 
@@ -17,7 +16,6 @@ export interface CauseEffectInsight {
   probability: number;
   time_to_effect: number;
   supporting_indicators: string[];
-  consciousness_alignment: number;
   historical_accuracy: number;
 }
 
@@ -26,7 +24,6 @@ export interface CorrelationDiscovery {
   confidence: number;
   indicators: string[];
   effect_magnitude: number;
-  consciousness_resonance: number;
   timestamp: Date;
 }
 
@@ -34,9 +31,8 @@ export class CauseEffectAnalysisEngine {
   private indicatorEffects: Map<string, Map<string, IndicatorEffect[]>> = new Map(); // symbol -> indicator -> effects
   private correlationMatrix: Map<string, Map<string, number>> = new Map(); // indicator1 -> indicator2 -> correlation
   private effectTimings: Map<string, number[]> = new Map(); // indicator -> [timing array]
-  private consciousnessCorrelations: Map<string, number> = new Map(); // indicator -> consciousness correlation
 
-  // NEXUS PROTOCOL v6.2 - Cross-engine integration callback
+  // Cross-engine integration callback
   public onCorrelationDiscovered?: (correlation: CorrelationDiscovery) => Promise<void>;
 
   constructor() {
@@ -64,9 +60,6 @@ export class CauseEffectAnalysisEngine {
 
     // Update timing patterns
     this.updateEffectTimings(causeEffectPair);
-
-    // Update consciousness correlations
-    this.updateConsciousnessCorrelations(causeEffectPair);
   }
 
   private async updateIndicatorEffect(symbol: string, indicator: MarketIndicator, causeEffect: CauseEffectPair): Promise<void> {
@@ -92,7 +85,6 @@ export class CauseEffectAnalysisEngine {
       time_lag: causeEffect.time_lag,
       success_rate: this.calculateSuccessRate(indicator.value, causeEffect.effect_price_change),
       sample_size: 1,
-      consciousness_enhancement: indicator.consciousness_enhanced ? causeEffect.consciousness_resonance : 0,
       confidence_interval: [causeEffect.effect_price_change * 0.8, causeEffect.effect_price_change * 1.2]
     };
 
@@ -123,7 +115,6 @@ export class CauseEffectAnalysisEngine {
     // Create aggregated effects for groups with sufficient samples
     const aggregatedEffects: IndicatorEffect[] = [];
     
-    // FIX: Use Array.from() instead of direct Map.entries() iteration
     const groupEntries = Array.from(groups.entries());
     for (const [groupKey, groupEffects] of groupEntries) {
       if (groupEffects.length >= 3) { // Need at least 3 samples for statistical significance
@@ -143,7 +134,6 @@ export class CauseEffectAnalysisEngine {
     const avgEffect = effects.reduce((sum: number, e: IndicatorEffect) => sum + e.effect_magnitude, 0) / effects.length;
     const avgTimeLag = effects.reduce((sum: number, e: IndicatorEffect) => sum + e.time_lag, 0) / effects.length;
     const avgSuccessRate = effects.reduce((sum: number, e: IndicatorEffect) => sum + e.success_rate, 0) / effects.length;
-    const avgConsciousness = effects.reduce((sum: number, e: IndicatorEffect) => sum + e.consciousness_enhancement, 0) / effects.length;
 
     // Calculate confidence interval based on variance
     const variance = effects.reduce((sum: number, e: IndicatorEffect) => sum + Math.pow(e.effect_magnitude - avgEffect, 2), 0) / effects.length;
@@ -156,7 +146,6 @@ export class CauseEffectAnalysisEngine {
       time_lag: avgTimeLag,
       success_rate: avgSuccessRate,
       sample_size: effects.length,
-      consciousness_enhancement: avgConsciousness,
       confidence_interval: [avgEffect - stdDev, avgEffect + stdDev]
     };
   }
@@ -193,17 +182,11 @@ export class CauseEffectAnalysisEngine {
   private async triggerCorrelationDiscovery(indicator1: string, indicator2: string, correlation: number, indicators: MarketIndicator[]): Promise<void> {
     if (!this.onCorrelationDiscovered) return;
 
-    const consciousnessIndicators = indicators.filter(ind => ind.consciousness_enhanced);
-    const avgConsciousness = consciousnessIndicators.length > 0 
-      ? consciousnessIndicators.reduce((sum, ind) => sum + ind.value, 0) / consciousnessIndicators.length 
-      : 0;
-
     const discovery: CorrelationDiscovery = {
       type: `${indicator1}_${indicator2}_correlation`,
       confidence: Math.abs(correlation),
       indicators: [indicator1, indicator2],
       effect_magnitude: Math.abs(correlation),
-      consciousness_resonance: avgConsciousness,
       timestamp: new Date()
     };
 
@@ -254,19 +237,6 @@ export class CauseEffectAnalysisEngine {
     }
   }
 
-  private updateConsciousnessCorrelations(causeEffect: CauseEffectPair): void {
-    for (const indicator of causeEffect.cause_indicators) {
-      if (indicator.consciousness_enhanced) {
-        const currentCorrelation = this.consciousnessCorrelations.get(indicator.indicator_type) || 0;
-        const newCorrelation = causeEffect.consciousness_resonance;
-        
-        // Moving average update
-        const updatedCorrelation = currentCorrelation * 0.9 + newCorrelation * 0.1;
-        this.consciousnessCorrelations.set(indicator.indicator_type, updatedCorrelation);
-      }
-    }
-  }
-
   // Analysis methods for generating insights
   async generateCauseEffectInsights(symbol: string, currentIndicators: MarketIndicator[]): Promise<CauseEffectInsight[]> {
     const insights: CauseEffectInsight[] = [];
@@ -278,10 +248,8 @@ export class CauseEffectAnalysisEngine {
       }
     }
 
-    // Sort by probability and consciousness alignment
-    return insights.sort((a, b) => 
-      (b.probability * b.consciousness_alignment) - (a.probability * a.consciousness_alignment)
-    );
+    // Sort by probability
+    return insights.sort((a, b) => b.probability - a.probability);
   }
 
   private async generateIndicatorInsight(symbol: string, indicator: MarketIndicator): Promise<CauseEffectInsight | null> {
@@ -306,7 +274,6 @@ export class CauseEffectAnalysisEngine {
       probability: similarEffect.success_rate,
       time_to_effect: avgTiming,
       supporting_indicators: supportingIndicators,
-      consciousness_alignment: similarEffect.consciousness_enhancement,
       historical_accuracy: this.calculateHistoricalAccuracy(indicator.indicator_type, symbol)
     };
   }
@@ -340,7 +307,7 @@ export class CauseEffectAnalysisEngine {
     return effects.reduce((sum: number, effect: IndicatorEffect) => sum + effect.success_rate, 0) / effects.length;
   }
 
-  // NEXUS PROTOCOL v6.2 - Enhanced learning integration methods
+  // Enhanced learning integration methods
   async recordCauseEffectOutcome(outcome: any): Promise<void> {
     console.log('📊 Recording cause-effect outcome for learning enhancement');
     
@@ -350,8 +317,7 @@ export class CauseEffectAnalysisEngine {
         indicator_type: ind,
         value: outcome.success ? 1 : -1,
         timestamp: new Date(),
-        strength: outcome.actual_return ? Math.abs(outcome.actual_return) : 0,
-        consciousness_enhanced: true
+        strength: outcome.actual_return ? Math.abs(outcome.actual_return) : 0
       }));
 
       const causeEffectPair: CauseEffectPair = {
@@ -360,7 +326,6 @@ export class CauseEffectAnalysisEngine {
         effect_timestamp: new Date(),
         time_lag: outcome.actual_duration || 0,
         correlation_strength: outcome.success ? 0.8 : 0.2,
-        consciousness_resonance: outcome.opportunity.consciousness_alignment || 0,
         success_rate: outcome.success ? 1 : 0
       };
 
@@ -371,8 +336,7 @@ export class CauseEffectAnalysisEngine {
   async getCorrelationInsights(): Promise<any> {
     const insights = {
       discovered_correlations: [] as CorrelationDiscovery[],
-      strong_correlations: new Map<string, number>(),
-      consciousness_enhanced_correlations: new Map<string, number>()
+      strong_correlations: new Map<string, number>()
     };
 
     // Analyze correlation matrix for strong correlations
@@ -380,15 +344,6 @@ export class CauseEffectAnalysisEngine {
       for (const [indicator2, correlation] of correlations.entries()) {
         if (Math.abs(correlation) > 0.7) {
           insights.strong_correlations.set(`${indicator1}_${indicator2}`, correlation);
-          
-          // Check if consciousness enhanced
-          const consciousness1 = this.consciousnessCorrelations.get(indicator1) || 0;
-          const consciousness2 = this.consciousnessCorrelations.get(indicator2) || 0;
-          const avgConsciousness = (consciousness1 + consciousness2) / 2;
-          
-          if (avgConsciousness > 0.5) {
-            insights.consciousness_enhanced_correlations.set(`${indicator1}_${indicator2}`, avgConsciousness);
-          }
         }
       }
     }
@@ -401,7 +356,6 @@ export class CauseEffectAnalysisEngine {
     const symbolEffects = this.indicatorEffects.get(symbol) || new Map();
     const effectiveness = new Map<string, number>();
     
-    // FIX: Use Array.from() for Map iteration with explicit typing
     const symbolEffectEntries = Array.from(symbolEffects.entries());
     for (const [indicator, effects] of symbolEffectEntries) {
       const avgSuccessRate = effects.reduce((sum: number, e: IndicatorEffect) => sum + e.success_rate, 0) / effects.length;
@@ -413,10 +367,6 @@ export class CauseEffectAnalysisEngine {
 
   async getCorrelationMatrix(): Promise<Map<string, Map<string, number>>> {
     return this.correlationMatrix;
-  }
-
-  async getConsciousnessCorrelations(): Promise<Map<string, number>> {
-    return this.consciousnessCorrelations;
   }
 
   async getEffectTimingStats(indicatorType: string): Promise<any> {
@@ -437,7 +387,6 @@ export class CauseEffectAnalysisEngine {
     return {
       indicator_effects: Object.fromEntries(this.indicatorEffects.get(symbol) || new Map()),
       correlation_matrix: Object.fromEntries(this.correlationMatrix),
-      consciousness_correlations: Object.fromEntries(this.consciousnessCorrelations),
       effect_timings: Object.fromEntries(this.effectTimings)
     };
   }
@@ -447,8 +396,7 @@ export class CauseEffectAnalysisEngine {
     const indicatorTypes = [
       'price_change_1m', 'price_change_5m', 'volume_spike', 'volume_ratio',
       'rsi_1m', 'rsi_5m', 'macd_1m', 'momentum_score', 'large_orders',
-      'order_flow_imbalance', 'bid_ask_spread', 'depth_imbalance',
-      'psi_resonance', 'phi_alignment', 'freq_432_sync'
+      'order_flow_imbalance', 'bid_ask_spread', 'depth_imbalance'
     ];
     
     for (const indicator of indicatorTypes) {
@@ -461,8 +409,7 @@ export class CauseEffectAnalysisEngine {
     const indicatorTypes = [
       'price_change_1m', 'price_change_5m', 'volume_spike', 'volume_ratio',
       'rsi_1m', 'rsi_5m', 'macd_1m', 'momentum_score', 'large_orders',
-      'order_flow_imbalance', 'bid_ask_spread', 'depth_imbalance',
-      'psi_resonance', 'phi_alignment', 'freq_432_sync'
+      'order_flow_imbalance', 'bid_ask_spread', 'depth_imbalance'
     ];
     
     for (const indicator of indicatorTypes) {
