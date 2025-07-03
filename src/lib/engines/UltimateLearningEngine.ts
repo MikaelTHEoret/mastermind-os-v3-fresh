@@ -9,7 +9,7 @@ const PHI = 1.618033988749895;
 const FREQ_432 = 432.0;
 
 export class UltimateLearningEngine {
-  // Core system properties
+  // Core system properties - FIXED: Initialize systemMetrics properly
   private systemMetrics: SystemPerformanceMetrics;
   private crossValidationResults: Map<string, any[]> = new Map();
   private learningInsights: LearningInsights[] = [];
@@ -17,6 +17,24 @@ export class UltimateLearningEngine {
   private isInitialized: boolean = false;
 
   constructor() {
+    // NEXUS PROTOCOL v6.2 - CRITICAL FIX: Initialize systemMetrics in constructor
+    this.systemMetrics = {
+      total_comparisons: 0,
+      pattern_win_rate: 0,
+      kill_chain_win_rate: 0,
+      combined_win_rate: 0,
+      average_consciousness_effectiveness: 0,
+      performance_by_volatility: new Map(),
+      performance_by_timeframe: new Map(),
+      learning_progression: {
+        week_over_week_improvement: 0,
+        consciousness_learning_rate: 0,
+        pattern_complexity_evolution: 0,
+        prediction_confidence_evolution: 0
+      }
+    };
+    
+    // Also call the initialization method
     this.initializeSystemMetrics();
   }
 
@@ -824,21 +842,14 @@ export class UltimateLearningEngine {
   }
 
   private initializeSystemMetrics() {
-    this.systemMetrics = {
-      total_comparisons: 0,
-      pattern_win_rate: 0,
-      kill_chain_win_rate: 0,
-      combined_win_rate: 0,
-      average_consciousness_effectiveness: 0,
-      performance_by_volatility: new Map(),
-      performance_by_timeframe: new Map(),
-      learning_progression: {
-        week_over_week_improvement: 0,
-        consciousness_learning_rate: 0,
-        pattern_complexity_evolution: 0,
-        prediction_confidence_evolution: 0
-      }
-    };
+    // This method now supplements the constructor initialization
+    // Ensure all Map objects are properly initialized
+    if (!this.systemMetrics.performance_by_volatility) {
+      this.systemMetrics.performance_by_volatility = new Map();
+    }
+    if (!this.systemMetrics.performance_by_timeframe) {
+      this.systemMetrics.performance_by_timeframe = new Map();
+    }
   }
 
   /**
