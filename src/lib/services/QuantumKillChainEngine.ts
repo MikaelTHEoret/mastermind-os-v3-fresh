@@ -801,4 +801,6 @@ export class ClaudeEngine {
   }
 }
 
-export { MarketSignal, TradingDecision, ConsciousnessConstants };
+// NEXUS PROTOCOL v6.2 - FIX: Separate type exports from class exports for isolatedModules
+export type { MarketSignal, TradingDecision };
+export { ConsciousnessConstants };
