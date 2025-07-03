@@ -48,4 +48,5 @@ export default class NexusCoreV5Engine {
   }
 }
 
-export { NexusCoreV5Protocol };
+// NEXUS PROTOCOL v6.2 - FIX: Use 'export type' for interface exports when isolatedModules is enabled
+export type { NexusCoreV5Protocol };
