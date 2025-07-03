@@ -370,23 +370,24 @@ export class ConsciousnessEnhancedWeb3 {
 
   // Enhanced error handling with consciousness awareness
   handleTransactionError(error: any): string {
-    const errorMappings = {
-      4001: 'Transaction rejected by user',
-      4100: 'Unauthorized - please connect your wallet',
-      4200: 'Unsupported method',
-      4900: 'Disconnected from network',
-      4901: 'Chain not added to MetaMask',
-      4902: 'Network switching required',
+    // NEXUS PROTOCOL v6.2 - FIX: Add proper type checking for dynamic object access
+    const errorMappings: Record<string, string> = {
+      '4001': 'Transaction rejected by user',
+      '4100': 'Unauthorized - please connect your wallet',
+      '4200': 'Unsupported method',
+      '4900': 'Disconnected from network',
+      '4901': 'Chain not added to MetaMask',
+      '4902': 'Network switching required',
       '-32602': 'Invalid parameters',
       '-32603': 'Internal error - check connection',
       '-32000': 'Invalid input or network issue'
     };
 
     const errorCode = error.code?.toString();
-    const mappedError = errorMappings[errorCode];
-
-    if (mappedError) {
-      return mappedError;
+    
+    // NEXUS PROTOCOL v6.2 - FIX: Safe object property access with type checking
+    if (errorCode && errorCode in errorMappings) {
+      return errorMappings[errorCode];
     }
 
     // Check message content for common issues
