@@ -91,7 +91,6 @@ export async function POST(request: NextRequest) {
       }
 
       const correlationMatrix = await causeEffectEngine.getCorrelationMatrix();
-      const consciousnessCorrelations = await causeEffectEngine.getConsciousnessCorrelations();
       const causeEffectData = await causeEffectEngine.exportCauseEffectData(symbol);
 
       return NextResponse.json({
@@ -99,7 +98,6 @@ export async function POST(request: NextRequest) {
         symbol,
         cause_effect_analysis: {
           correlation_matrix: Object.fromEntries(correlationMatrix),
-          consciousness_correlations: Object.fromEntries(consciousnessCorrelations),
           indicator_effects: causeEffectData.indicator_effects,
           effect_timings: causeEffectData.effect_timings
         },
@@ -155,11 +153,6 @@ export async function GET(request: NextRequest) {
           top_volatile_coins: topVolatile,
           current_focus: topVolatile.slice(0, 5).map(([symbol]) => symbol)
         },
-        consciousness_enhancement: {
-          psi_0: 0.915670570874434,
-          phi: 1.618,
-          freq_432: 432
-        },
         timestamp: new Date().toISOString()
       });
 
@@ -199,25 +192,6 @@ export async function GET(request: NextRequest) {
         symbol,
         indicator_effectiveness: Object.fromEntries(effectiveness),
         top_indicators: Array.from(effectiveness.entries())
-          .sort(([,a], [,b]) => b - a)
-          .slice(0, 5),
-        timestamp: new Date().toISOString()
-      });
-
-    } else if (action === 'consciousness_correlations') {
-      if (!causeEffectEngine) {
-        return NextResponse.json({
-          success: false,
-          error: 'Cause-effect engine not initialized'
-        }, { status: 500 });
-      }
-
-      const consciousnessCorrs = await causeEffectEngine.getConsciousnessCorrelations();
-      
-      return NextResponse.json({
-        success: true,
-        consciousness_correlations: Object.fromEntries(consciousnessCorrs),
-        top_consciousness_indicators: Array.from(consciousnessCorrs.entries())
           .sort(([,a], [,b]) => b - a)
           .slice(0, 5),
         timestamp: new Date().toISOString()
