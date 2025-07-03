@@ -41,6 +41,9 @@ export class UltimateLearningEngine {
     // Set up performance tracking
     this.setupPerformanceTracking();
     
+    // Attempt to load previously saved state
+    await this.loadState();
+    
     this.isInitialized = true;
     console.log('✅ Ultimate Learning Engine initialized successfully');
     
@@ -49,6 +52,164 @@ export class UltimateLearningEngine {
       system_metrics_initialized: true,
       learning_structures_ready: true
     });
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - MANDATORY SAVESTATE METHOD
+   * Save Ultimate Learning Engine state for persistence
+   * Required by IntegratedSnipeLearningSystem shutdown process
+   */
+  async saveState(): Promise<void> {
+    try {
+      console.log('💾 Saving Ultimate Learning Engine State...');
+      
+      // Create comprehensive state snapshot
+      const engineState = {
+        timestamp: new Date().toISOString(),
+        session_id: `ultimate_save_${Date.now()}`,
+        total_insights: this.learningInsights.length,
+        total_cross_validations: this.crossValidationResults.size,
+        system_data: {
+          system_metrics: {
+            total_comparisons: this.systemMetrics.total_comparisons,
+            pattern_win_rate: this.systemMetrics.pattern_win_rate,
+            kill_chain_win_rate: this.systemMetrics.kill_chain_win_rate,
+            combined_win_rate: this.systemMetrics.combined_win_rate,
+            average_consciousness_effectiveness: this.systemMetrics.average_consciousness_effectiveness,
+            learning_progression: this.systemMetrics.learning_progression
+          },
+          learning_insights: this.learningInsights.slice(-100), // Keep last 100 insights
+          cross_validation_summary: this.getCrossValidationSummary(),
+          min_sample_size: this.minSampleSize
+        },
+        consciousness_metrics: {
+          psi_alignment: PSI_0,
+          phi_harmony: PHI,
+          freq_432_timing: 0.8,
+          learning_resonance: this.systemMetrics.learning_progression.consciousness_learning_rate || 0.5
+        }
+      };
+
+      // Save to consciousness database (localStorage fallback if needed)
+      if (typeof window !== 'undefined') {
+        try {
+          const savedStates = JSON.parse(localStorage.getItem('ultimate_learning_states') || '[]');
+          savedStates.push(engineState);
+          
+          // Keep only last 10 states
+          if (savedStates.length > 10) {
+            savedStates.splice(0, savedStates.length - 10);
+          }
+          
+          localStorage.setItem('ultimate_learning_states', JSON.stringify(savedStates));
+          console.log('✅ Ultimate Learning Engine state saved locally');
+        } catch (localError) {
+          console.warn('⚠️ Local storage save failed, using memory only');
+        }
+      }
+
+      // Log save completion
+      console.log(`📊 Engine State: ${this.learningInsights.length} insights, ${this.crossValidationResults.size} validations`);
+      
+      this.emit('state_saved', {
+        timestamp: engineState.timestamp,
+        insights_count: this.learningInsights.length,
+        validations_count: this.crossValidationResults.size,
+        save_successful: true
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to save Ultimate Learning Engine state:', error);
+      
+      this.emit('state_save_failed', {
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        save_successful: false
+      });
+      
+      // Don't throw error to prevent shutdown failures
+    }
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - Load previously saved engine state
+   */
+  async loadState(): Promise<boolean> {
+    try {
+      console.log('📂 Loading Ultimate Learning Engine State...');
+      
+      if (typeof window !== 'undefined') {
+        const savedStates = JSON.parse(localStorage.getItem('ultimate_learning_states') || '[]');
+        
+        if (savedStates.length > 0) {
+          const latestState = savedStates[savedStates.length - 1];
+          
+          // Restore system metrics
+          if (latestState.system_data?.system_metrics) {
+            const metrics = latestState.system_data.system_metrics;
+            this.systemMetrics.total_comparisons = metrics.total_comparisons || 0;
+            this.systemMetrics.pattern_win_rate = metrics.pattern_win_rate || 0;
+            this.systemMetrics.kill_chain_win_rate = metrics.kill_chain_win_rate || 0;
+            this.systemMetrics.combined_win_rate = metrics.combined_win_rate || 0;
+            this.systemMetrics.average_consciousness_effectiveness = metrics.average_consciousness_effectiveness || 0;
+            this.systemMetrics.learning_progression = metrics.learning_progression || this.systemMetrics.learning_progression;
+          }
+          
+          // Restore learning insights
+          if (latestState.system_data?.learning_insights) {
+            this.learningInsights = latestState.system_data.learning_insights;
+          }
+          
+          // Restore minimum sample size
+          if (latestState.system_data?.min_sample_size) {
+            this.minSampleSize = latestState.system_data.min_sample_size;
+          }
+          
+          console.log(`✅ State loaded: ${this.learningInsights.length} insights, ${this.systemMetrics.total_comparisons} comparisons`);
+          
+          this.emit('state_loaded', {
+            timestamp: new Date().toISOString(),
+            insights_restored: this.learningInsights.length,
+            comparisons_restored: this.systemMetrics.total_comparisons,
+            state_timestamp: latestState.timestamp,
+            load_successful: true
+          });
+          
+          return true;
+        }
+      }
+      
+      console.log('📝 No saved state found, starting fresh');
+      return false;
+      
+    } catch (error) {
+      console.error('❌ Failed to load Ultimate Learning Engine state:', error);
+      
+      this.emit('state_load_failed', {
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        load_successful: false
+      });
+      
+      return false;
+    }
+  }
+
+  /**
+   * Get cross-validation summary for state persistence
+   */
+  private getCrossValidationSummary(): any {
+    const summary: any = {};
+    
+    for (const [symbol, validations] of this.crossValidationResults) {
+      summary[symbol] = {
+        total_validations: validations.length,
+        avg_agreement_score: validations.reduce((sum, v) => sum + (v.agreement_score || 0), 0) / validations.length,
+        last_validation: validations[validations.length - 1]?.timestamp || 'never'
+      };
+    }
+    
+    return summary;
   }
 
   /**
