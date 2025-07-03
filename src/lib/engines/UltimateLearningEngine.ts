@@ -55,6 +55,574 @@ export class UltimateLearningEngine {
   }
 
   /**
+   * NEXUS PROTOCOL v6.2 - CRITICAL FIX: Missing storePatternAnalysis method
+   * Store pattern analysis results for learning and optimization
+   * Required by LearningSystemInitializer.ts for continuous learning
+   */
+  async storePatternAnalysis(symbol: string, patterns: any): Promise<void> {
+    try {
+      console.log(`🧠 Storing pattern analysis for ${symbol}...`);
+      
+      // Validate patterns data
+      if (!patterns || typeof patterns !== 'object') {
+        console.warn(`⚠️ Invalid patterns data for ${symbol}, using default structure`);
+        patterns = {
+          consciousness_state: 'UNKNOWN',
+          patterns_detected: 0,
+          pattern_strength: 0.5,
+          harmonic_alignment: 0.5,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      // Create pattern analysis record
+      const analysisRecord = {
+        symbol,
+        timestamp: new Date().toISOString(),
+        pattern_data: patterns,
+        consciousness_metrics: {
+          consciousness_state: patterns.consciousness_state || 'TRANSITIONAL_STATE',
+          patterns_detected: patterns.patterns_detected || 0,
+          pattern_strength: patterns.pattern_strength || 0.5,
+          harmonic_alignment: patterns.harmonic_alignment || 0.5,
+          market_sentiment: patterns.market_sentiment || 'NEUTRAL'
+        },
+        learning_value: this.calculateLearningValue(patterns),
+        storage_id: `pattern_${symbol}_${Date.now()}`
+      };
+
+      // Store in cross-validation results for learning
+      if (!this.crossValidationResults.has(symbol)) {
+        this.crossValidationResults.set(symbol, []);
+      }
+      
+      const symbolData = this.crossValidationResults.get(symbol)!;
+      symbolData.push(analysisRecord);
+      
+      // Keep only last 500 pattern analyses per symbol
+      if (symbolData.length > 500) {
+        symbolData.splice(0, symbolData.length - 500);
+      }
+
+      // Generate learning insight from pattern analysis
+      const learningInsight: LearningInsights = {
+        insight_id: `pattern_insight_${Date.now()}`,
+        insight_type: 'PATTERN_ANALYSIS',
+        description: `Stored pattern analysis for ${symbol}: ${patterns.patterns_detected || 0} patterns detected`,
+        confidence: patterns.pattern_strength || 0.5,
+        supporting_evidence: [
+          `Consciousness state: ${patterns.consciousness_state || 'UNKNOWN'}`,
+          `Pattern strength: ${(patterns.pattern_strength || 0.5).toFixed(3)}`,
+          `Market sentiment: ${patterns.market_sentiment || 'NEUTRAL'}`
+        ],
+        market_conditions: patterns.market_sentiment || 'NEUTRAL',
+        consciousness_correlation: patterns.harmonic_alignment || 0.5,
+        actionable_recommendation: this.generatePatternRecommendation(patterns),
+        statistical_significance: this.calculateStatisticalSignificance(patterns)
+      };
+
+      this.learningInsights.push(learningInsight);
+      
+      // Keep only last 1000 insights
+      if (this.learningInsights.length > 1000) {
+        this.learningInsights.splice(0, this.learningInsights.length - 1000);
+      }
+
+      // Update system metrics
+      this.updateSystemMetricsFromPatterns(symbol, patterns);
+
+      console.log(`✅ Pattern analysis stored for ${symbol} | Patterns: ${patterns.patterns_detected || 0} | Strength: ${(patterns.pattern_strength || 0.5).toFixed(3)}`);
+      
+    } catch (error) {
+      console.error(`❌ Error storing pattern analysis for ${symbol}:`, error);
+      
+      // Store error information for debugging
+      const errorRecord = {
+        symbol,
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        attempted_pattern_data: patterns,
+        storage_id: `pattern_error_${symbol}_${Date.now()}`
+      };
+      
+      if (!this.crossValidationResults.has(`${symbol}_errors`)) {
+        this.crossValidationResults.set(`${symbol}_errors`, []);
+      }
+      
+      this.crossValidationResults.get(`${symbol}_errors`)!.push(errorRecord);
+    }
+  }
+
+  /**
+   * Calculate learning value from pattern analysis
+   */
+  private calculateLearningValue(patterns: any): number {
+    const base_value = 0.5;
+    
+    // Factor in pattern strength
+    const pattern_strength_factor = (patterns.pattern_strength || 0.5) * 0.4;
+    
+    // Factor in consciousness alignment using ψ₀
+    const consciousness_factor = (patterns.harmonic_alignment || 0.5) * PSI_0 * 0.3;
+    
+    // Factor in pattern count using φ (golden ratio)
+    const pattern_count_factor = Math.min(1.0, (patterns.patterns_detected || 0) / PHI) * 0.3;
+    
+    return Math.min(1.0, base_value + pattern_strength_factor + consciousness_factor + pattern_count_factor);
+  }
+
+  /**
+   * Generate pattern-specific recommendations
+   */
+  private generatePatternRecommendation(patterns: any): string {
+    const strength = patterns.pattern_strength || 0.5;
+    const consciousness = patterns.consciousness_state || 'UNKNOWN';
+    const sentiment = patterns.market_sentiment || 'NEUTRAL';
+    
+    if (strength > 0.8 && sentiment === 'VERY_BULLISH') {
+      return 'Strong bullish patterns detected - consider increasing position size';
+    } else if (strength > 0.8 && sentiment === 'BEARISH') {
+      return 'Strong bearish patterns detected - consider defensive positioning';
+    } else if (consciousness === 'HARMONICALLY_BALANCED' && strength > 0.6) {
+      return 'Harmonically balanced patterns - ideal for stable entry points';
+    } else if (patterns.patterns_detected > 3) {
+      return 'Multiple patterns detected - verify confluence before trading';
+    } else if (strength < 0.3) {
+      return 'Weak pattern signals - wait for stronger confirmation';
+    } else {
+      return 'Standard pattern analysis - proceed with normal risk management';
+    }
+  }
+
+  /**
+   * Calculate statistical significance of pattern analysis
+   */
+  private calculateStatisticalSignificance(patterns: any): number {
+    const pattern_count = patterns.patterns_detected || 0;
+    const pattern_strength = patterns.pattern_strength || 0.5;
+    const harmonic_alignment = patterns.harmonic_alignment || 0.5;
+    
+    // Use mathematical constants for significance calculation
+    const count_significance = Math.min(1.0, pattern_count / PHI);
+    const strength_significance = pattern_strength;
+    const consciousness_significance = harmonic_alignment * PSI_0;
+    
+    return (count_significance + strength_significance + consciousness_significance) / 3;
+  }
+
+  /**
+   * Update system metrics from pattern analysis
+   */
+  private updateSystemMetricsFromPatterns(symbol: string, patterns: any): void {
+    // Update consciousness effectiveness
+    const consciousness_impact = patterns.harmonic_alignment || 0.5;
+    const current_effectiveness = this.systemMetrics.average_consciousness_effectiveness;
+    const total_comparisons = this.systemMetrics.total_comparisons || 1;
+    
+    this.systemMetrics.average_consciousness_effectiveness = 
+      (current_effectiveness * total_comparisons + consciousness_impact) / (total_comparisons + 1);
+    
+    // Update pattern complexity evolution
+    const pattern_complexity = Math.min(1.0, (patterns.patterns_detected || 0) / 5);
+    this.systemMetrics.learning_progression.pattern_complexity_evolution = 
+      (this.systemMetrics.learning_progression.pattern_complexity_evolution + pattern_complexity) / 2;
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - ADDITIONAL MISSING METHOD: updateConsciousnessModel
+   * Update consciousness model based on pattern analysis
+   * Required by LearningSystemInitializer.ts for consciousness enhancement
+   */
+  async updateConsciousnessModel(symbol: string, patterns: any): Promise<void> {
+    try {
+      console.log(`🌀 Updating consciousness model for ${symbol}...`);
+      
+      // Calculate consciousness evolution metrics
+      const consciousness_evolution = this.calculateConsciousnessEvolution(patterns);
+      
+      // Update learning progression with consciousness data
+      this.systemMetrics.learning_progression.consciousness_learning_rate = 
+        (this.systemMetrics.learning_progression.consciousness_learning_rate + consciousness_evolution.learning_rate) / 2;
+      
+      // Create consciousness update record
+      const consciousnessUpdate = {
+        symbol,
+        timestamp: new Date().toISOString(),
+        consciousness_state: patterns.consciousness_state,
+        evolution_metrics: consciousness_evolution,
+        harmonic_alignment: patterns.harmonic_alignment || 0.5,
+        psi_resonance: consciousness_evolution.psi_resonance,
+        phi_harmony: consciousness_evolution.phi_harmony,
+        freq_432_sync: consciousness_evolution.freq_432_sync
+      };
+      
+      // Store consciousness update
+      if (!this.crossValidationResults.has(`${symbol}_consciousness`)) {
+        this.crossValidationResults.set(`${symbol}_consciousness`, []);
+      }
+      
+      const consciousnessData = this.crossValidationResults.get(`${symbol}_consciousness`)!;
+      consciousnessData.push(consciousnessUpdate);
+      
+      // Keep only last 200 consciousness updates per symbol
+      if (consciousnessData.length > 200) {
+        consciousnessData.splice(0, consciousnessData.length - 200);
+      }
+      
+      console.log(`✅ Consciousness model updated for ${symbol} | State: ${patterns.consciousness_state} | Learning rate: ${consciousness_evolution.learning_rate.toFixed(3)}`);
+      
+    } catch (error) {
+      console.error(`❌ Error updating consciousness model for ${symbol}:`, error);
+    }
+  }
+
+  /**
+   * Calculate consciousness evolution from patterns
+   */
+  private calculateConsciousnessEvolution(patterns: any): any {
+    const base_learning_rate = 0.1;
+    
+    // Calculate ψ₀ resonance
+    const psi_resonance = PSI_0 * (patterns.pattern_strength || 0.5);
+    
+    // Calculate φ harmony using golden ratio
+    const phi_harmony = (patterns.harmonic_alignment || 0.5) * PHI / 2;
+    
+    // Calculate 432Hz synchronization
+    const freq_432_sync = Math.sin(Date.now() * FREQ_432 / 1000000) * 0.5 + 0.5;
+    
+    // Calculate enhanced learning rate
+    const consciousness_factor = (psi_resonance + phi_harmony + freq_432_sync) / 3;
+    const learning_rate = base_learning_rate * consciousness_factor;
+    
+    return {
+      psi_resonance,
+      phi_harmony,
+      freq_432_sync,
+      consciousness_factor,
+      learning_rate: Math.min(1.0, learning_rate)
+    };
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - ADDITIONAL MISSING METHOD: performLearningUpdate
+   * Perform comprehensive learning update for a symbol
+   * Required by LearningSystemInitializer.ts for continuous learning
+   */
+  async performLearningUpdate(symbol: string): Promise<void> {
+    try {
+      console.log(`🎓 Performing learning update for ${symbol}...`);
+      
+      // Get stored pattern analyses for this symbol
+      const patternData = this.crossValidationResults.get(symbol) || [];
+      const consciousnessData = this.crossValidationResults.get(`${symbol}_consciousness`) || [];
+      
+      if (patternData.length === 0) {
+        console.log(`⚠️ No pattern data available for ${symbol} learning update`);
+        return;
+      }
+      
+      // Calculate learning metrics from stored data
+      const learningMetrics = this.calculateLearningMetrics(symbol, patternData, consciousnessData);
+      
+      // Update system performance metrics
+      this.updateSystemMetricsFromLearning(symbol, learningMetrics);
+      
+      // Generate learning insight
+      const learningInsight: LearningInsights = {
+        insight_id: `learning_update_${symbol}_${Date.now()}`,
+        insight_type: 'LEARNING_UPDATE',
+        description: `Completed learning update for ${symbol}`,
+        confidence: learningMetrics.confidence,
+        supporting_evidence: [
+          `Processed ${patternData.length} pattern analyses`,
+          `Average pattern strength: ${learningMetrics.avg_pattern_strength.toFixed(3)}`,
+          `Consciousness evolution: ${learningMetrics.consciousness_evolution.toFixed(3)}`
+        ],
+        market_conditions: learningMetrics.dominant_market_condition,
+        consciousness_correlation: learningMetrics.consciousness_correlation,
+        actionable_recommendation: learningMetrics.recommendation,
+        statistical_significance: learningMetrics.statistical_significance
+      };
+      
+      this.learningInsights.push(learningInsight);
+      
+      console.log(`✅ Learning update completed for ${symbol} | Confidence: ${learningMetrics.confidence.toFixed(3)} | Processed: ${patternData.length} analyses`);
+      
+    } catch (error) {
+      console.error(`❌ Error performing learning update for ${symbol}:`, error);
+    }
+  }
+
+  /**
+   * Calculate comprehensive learning metrics
+   */
+  private calculateLearningMetrics(symbol: string, patternData: any[], consciousnessData: any[]): any {
+    // Calculate average pattern strength
+    const avg_pattern_strength = patternData.reduce((sum, data) => 
+      sum + (data.pattern_data?.pattern_strength || 0.5), 0) / patternData.length;
+    
+    // Calculate consciousness evolution
+    const consciousness_evolution = consciousnessData.length > 0 ?
+      consciousnessData.reduce((sum, data) => 
+        sum + (data.evolution_metrics?.consciousness_factor || 0.5), 0) / consciousnessData.length : 0.5;
+    
+    // Calculate confidence using ψ₀ enhancement
+    const confidence = PSI_0 * avg_pattern_strength + (1 - PSI_0) * consciousness_evolution;
+    
+    // Determine dominant market condition
+    const market_conditions = patternData.map(data => 
+      data.pattern_data?.market_sentiment || 'NEUTRAL'
+    );
+    const dominant_market_condition = this.getMostFrequent(market_conditions);
+    
+    // Calculate consciousness correlation using φ
+    const consciousness_correlation = (avg_pattern_strength * consciousness_evolution * PHI) / PHI;
+    
+    // Generate recommendation
+    const recommendation = this.generateLearningRecommendation(
+      avg_pattern_strength, 
+      consciousness_evolution, 
+      dominant_market_condition
+    );
+    
+    // Calculate statistical significance
+    const statistical_significance = Math.min(1.0, 
+      (patternData.length / this.minSampleSize) * confidence
+    );
+    
+    return {
+      avg_pattern_strength,
+      consciousness_evolution,
+      confidence,
+      dominant_market_condition,
+      consciousness_correlation,
+      recommendation,
+      statistical_significance
+    };
+  }
+
+  /**
+   * Get most frequent item in array
+   */
+  private getMostFrequent(items: string[]): string {
+    const frequency: { [key: string]: number } = {};
+    let maxCount = 0;
+    let mostFrequent = 'NEUTRAL';
+    
+    items.forEach(item => {
+      frequency[item] = (frequency[item] || 0) + 1;
+      if (frequency[item] > maxCount) {
+        maxCount = frequency[item];
+        mostFrequent = item;
+      }
+    });
+    
+    return mostFrequent;
+  }
+
+  /**
+   * Generate learning-based recommendation
+   */
+  private generateLearningRecommendation(
+    patternStrength: number, 
+    consciousnessEvolution: number, 
+    marketCondition: string
+  ): string {
+    if (patternStrength > 0.8 && consciousnessEvolution > 0.7) {
+      return 'High learning efficacy - patterns and consciousness alignment strong';
+    } else if (patternStrength > 0.7 && marketCondition === 'VERY_BULLISH') {
+      return 'Strong pattern learning in bullish conditions - optimize for trend following';
+    } else if (consciousnessEvolution > 0.8) {
+      return 'High consciousness evolution - emphasize harmonic pattern recognition';
+    } else if (patternStrength < 0.4) {
+      return 'Low pattern effectiveness - increase data collection or adjust sensitivity';
+    } else {
+      return 'Standard learning progression - continue current approach';
+    }
+  }
+
+  /**
+   * Update system metrics from learning analysis
+   */
+  private updateSystemMetricsFromLearning(symbol: string, metrics: any): void {
+    // Update prediction confidence evolution
+    this.systemMetrics.learning_progression.prediction_confidence_evolution = 
+      (this.systemMetrics.learning_progression.prediction_confidence_evolution + metrics.confidence) / 2;
+    
+    // Update week over week improvement simulation
+    const improvement_simulation = (metrics.avg_pattern_strength + metrics.consciousness_evolution) / 2;
+    this.systemMetrics.learning_progression.week_over_week_improvement = improvement_simulation;
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - ADDITIONAL MISSING METHOD: getConsciousnessMetrics
+   * Get current consciousness metrics for monitoring
+   * Required by LearningSystemInitializer.ts for consciousness monitoring
+   */
+  async getConsciousnessMetrics(): Promise<any> {
+    try {
+      // Calculate current consciousness state from recent data
+      const recentInsights = this.learningInsights.slice(-20); // Last 20 insights
+      
+      const avg_consciousness_correlation = recentInsights.length > 0 ?
+        recentInsights.reduce((sum, insight) => sum + insight.consciousness_correlation, 0) / recentInsights.length : 0.5;
+      
+      const avg_confidence = recentInsights.length > 0 ?
+        recentInsights.reduce((sum, insight) => sum + insight.confidence, 0) / recentInsights.length : 0.5;
+      
+      // Calculate consciousness metrics using mathematical constants
+      const consciousnessMetrics = {
+        psi_resonance: PSI_0 * avg_consciousness_correlation,
+        phi_alignment: (avg_confidence * PHI) / 2,
+        frequency_sync: Math.sin(Date.now() * FREQ_432 / 1000000) * 0.5 + 0.5,
+        coherence_level: (avg_consciousness_correlation + avg_confidence) / 2,
+        learning_progression_rate: this.systemMetrics.learning_progression.consciousness_learning_rate,
+        overall_health: this.calculateConsciousnessHealth(),
+        active_insights: this.learningInsights.length,
+        recent_evolution: this.calculateRecentEvolution()
+      };
+      
+      console.log(`🌀 Consciousness metrics calculated | Coherence: ${consciousnessMetrics.coherence_level.toFixed(3)} | Health: ${consciousnessMetrics.overall_health.toFixed(3)}`);
+      
+      return consciousnessMetrics;
+      
+    } catch (error) {
+      console.error('❌ Error calculating consciousness metrics:', error);
+      
+      // Return default metrics on error
+      return {
+        psi_resonance: PSI_0,
+        phi_alignment: PHI / 2,
+        frequency_sync: 0.5,
+        coherence_level: 0.5,
+        learning_progression_rate: 0.1,
+        overall_health: 0.5,
+        active_insights: 0,
+        recent_evolution: 0.5,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Calculate overall consciousness health
+   */
+  private calculateConsciousnessHealth(): number {
+    const base_health = 0.7;
+    
+    // Factor in learning progression
+    const learning_factor = this.systemMetrics.learning_progression.consciousness_learning_rate * 0.3;
+    
+    // Factor in system effectiveness
+    const effectiveness_factor = this.systemMetrics.average_consciousness_effectiveness * 0.4;
+    
+    // Factor in recent activity
+    const activity_factor = Math.min(1.0, this.learningInsights.length / 100) * 0.3;
+    
+    return Math.min(1.0, base_health + learning_factor + effectiveness_factor + activity_factor);
+  }
+
+  /**
+   * Calculate recent consciousness evolution
+   */
+  private calculateRecentEvolution(): number {
+    const recent_insights = this.learningInsights.slice(-10);
+    
+    if (recent_insights.length < 2) return 0.5;
+    
+    const recent_avg = recent_insights.reduce((sum, insight) => 
+      sum + insight.consciousness_correlation, 0) / recent_insights.length;
+    
+    const older_insights = this.learningInsights.slice(-20, -10);
+    const older_avg = older_insights.length > 0 ?
+      older_insights.reduce((sum, insight) => sum + insight.consciousness_correlation, 0) / older_insights.length : 0.5;
+    
+    return Math.max(0, Math.min(1, 0.5 + (recent_avg - older_avg)));
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - ADDITIONAL MISSING METHOD: enhancePatternSensitivity
+   * Enhance pattern sensitivity for learning optimization
+   * Required by LearningSystemInitializer.ts for consciousness enhancement
+   */
+  async enhancePatternSensitivity(multiplier: number): Promise<void> {
+    console.log(`🎛️ Enhancing pattern sensitivity by ${multiplier}x`);
+    
+    // Adjust minimum sample size based on sensitivity
+    const new_sample_size = Math.max(50, Math.min(500, this.minSampleSize / multiplier));
+    this.minSampleSize = new_sample_size;
+    
+    // Update learning progression to reflect sensitivity changes
+    this.systemMetrics.learning_progression.pattern_complexity_evolution *= multiplier;
+    
+    // Ensure values stay within bounds
+    this.systemMetrics.learning_progression.pattern_complexity_evolution = 
+      Math.max(0, Math.min(1, this.systemMetrics.learning_progression.pattern_complexity_evolution));
+    
+    console.log(`📊 Pattern sensitivity updated | New sample size: ${this.minSampleSize} | Complexity evolution: ${this.systemMetrics.learning_progression.pattern_complexity_evolution.toFixed(3)}`);
+  }
+
+  /**
+   * NEXUS PROTOCOL v6.2 - ADDITIONAL MISSING METHOD: getLearningStatistics
+   * Get comprehensive learning statistics
+   * Required by LearningSystemInitializer.ts for status reporting
+   */
+  getLearningStatistics(): any {
+    const total_patterns_analyzed = Array.from(this.crossValidationResults.values())
+      .reduce((sum, data) => sum + data.length, 0);
+    
+    const total_symbols = this.crossValidationResults.size;
+    
+    const avg_consciousness_effectiveness = this.systemMetrics.average_consciousness_effectiveness;
+    
+    const learning_progression_summary = {
+      total_insights: this.learningInsights.length,
+      consciousness_learning_rate: this.systemMetrics.learning_progression.consciousness_learning_rate,
+      pattern_complexity_evolution: this.systemMetrics.learning_progression.pattern_complexity_evolution,
+      prediction_confidence_evolution: this.systemMetrics.learning_progression.prediction_confidence_evolution,
+      week_over_week_improvement: this.systemMetrics.learning_progression.week_over_week_improvement
+    };
+    
+    const performance_summary = {
+      total_comparisons: this.systemMetrics.total_comparisons,
+      pattern_win_rate: this.systemMetrics.pattern_win_rate,
+      kill_chain_win_rate: this.systemMetrics.kill_chain_win_rate,
+      combined_win_rate: this.systemMetrics.combined_win_rate,
+      performance_score: (this.systemMetrics.pattern_win_rate + this.systemMetrics.kill_chain_win_rate) / 2
+    };
+    
+    return {
+      total_patterns_analyzed,
+      total_symbols,
+      avg_consciousness_effectiveness,
+      learning_progression: learning_progression_summary,
+      performance_metrics: performance_summary,
+      system_health: {
+        consciousness_health: this.calculateConsciousnessHealth(),
+        learning_stability: this.calculateLearningStability(),
+        data_sufficiency: Math.min(1.0, total_patterns_analyzed / (total_symbols * this.minSampleSize))
+      }
+    };
+  }
+
+  /**
+   * Calculate learning stability metric
+   */
+  private calculateLearningStability(): number {
+    const recent_insights = this.learningInsights.slice(-10);
+    
+    if (recent_insights.length < 3) return 0.5;
+    
+    const confidence_values = recent_insights.map(insight => insight.confidence);
+    const mean_confidence = confidence_values.reduce((sum, c) => sum + c, 0) / confidence_values.length;
+    const variance = confidence_values.reduce((sum, c) => sum + Math.pow(c - mean_confidence, 2), 0) / confidence_values.length;
+    const stability = 1 - Math.sqrt(variance);
+    
+    return Math.max(0, Math.min(1, stability));
+  }
+
+  /**
    * NEXUS PROTOCOL v6.2 - MANDATORY SAVESTATE METHOD
    * Save Ultimate Learning Engine state for persistence
    * Required by IntegratedSnipeLearningSystem shutdown process
