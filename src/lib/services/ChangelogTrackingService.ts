@@ -3,6 +3,15 @@
  * Immutable audit trail for all development changes
  */
 
+// NEXUS PROTOCOL v6.2 - FIX: Add global type declarations for astra_db
+declare global {
+  var astra_db: {
+    FindRecord?: (collection: string, field: string, value: string) => Promise<any[]>;
+    CreateRecord?: (collection: string, record: any) => Promise<any>;
+    UpdateRecord?: (collection: string, id: string, updates: any) => Promise<any>;
+  } | undefined;
+}
+
 interface ChangelogEntry {
   id: string;
   timestamp: string;
@@ -288,15 +297,19 @@ export class ChangelogTrackingService {
     return `UNKNOWN - ${changeType} operation on ${filePath}`;
   }
 
-  // Astra DB integration methods (using available tools)
+  // Astra DB integration methods (using available tools with proper type safety)
   private async findProjectChangelog(projectName: string): Promise<any> {
     try {
-      const results = await global.astra_db?.FindRecord?.(
-        this.CHANGELOG_COLLECTION,
-        'project_name',
-        projectName
-      );
-      return results && results.length > 0 ? results[0] : null;
+      // NEXUS PROTOCOL v6.2 - FIX: Safe access to global with proper type checking
+      if (typeof globalThis !== 'undefined' && globalThis.astra_db) {
+        const results = await globalThis.astra_db.FindRecord?.(
+          this.CHANGELOG_COLLECTION,
+          'project_name',
+          projectName
+        );
+        return results && results.length > 0 ? results[0] : null;
+      }
+      return null;
     } catch (error) {
       console.log('📊 Project changelog not found, will create new');
       return null;
@@ -313,7 +326,9 @@ export class ChangelogTrackingService {
     };
 
     try {
-      await global.astra_db?.CreateRecord?.(this.CHANGELOG_COLLECTION, projectRecord);
+      if (typeof globalThis !== 'undefined' && globalThis.astra_db) {
+        await globalThis.astra_db.CreateRecord?.(this.CHANGELOG_COLLECTION, projectRecord);
+      }
     } catch (error) {
       console.error('❌ Failed to create project changelog:', error);
     }
@@ -321,7 +336,9 @@ export class ChangelogTrackingService {
 
   private async storeChangelogEntry(entry: ChangelogEntry): Promise<void> {
     try {
-      await global.astra_db?.CreateRecord?.(this.ENTRIES_COLLECTION, entry);
+      if (typeof globalThis !== 'undefined' && globalThis.astra_db) {
+        await globalThis.astra_db.CreateRecord?.(this.ENTRIES_COLLECTION, entry);
+      }
     } catch (error) {
       console.error('❌ Failed to store changelog entry:', error);
     }
@@ -330,7 +347,7 @@ export class ChangelogTrackingService {
   private async updateProjectStats(projectName: string, entry: ChangelogEntry): Promise<void> {
     try {
       const project = await this.findProjectChangelog(projectName);
-      if (project) {
+      if (project && typeof globalThis !== 'undefined' && globalThis.astra_db) {
         const updatedStats = {
           total_changes: (project.total_changes || 0) + 1,
           last_updated: entry.timestamp,
@@ -338,7 +355,7 @@ export class ChangelogTrackingService {
           last_file_changed: entry.file_path
         };
         
-        await global.astra_db?.UpdateRecord?.(this.CHANGELOG_COLLECTION, project._id, updatedStats);
+        await globalThis.astra_db.UpdateRecord?.(this.CHANGELOG_COLLECTION, project._id, updatedStats);
       }
     } catch (error) {
       console.error('❌ Failed to update project stats:', error);
@@ -347,12 +364,15 @@ export class ChangelogTrackingService {
 
   private async querySessionEntries(projectName: string, sessionId: string): Promise<ChangelogEntry[]> {
     try {
-      const results = await global.astra_db?.FindRecord?.(
-        this.ENTRIES_COLLECTION,
-        'session_id',
-        sessionId
-      );
-      return results?.filter((entry: any) => entry.project_name === projectName) || [];
+      if (typeof globalThis !== 'undefined' && globalThis.astra_db) {
+        const results = await globalThis.astra_db.FindRecord?.(
+          this.ENTRIES_COLLECTION,
+          'session_id',
+          sessionId
+        );
+        return results?.filter((entry: any) => entry.project_name === projectName) || [];
+      }
+      return [];
     } catch (error) {
       console.error('❌ Failed to query session entries:', error);
       return [];
@@ -361,29 +381,32 @@ export class ChangelogTrackingService {
 
   private async queryAllEntries(projectName: string, filters?: any): Promise<ChangelogEntry[]> {
     try {
-      const results = await global.astra_db?.FindRecord?.(
-        this.ENTRIES_COLLECTION,
-        'project_name',
-        projectName
-      );
-      
-      let filteredEntries = results || [];
-      
-      // Apply filters
-      if (filters?.session_id) {
-        filteredEntries = filteredEntries.filter((e: any) => e.session_id === filters.session_id);
+      if (typeof globalThis !== 'undefined' && globalThis.astra_db) {
+        const results = await globalThis.astra_db.FindRecord?.(
+          this.ENTRIES_COLLECTION,
+          'project_name',
+          projectName
+        );
+        
+        let filteredEntries = results || [];
+        
+        // Apply filters
+        if (filters?.session_id) {
+          filteredEntries = filteredEntries.filter((e: any) => e.session_id === filters.session_id);
+        }
+        if (filters?.file_path) {
+          filteredEntries = filteredEntries.filter((e: any) => e.file_path.includes(filters.file_path));
+        }
+        if (filters?.change_type) {
+          filteredEntries = filteredEntries.filter((e: any) => e.change_type === filters.change_type);
+        }
+        if (filters?.since) {
+          filteredEntries = filteredEntries.filter((e: any) => e.timestamp >= filters.since);
+        }
+        
+        return filteredEntries;
       }
-      if (filters?.file_path) {
-        filteredEntries = filteredEntries.filter((e: any) => e.file_path.includes(filters.file_path));
-      }
-      if (filters?.change_type) {
-        filteredEntries = filteredEntries.filter((e: any) => e.change_type === filters.change_type);
-      }
-      if (filters?.since) {
-        filteredEntries = filteredEntries.filter((e: any) => e.timestamp >= filters.since);
-      }
-      
-      return filteredEntries;
+      return [];
     } catch (error) {
       console.error('❌ Failed to query all entries:', error);
       return [];
@@ -392,18 +415,20 @@ export class ChangelogTrackingService {
 
   private async updateEntryVerification(entryId: string, verified: boolean, gitCommitHash?: string): Promise<void> {
     try {
-      const entries = await global.astra_db?.FindRecord?.(
-        this.ENTRIES_COLLECTION,
-        'id',
-        entryId
-      );
-      
-      if (entries && entries.length > 0) {
-        await global.astra_db?.UpdateRecord?.(this.ENTRIES_COLLECTION, entries[0]._id, {
-          verification_status: verified ? 'VERIFIED' : 'FAILED',
-          git_commit_hash: gitCommitHash,
-          verified_at: new Date().toISOString()
-        });
+      if (typeof globalThis !== 'undefined' && globalThis.astra_db) {
+        const entries = await globalThis.astra_db.FindRecord?.(
+          this.ENTRIES_COLLECTION,
+          'id',
+          entryId
+        );
+        
+        if (entries && entries.length > 0) {
+          await globalThis.astra_db.UpdateRecord?.(this.ENTRIES_COLLECTION, entries[0]._id, {
+            verification_status: verified ? 'VERIFIED' : 'FAILED',
+            git_commit_hash: gitCommitHash,
+            verified_at: new Date().toISOString()
+          });
+        }
       }
     } catch (error) {
       console.error('❌ Failed to update entry verification:', error);
