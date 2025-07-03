@@ -374,7 +374,7 @@ export class IntegratedSnipeLearningSystem {
         actual_duration: 0,
         success: false,
         execution_time: startTime,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }
