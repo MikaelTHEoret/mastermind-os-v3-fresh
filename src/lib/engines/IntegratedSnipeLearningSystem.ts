@@ -1,4 +1,4 @@
-import { HighVelocitySnipeEngine, MarketIndicator } from './HighVelocitySnipeEngine';
+import { HighVelocitySnipeEngine, MarketIndicator, SnipeOpportunity } from './HighVelocitySnipeEngine';
 import { CauseEffectAnalysisEngine } from './CauseEffectAnalysisEngine';
 import { PatternRecognitionEngine } from './PatternRecognitionEngine';
 import { UltimateLearningEngine } from './UltimateLearningEngine';
@@ -37,6 +37,13 @@ export interface CrossValidatedInsights {
   high_confidence_patterns: ValidatedPattern[];
   validated_correlations: ValidatedCorrelation[];
   system_performance_metrics: SystemPerformanceMetrics;
+}
+
+// Extended interface for enhanced snipe opportunities with learning data
+export interface EnhancedSnipeOpportunity extends SnipeOpportunity {
+  pattern_validation?: any;
+  cause_effect_insights?: any;
+  enhanced_confidence?: number;
 }
 
 export class IntegratedSnipeLearningSystem {
@@ -288,6 +295,9 @@ export class IntegratedSnipeLearningSystem {
     
     // Enhance opportunities with pattern and cause-effect insights
     for (const opportunity of snipeOpportunities) {
+      // Create enhanced opportunity with additional properties
+      const enhancedOpportunity: EnhancedSnipeOpportunity = { ...opportunity };
+      
       // Get pattern validation
       const patternValidation = await this.patternEngine.validateOpportunity(opportunity);
       
@@ -303,17 +313,17 @@ export class IntegratedSnipeLearningSystem {
         triggerIndicatorsAsMarketIndicators
       );
       
-      // Update opportunity with enhanced insights
-      opportunity.pattern_validation = patternValidation;
-      opportunity.cause_effect_insights = causeEffectInsights;
-      opportunity.enhanced_confidence = this.calculateEnhancedConfidence(
-        opportunity, patternValidation, causeEffectInsights
+      // Update enhanced opportunity with insights
+      enhancedOpportunity.pattern_validation = patternValidation;
+      enhancedOpportunity.cause_effect_insights = causeEffectInsights;
+      enhancedOpportunity.enhanced_confidence = this.calculateEnhancedConfidence(
+        enhancedOpportunity, patternValidation, causeEffectInsights
       );
       
       // Execute if enhanced confidence exceeds threshold
-      if (opportunity.enhanced_confidence > this.config.confidence_threshold) {
-        console.log(`🚀 EXECUTING ENHANCED SNIPE: ${opportunity.symbol} (${opportunity.enhanced_confidence.toFixed(3)})`);
-        await this.executeSnipeWithLearning(opportunity);
+      if (enhancedOpportunity.enhanced_confidence > this.config.confidence_threshold) {
+        console.log(`🚀 EXECUTING ENHANCED SNIPE: ${enhancedOpportunity.symbol} (${enhancedOpportunity.enhanced_confidence.toFixed(3)})`);
+        await this.executeSnipeWithLearning(enhancedOpportunity);
       }
     }
   }
