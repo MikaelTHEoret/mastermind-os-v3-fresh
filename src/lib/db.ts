@@ -1,59 +1,26 @@
-// lib/db.ts — Neon connection for the command center
+// lib/db.ts — lazy Neon connections for the command center
+// Connections are created on first call, not at import time
 import { neon } from '@neondatabase/serverless';
 
-// Primary DB (Minecraft data)
-export const sqlPrimary = neon(process.env.NEON_PRIMARY_URL!);
+let _primary: ReturnType<typeof neon> | null = null;
+let _memory:  ReturnType<typeof neon> | null = null;
 
-// Memory DB (sessions, chat, patterns)
-export const sqlMemory = neon(process.env.NEON_MEMORY_URL!);
+export function getDb() {
+    if (!_primary) {
+        if (!process.env.NEON_PRIMARY_URL) throw new Error('NEON_PRIMARY_URL not set');
+        _primary = neon(process.env.NEON_PRIMARY_URL);
+    }
+    return _primary;
+}
 
-export type PacketStat = {
-    packet_type: string;
-    direction: string;
-    n: number;
-    category: string | null;
-};
+export function getMemoryDb() {
+    if (!_memory) {
+        if (!process.env.NEON_MEMORY_URL) throw new Error('NEON_MEMORY_URL not set');
+        _memory = neon(process.env.NEON_MEMORY_URL);
+    }
+    return _memory;
+}
 
-export type ACCorrection = {
-    ts: string;
-    ac_response: Record<string, unknown>;
-    delta_ms: number;
-};
-
-export type ChatMessage = {
-    ts: string;
-    username: string;
-    message: string;
-    is_bot_response: boolean | null;
-    account_type: string | null;
-    response_latency_ms: number | null;
-};
-
-export type TPSTick = {
-    ts: string;
-    tps: number;
-    game_time: number;
-};
-
-export type PingEntry = {
-    ts: string;
-    ping_ms: number;
-    tps_local: number;
-};
-
-export type SessionInfo = {
-    id: string;
-    context: Record<string, unknown>;
-    state: Record<string, unknown>;
-    created_at: string;
-    updated_at: string;
-};
-
-export type ChunkEvent = {
-    ts: string;
-    event_type: string;
-    chunk_x: number;
-    chunk_z: number;
-    world_x: number;
-    world_z: number;
-};
+// Convenience aliases
+export const sqlPrimary = (...args: Parameters<ReturnType<typeof neon>>) => getDb()(...args);
+export const sqlMemory  = (...args: Parameters<ReturnType<typeof neon>>) => getMemoryDb()(...args);
