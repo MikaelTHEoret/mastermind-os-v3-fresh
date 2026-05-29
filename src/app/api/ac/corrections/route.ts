@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
     const sqlPrimary = getPrimaryDb();
-    const sqlMemory = getMemoryDb();
     const [corrections, kicks] = await Promise.all([
         sqlPrimary`
             SELECT ts, ac_response, delta_ms

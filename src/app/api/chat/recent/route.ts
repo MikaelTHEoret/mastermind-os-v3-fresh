@@ -4,7 +4,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
     const sqlPrimary = getPrimaryDb();
-    const sqlMemory = getMemoryDb();
     const { searchParams } = new URL(req.url);
     const minutes = parseInt(searchParams.get('minutes') ?? '30');
     const rows = await sqlPrimary`

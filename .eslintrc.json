@@ -1,9 +1,1 @@
-{
-  "extends": ["next/core-web-vitals"],
-  "rules": {
-    "@next/next/no-img-element": "off",
-    "react-hooks/exhaustive-deps": "warn",
-    "react/no-unescaped-entities": "off",
-    "import/no-anonymous-default-export": "warn"
-  }
-}
+{"extends": "next/core-web-vitals", "rules": {"jsx-a11y/role-has-required-aria-props": "off", "import/no-anonymous-default-export": "off", "react-hooks/exhaustive-deps": "warn"}}
