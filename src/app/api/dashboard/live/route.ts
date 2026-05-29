@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-import { sqlPrimary, sqlMemory } from '@/lib/db';
+import { getPrimaryDb, getMemoryDb } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
+    const sqlPrimary = getPrimaryDb();
+    const sqlMemory = getMemoryDb();
     try {
         const [packets, acCount, chunkCount, chat, tps, ping, session] = await Promise.all([
             // Packet breakdown last 5 min with readable names

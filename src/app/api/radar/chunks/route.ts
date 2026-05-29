@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { sqlPrimary } from '@/lib/db';
+import { getPrimaryDb } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+    const sqlPrimary = getPrimaryDb();
+    const sqlMemory = getMemoryDb();
     const { searchParams } = new URL(req.url);
     const minutes = parseInt(searchParams.get('minutes') ?? '60');
     const rows = await sqlPrimary`
