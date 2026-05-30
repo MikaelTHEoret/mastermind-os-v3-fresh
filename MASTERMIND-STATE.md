@@ -36,14 +36,17 @@
 
 ### Databases (Neon, both on PAID Launch plan — usage-based, ~cents/month)
 - **neon_primary** (ep-steep-boat): main Minecraft data. Tables: mc_packet_log, mc_chat_log, mc_ac_responses, mc_tps_timeline, mc_chunk_events, mc_ping_log, mc_packet_registry.
-- **neon_memory** (ep-restless-bush): vector memory. Tables: harmonic_memories (layered), mirror_core_sessions.
+- **neon_memory** (ep-restless-bush): vector memory. Tables: harmonic_memories (layered), transcript_archive (archive layer), archive_index_log, mirror_core_sessions.
 - Credentials live in credential-vault MCP — never ask Mikael, never hardcode in chat.
 
-### Memory system (this is the persistence backbone)
-- session-logger MCP v2.0.0 at `C:\Users\Mik\Documents\claude-system\session-logger-mcp\server.js`
-- Tools: `hydrate(project?)`, `log_memory(content, tags?, layer?, project?, priority?)`, `recall(query, limit?, layer?, project?)`, `update_memory(match, new_priority?, new_layer?)`, `session_update`, `session_get`, `session_close`.
-- Store: harmonic_memories with layer (identity/toolbox/project/session), project, priority (1-10), embedding (vector), updated_at.
+### Memory system (this is the persistence backbone) — FOUR LAYERS
+- session-logger MCP v2.0.0 at `C:\Users\Mik\Documents\claude-system\session-logger-mcp\server.js` (also version-controlled at `mastermind-command-center/memory-system/`).
+- **Curated layers** (harmonic_memories — small, fast, what hydrate/recall search): identity / toolbox / project / session, each with embedding(768d), tags, priority(1-10), and an optional `archive_ref` pointing into the archive.
+- **Archive layer** (transcript_archive — large, flat, addressed): full conversation logs + past work, chunked (~1500c). Dual address = structural `relpath#chunk-NNNN` (PK) + semantic `topic_tags[]`. Indexed via archive-indexer.js (idempotent, tracked in archive_index_log).
+- Tools: `hydrate(project?)`, `log_memory(content, tags?, layer?, project?, priority?)`, `recall(query, limit?, layer?, project?)`, `update_memory(match, new_priority?, new_layer?)`, `search_archive(query, tag?, source_type?)`, `fetch_archive(address, context_window?)`, `archive_browse(doc_id?, tag?)`, `session_update/get/close`.
 - recall scoring: 70% semantic + 20% priority + 10% recency (30-day decay).
+- Retrieval flow: hydrate at start → recall for curated facts → search_archive + fetch_archive when precise detail/more context is needed.
+- Full docs: `mastermind-command-center/memory-system/README.md`.
 
 ### Recurring operational gotchas
 - terminal MCP `write_and_run` cwd lacks `pg`/`node-fetch` — write DB scripts into `mastermind-client\` and run there, or use Node 24 global fetch.
