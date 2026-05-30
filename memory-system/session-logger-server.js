@@ -370,6 +370,71 @@ server.tool("address_resolve",
   }
 );
 
+// -- PHASE 3: fractal tree descent retrieval --------------------------------
+// descend_tree: embed a query, walk the fractal_nodes tree picking the best-
+// matching child centroid at each level, reach a leaf, return its addresses.
+// This is Mikael's model: enter at top, bloom down to the one subject, get the
+// addresses of the raw logs there. The 'key' = centroids + path extension.
+function cosine(a, b) {
+  let d = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { d += a[i]*b[i]; na += a[i]*a[i]; nb += b[i]*b[i]; }
+  return d / (Math.sqrt(na)*Math.sqrt(nb) + 1e-8);
+}
+function parseVec(s) { return s.replace(/^\[|\]$/g,"").split(",").map(Number); }
+
+server.tool("descend_tree",
+  "Fractal descent retrieval: embed the query and walk the node tree, picking the best-matching branch at each level, down to a single leaf subject — then return that leaf's archive addresses. Use this to navigate to the precise place a topic was discussed, rather than flat semantic search. Returns the descent path (so you can see the branches chosen) and the leaf's chunk addresses.",
+  { query: z.string(),
+    show_trace: z.boolean().optional().describe("Include the branch-by-branch descent path. Default true."),
+    limit: z.number().optional().describe("Max leaf addresses to return. Default 8.") },
+  async ({ query: q, show_trace, limit }) => {
+    try {
+      const vec = await embed(q);
+      if (!vec) return { content: [{ type: "text", text: "Embedding unavailable (is Ollama running?)" }] };
+      const trace = [];
+      let parent = null;
+      let leafPath = null;
+      for (let step = 0; step < 8; step++) {
+        const r = parent === null
+          ? await query(`SELECT path, is_leaf, centroid FROM fractal_nodes WHERE parent_path IS NULL AND depth=1`)
+          : await query(`SELECT path, is_leaf, centroid FROM fractal_nodes WHERE parent_path=$1`, [parent]);
+        if (!r.rows.length) { leafPath = parent; break; }
+        let best = null, bestSim = -2;
+        for (const row of r.rows) {
+          if (!row.centroid) continue;
+          const s = cosine(vec, parseVec(row.centroid));
+          if (s > bestSim) { bestSim = s; best = row; }
+        }
+        if (!best) { leafPath = parent; break; }
+        trace.push({ branch: best.path.split("/").pop(), path: best.path, sim: Number(bestSim.toFixed(3)) });
+        if (best.is_leaf) { leafPath = best.path; break; }
+        parent = best.path;
+      }
+      if (!leafPath) return { content: [{ type: "text", text: "Descent found no leaf." }] };
+      const addrs = await query(
+        `SELECT address, LEFT(content,120) preview FROM transcript_archive WHERE bloom_path=$1 ORDER BY chunk_index LIMIT $2`,
+        [leafPath, limit || 8]);
+      const out = { leaf: leafPath, addresses: addrs.rows.map(x => ({ address: x.address, preview: x.preview })) };
+      if (show_trace !== false) out.descent = trace;
+      return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
+    } catch(e) { return { content: [{ type: "text", text: `Error: ${e.message}` }] }; }
+  }
+);
+
+// list_tree: show children under a node path (curatable map of the fractal tree)
+server.tool("list_tree",
+  "List the fractal tree's children under a given node path (or top level if omitted), with chunk counts, coherence, and whether each is a leaf. Use to inspect or curate the tree structure built by clustering.",
+  { path: z.string().optional().describe("Parent node path; omit for top-level branches.") },
+  async ({ path }) => {
+    try {
+      const r = path
+        ? await query(`SELECT path,name,is_leaf,n_chunks,coherence FROM fractal_nodes WHERE parent_path=$1 ORDER BY n_chunks DESC`, [path])
+        : await query(`SELECT path,name,is_leaf,n_chunks,coherence FROM fractal_nodes WHERE parent_path IS NULL AND depth=1 ORDER BY n_chunks DESC`);
+      return { content: [{ type: "text", text: JSON.stringify(r.rows, null, 2) }] };
+    } catch(e) { return { content: [{ type: "text", text: `Error: ${e.message}` }] }; }
+  }
+);
+
 // ── session tools (unchanged behavior) ───────────────────────────────────────
 server.tool("session_update",
   "Update the current session with new context or summary",
