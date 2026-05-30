@@ -304,6 +304,72 @@ server.tool("archive_browse",
   }
 );
 
+// -- PHASE 2: compound-address navigation (three modes, one address scheme) ----
+// address_descend: walk the bloom_path tree one level at a time (fractal descent)
+server.tool("address_descend",
+  "Navigate the fractal address tree by bloom_path prefix. Pass a prefix like 'mastermind' or 'mastermind/auth' to see the child segments beneath it (with chunk counts), descending the project/component/subject hierarchy. Omit prefix to list top-level projects. This is tree-descent navigation, not semantic search.",
+  { prefix: z.string().optional().describe("Bloom path prefix, e.g. 'mastermind' or 'mastermind/auth'. Omit for top level.") },
+  async ({ prefix }) => {
+    try {
+      const depth = prefix ? prefix.split("/").filter(Boolean).length : 0;
+      const childIdx = depth + 1;
+      const params = [];
+      let where = "bloom_path IS NOT NULL";
+      if (prefix) { params.push(prefix.replace(/\/+$/,"") + "/%"); where += ` AND bloom_path LIKE $${params.length}`; }
+      const r = await query(
+        `SELECT split_part(bloom_path,'/',${childIdx}) AS child, COUNT(*) n
+         FROM transcript_archive WHERE ${where} AND split_part(bloom_path,'/',${childIdx}) <> ''
+         GROUP BY child ORDER BY n DESC LIMIT 40`, params);
+      const head = prefix ? `Children under '${prefix}':` : "Top-level projects:";
+      return { content: [{ type: "text", text: head + "\n" + JSON.stringify(r.rows, null, 2) }] };
+    } catch(e) { return { content: [{ type: "text", text: `Error: ${e.message}` }] }; }
+  }
+);
+
+// address_time: jump to chunks by date range (temporal dimension)
+server.tool("address_time",
+  "Jump directly to archive chunks by time, using the addr_time dimension. Provide from/to ISO dates (YYYY-MM-DD). Optionally narrow by bloom_path prefix. Returns matching chunks ordered by date.",
+  { from: z.string().optional().describe("Start date YYYY-MM-DD"),
+    to: z.string().optional().describe("End date YYYY-MM-DD"),
+    prefix: z.string().optional().describe("Optional bloom_path prefix to narrow"),
+    limit: z.number().optional() },
+  async ({ from, to, prefix, limit }) => {
+    try {
+      const params = []; const filt = ["addr_time IS NOT NULL"];
+      if (from)   { params.push(from);   filt.push(`addr_time >= $${params.length}::date`); }
+      if (to)     { params.push(to);     filt.push(`addr_time <= $${params.length}::date`); }
+      if (prefix) { params.push(prefix.replace(/\/+$/,"")+"/%"); filt.push(`bloom_path LIKE $${params.length}`); }
+      params.push(limit || 15);
+      const r = await query(
+        `SELECT address, bloom_path, addr_time, core_hash, LEFT(content,100) preview
+         FROM transcript_archive WHERE ${filt.join(" AND ")}
+         ORDER BY addr_time DESC, bloom_path LIMIT $${params.length}`, params);
+      return { content: [{ type: "text", text: JSON.stringify(r.rows.map(x => ({
+        address: x.address, path: x.bloom_path,
+        t: x.addr_time ? x.addr_time.toISOString().slice(0,10) : null,
+        core: x.core_hash, preview: x.preview })), null, 2) }] };
+    } catch(e) { return { content: [{ type: "text", text: `Error: ${e.message}` }] }; }
+  }
+);
+
+// address_resolve: direct match by core_hash (concept identity dimension)
+server.tool("address_resolve",
+  "Resolve a concept directly by its core_hash (the stable identity dimension of the compound address). Returns all chunks sharing that core_hash. Use when you already have a core hash from a prior result and want every chunk of that concept.",
+  { core_hash: z.string().describe("6-char core hash, e.g. 'a3f9c2'") },
+  async ({ core_hash }) => {
+    try {
+      const r = await query(
+        `SELECT address, bloom_path, addr_time, LEFT(content,120) preview
+         FROM transcript_archive WHERE core_hash=$1 ORDER BY chunk_index LIMIT 50`, [core_hash]);
+      if (!r.rows.length) return { content: [{ type: "text", text: "No chunks with that core_hash." }] };
+      return { content: [{ type: "text", text: JSON.stringify(r.rows.map(x => ({
+        address: x.address, path: x.bloom_path,
+        t: x.addr_time ? x.addr_time.toISOString().slice(0,10) : null,
+        preview: x.preview })), null, 2) }] };
+    } catch(e) { return { content: [{ type: "text", text: `Error: ${e.message}` }] }; }
+  }
+);
+
 // ── session tools (unchanged behavior) ───────────────────────────────────────
 server.tool("session_update",
   "Update the current session with new context or summary",
