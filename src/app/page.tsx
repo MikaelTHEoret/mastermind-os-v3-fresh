@@ -62,10 +62,15 @@ export default function Dashboard() {
             }
 
             // Online = TPS data in last 5 min OR chunks in last 5 min
+            // Use freshly fetched data, not stale state
+            const cut5m = Date.now() - 5 * 60 * 1000;
+            const freshChunks5m = (chunkRes.events ?? []).filter((e: Chunk) =>
+                new Date(e.ts).getTime() > cut5m
+            ).length;
             const recentTps = (tpsRes.timeline ?? []).filter((t: TpsPt) =>
-                Date.now() - new Date(t.ts).getTime() < 300000
+                new Date(t.ts).getTime() > cut5m
             );
-            setOnline(recentTps.length > 0 || chunks5m > 0);
+            setOnline(recentTps.length > 0 || freshChunks5m > 0);
             setLastUpd(new Date().toLocaleTimeString());
         } catch { /* silent */ }
     }, [chunks5m]);
