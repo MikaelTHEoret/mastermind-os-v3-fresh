@@ -1,1 +1,8 @@
-{`n  "crons": [`n    { "path": "/api/nexus/tick", "schedule": "0 6 * * *" }`n  ]`n}
+{
+  "crons": [
+    {
+      "path": "/api/nexus/tick",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
