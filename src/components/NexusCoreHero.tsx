@@ -56,8 +56,8 @@ export default function NexusCoreHero({ size = 300 }: { size?: number }) {
 
           {[...Array(nodes)].map((_, i) => {
             const a = (360 / nodes) * i
-            const x = Math.cos((a * Math.PI) / 180) * radius
-            const y = Math.sin((a * Math.PI) / 180) * radius
+            const x = Math.round(Math.cos((a * Math.PI) / 180) * radius * 100) / 100
+            const y = Math.round(Math.sin((a * Math.PI) / 180) * radius * 100) / 100
             return <div key={i} style={{ position: 'absolute', top: '50%', left: '50%',
               transform: `translate(${x}px, ${y}px)`, width: 11, height: 11, borderRadius: '50%',
               background: theme.primaryColor, boxShadow: `0 0 14px ${theme.primaryColor}`,
