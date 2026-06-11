@@ -2,6 +2,19 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import EnhancedNexusBackground from '@/components/EnhancedNexusBackground';
 import StrategicHUDLayout from '@/components/StrategicHUDLayout';
+import NexusCore from '@/components/NexusCore';
+import NexusCoreHero from '@/components/NexusCoreHero';
+import { DataTable, LogStream, ConversationView, LiveFeed } from '@/components/views/DataViews';
+import OperationsMap from '@/components/OperationsMap';
+import ForgeConsole from '@/components/ForgeConsole';
+import ModuleExplorer from '@/components/ModuleExplorer';
+import ModuleLoader from '@/components/ModuleLoader';
+import ResidentConsole from '@/components/ResidentConsole';
+import { registry } from '@/lib/modules/registry';
+import { useModules } from '@/lib/modules/useModules';
+import { seedModules } from '@/lib/modules/seed';
+
+seedModules();
 
 type ChatMsg = { ts: string; username: string; message: string; is_bot_response: boolean; account_type: string; };
 type TpsPt   = { ts: string; tps: number; };
@@ -32,6 +45,7 @@ function StatRow({ label, value, color=C.cyan }: { label:string; value:string|nu
 }
 
 export default function Dashboard() {
+    useModules(); // subscribe: module toggles re-render the dashboard
     const [chat,     setChat]     = useState<ChatMsg[]>([]);
     const [tpsHist,  setTpsHist]  = useState<TpsPt[]>([]);
     const [chunks,   setChunks]   = useState<Chunk[]>([]);
@@ -39,6 +53,9 @@ export default function Dashboard() {
     const [chunks5m, setChunks5m] = useState(0);
     const [online,   setOnline]   = useState(false);
     const [lastUpd,  setLastUpd]  = useState('');
+    const [tab,      setTab]      = useState<'command'|'operations'|'forge'|'modules'|'data'|'resident'>('command');
+    const [dataSource, setDataSource] = useState<'chat'|'chunks'>('chat');
+    const [dataForm,   setDataForm]   = useState<'conversation'|'table'|'log'|'feed'>('conversation');
     const chatRef = useRef<HTMLDivElement>(null);
 
     const fetchAll = useCallback(async () => {
@@ -112,12 +129,15 @@ export default function Dashboard() {
     // ── LEFT ─────────────────────────────────────────────────────────────
     const leftSidebar = (
         <div>
-            <Panel title="Travel (5m)" color={C.gold}>
+            <ModuleExplorer/>
+            <ModuleLoader/>
+            {registry.isEnabled('nexus-core') && <NexusCore/>}
+            {registry.isEnabled('travel-telemetry') && <Panel title="Travel (5m)" color={C.gold}>
                 <StatRow label="Chunk loads"  value={chunks5m} color={C.green}/>
                 <StatRow label="Load rate"    value={chunks5m > 0 ? `${(chunks5m/300).toFixed(1)}/s` : '—'} color={C.cyan}/>
                 <StatRow label="AC hits (10m)"value={acCount}  color={acCount ? C.red : C.dim}/>
-            </Panel>
-            <Panel title="TPS History">
+            </Panel>}
+            {registry.isEnabled('tps-history') && <Panel title="TPS History">
                 {tpsHist.length > 0 ? (
                     <>
                         <StatRow label="Current" value={tpsStr}                                                color={tpsColor}/>
@@ -126,28 +146,34 @@ export default function Dashboard() {
                         <StatRow label="Samples"  value={tpsHist.length}/>
                     </>
                 ) : <span style={{color:C.dim,fontSize:11}}>No TPS data yet</span>}
-            </Panel>
+            </Panel>}
         </div>
     );
 
     // ── MAIN ─────────────────────────────────────────────────────────────
     const mainContent = (
         <div style={{height:'100%',display:'flex',flexDirection:'column',gap:10}}>
+            {registry.isEnabled('nexus-core-hero') && (
+            <div style={{background:C.card,border:`1px solid ${C.cyan}35`,borderRadius:8,flex:'0 0 auto',overflow:'hidden'}}>
+                <NexusCoreHero size={260}/>
+            </div>)}
+            {registry.isEnabled('tps-timeline') && (
             <div style={{background:C.card,border:`1px solid ${C.cyan}35`,borderRadius:8,padding:14,flex:'0 0 auto'}}>
                 <div style={{fontFamily:mono,color:C.cyan,fontSize:10,marginBottom:10,letterSpacing:2}}>◈ TPS TIMELINE — BACKEND SIGNATURE</div>
                 <TPSChart data={tpsHist}/>
-            </div>
+            </div>)}
+            {registry.isEnabled('chunk-radar') && (
             <div style={{background:C.card,border:`1px solid ${C.gold}35`,borderRadius:8,padding:14,flex:1}}>
                 <div style={{fontFamily:mono,color:C.gold,fontSize:10,marginBottom:10,letterSpacing:2}}>◈ CHUNK RADAR — MOVEMENT TRACE</div>
                 <ChunkRadar data={chunks}/>
-            </div>
+            </div>)}
         </div>
     );
 
     // ── RIGHT — Chat newest at bottom ─────────────────────────────────────
     const rightSidebar = (
         <div style={{height:'100%'}}>
-            <Panel title="Chat Intelligence" color={C.green} nopad>
+            {registry.isEnabled('chat-intelligence') && <Panel title="Chat Intelligence" color={C.green} nopad>
                 <div ref={chatRef} style={{maxHeight:520,overflowY:'auto',padding:'8px 12px',display:'flex',flexDirection:'column',gap:4}}>
                     {chatAsc.map((m,i)=>(
                         <div key={i} style={{fontSize:11,fontFamily:'monospace',borderBottom:`1px solid rgba(0,255,255,0.06)`,paddingBottom:4}}>
@@ -160,14 +186,88 @@ export default function Dashboard() {
                     ))}
                     {!chatAsc.length && <span style={{color:C.dim,fontSize:11}}>Monitoring chat...</span>}
                 </div>
-            </Panel>
+            </Panel>}
         </div>
     );
 
+    // ── TAB SHELL (dual-surface: COMMAND home + full-view tabs) ──────────
+    const tabStyle = (id:string): React.CSSProperties => ({
+        fontFamily:mono, fontSize:11, letterSpacing:2, padding:'4px 12px', cursor:'pointer',
+        color: tab===id ? C.cyan : C.dim,
+        borderBottom:`2px solid ${tab===id ? C.cyan : 'transparent'}`,
+        textShadow: tab===id ? `0 0 6px ${C.cyan}` : 'none'
+    });
+    const tabBar = (
+        <div style={{display:'flex',gap:6,alignItems:'center',borderBottom:`1px solid ${C.cyan}22`,paddingBottom:6}}>
+            <span onClick={()=>setTab('command')} style={tabStyle('command')}>◈ COMMAND</span>
+            <span onClick={()=>setTab('operations')} style={tabStyle('operations')}>◉ OPERATIONS</span>
+            <span onClick={()=>setTab('forge')}    style={tabStyle('forge')}>⚒ FORGE</span>
+            <span onClick={()=>setTab('modules')}  style={tabStyle('modules')}>▤ MODULES</span>
+            <span onClick={()=>setTab('data')}     style={tabStyle('data')}>▦ DATA</span>
+            <span onClick={()=>setTab('resident')} style={tabStyle('resident')}>◉ RESIDENT</span>
+            <span style={{marginLeft:'auto',fontFamily:mono,fontSize:9,color:C.dim,letterSpacing:1}}>more surfaces land per floor →</span>
+        </div>
+    );
+    const modulesView = (
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontFamily:mono,color:C.cyan,fontSize:12,letterSpacing:2}}>◈ MODULES — INFRASTRUCTURE REGISTRY</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}}>
+                <div><ModuleExplorer/></div>
+                <div><ModuleLoader/></div>
+            </div>
+        </div>
+    );
+
+    const isCmd = tab === 'command';
+
+    // ── DATA EXPLORER (one source, many forms) ───────────────────────────
+    const dataPill = (on:boolean): React.CSSProperties => ({
+        fontFamily:mono, fontSize:10, letterSpacing:1, padding:'4px 10px', borderRadius:4, cursor:'pointer',
+        border:`1px solid ${on?C.cyan:C.dim}`, color:on?C.cyan:C.dim, background:on?`${C.cyan}12`:'transparent'
+    });
+    const chatKind = (t:string)=> t==='pure_bot'?'bot' : t==='auto_reply'?'auto' : 'user';
+    let dataBody: React.ReactNode = null;
+    if (dataSource==='chat') {
+        if (dataForm==='conversation') dataBody = <ConversationView items={chatAsc.map(m=>({ts:m.ts,who:m.username,text:m.message,kind:chatKind(m.account_type)}))}/>;
+        else if (dataForm==='table')   dataBody = <DataTable columns={[{key:'time',label:'TIME'},{key:'user',label:'USER',color:C.green},{key:'type',label:'TYPE',color:C.gold},{key:'message',label:'MESSAGE'}]} rows={chatAsc.map(m=>({time:new Date(m.ts).toLocaleTimeString(),user:m.username,type:m.account_type,message:m.message}))}/>;
+        else if (dataForm==='log')     dataBody = <LogStream items={chatAsc.map(m=>({ts:m.ts,text:`${m.username}: ${m.message}`,color:m.account_type==='pure_bot'?C.red:m.account_type==='auto_reply'?C.gold:C.green}))}/>;
+        else                            dataBody = <LiveFeed items={chatAsc.map(m=>({ts:m.ts,text:`${m.username}  —  ${m.message}`}))}/>;
+    } else {
+        if (dataForm==='table')        dataBody = <DataTable columns={[{key:'event',label:'EVENT',color:C.gold},{key:'x',label:'X'},{key:'z',label:'Z'},{key:'time',label:'TIME'}]} rows={chunks.map(c=>({event:c.event_type,x:c.world_x,z:c.world_z,time:new Date(c.ts).toLocaleTimeString()}))}/>;
+        else if (dataForm==='log')     dataBody = <LogStream items={chunks.map(c=>({ts:c.ts,text:`${c.event_type}  (${c.world_x}, ${c.world_z})`,level:c.event_type==='LOAD'?'ok':'info'}))}/>;
+        else if (dataForm==='feed')    dataBody = <LiveFeed items={chunks.map(c=>({ts:c.ts,text:`${c.event_type} @ ${c.world_x}, ${c.world_z}`}))}/>;
+        else                            dataBody = <div style={{color:C.dim,fontSize:11,fontFamily:body,padding:12}}>Conversation is a chat form — switch source to <span style={{color:C.green}}>chat</span>, or pick Table / Log / Feed for chunks.</div>;
+    }
+    const dataView = (
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontFamily:mono,color:C.cyan,fontSize:12,letterSpacing:2}}>◈ DATA EXPLORER — <span style={{color:C.dim}}>same source, many forms</span></div>
+            <div style={{display:'flex',gap:18,flexWrap:'wrap'}}>
+                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                    <span style={{fontFamily:mono,fontSize:9,color:C.dim,letterSpacing:1,marginRight:2}}>SOURCE</span>
+                    <span onClick={()=>setDataSource('chat')}   style={dataPill(dataSource==='chat')}>chat</span>
+                    <span onClick={()=>setDataSource('chunks')} style={dataPill(dataSource==='chunks')}>chunks</span>
+                </div>
+                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                    <span style={{fontFamily:mono,fontSize:9,color:C.dim,letterSpacing:1,marginRight:2}}>FORM</span>
+                    {(['conversation','table','log','feed'] as const).map(f=>(
+                        <span key={f} onClick={()=>setDataForm(f)} style={dataPill(dataForm===f)}>{f}</span>
+                    ))}
+                </div>
+            </div>
+            {dataBody}
+        </div>
+    );
+
+    const mainByTab = isCmd ? mainContent : tab==='operations' ? <OperationsMap/> : tab==='resident' ? <ResidentConsole/> : tab==='forge' ? <ForgeConsole/> : tab==='modules' ? modulesView : dataView;
     return (
         <EnhancedNexusBackground>
             <div style={{height:'100vh',display:'flex',flexDirection:'column'}}>
-                <StrategicHUDLayout topBar={topBar} leftSidebar={leftSidebar} mainContent={mainContent} rightSidebar={rightSidebar}/>
+                <StrategicHUDLayout
+                    topBar={<div style={{display:'flex',flexDirection:'column',gap:8}}>{tabBar}{topBar}</div>}
+                    leftSidebar={isCmd ? leftSidebar : undefined}
+                    mainContent={mainByTab}
+                    rightSidebar={isCmd ? rightSidebar : undefined}
+                />
             </div>
         </EnhancedNexusBackground>
     );
