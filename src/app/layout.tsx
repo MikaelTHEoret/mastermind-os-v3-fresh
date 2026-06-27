@@ -3,8 +3,8 @@ import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata = {
-  title: 'Mastermind — 2b2t Command Center',
-  description: 'Passive intelligence platform — packet analysis, backend topology, player tracking',
+  title: 'Mastermind Core',
+  description: 'A living, navigable knowledge base over an evolving research archive — concepts, resonant links, and the work behind them.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
