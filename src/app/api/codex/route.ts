@@ -143,7 +143,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return ok({ count: rows.length, docs: rows });
     }
 
-    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept'] }, 400);
+    if (op === 'tree') {
+      // The Golden Tree overview — the fractal_nodes clustering tree (ROOT -> 8 branches -> 227 leaves),
+      // each node a "subject sun" carrying n_chunks + coherence. Always-on: structure only, no embedder, no box.
+      const rows = (await sql`SELECT path, name, parent_path, depth, is_leaf, n_chunks, coherence FROM fractal_nodes ORDER BY depth, path`) as Array<{ path: string; name: string; parent_path: string | null; depth: number; is_leaf: boolean; n_chunks: number | null; coherence: number | null }>;
+      const rootOf = (path: string, depth: number): string => (depth <= 0 ? 'ROOT' : path.split('/')[0]);
+      const nodes = rows.map((r) => ({
+        id: r.path, name: r.name, depth: r.depth, is_leaf: r.is_leaf,
+        n_chunks: r.n_chunks || 0,
+        coherence: r.coherence == null ? null : Math.round(r.coherence * 1000) / 1000,
+        root: rootOf(r.path, r.depth),
+      }));
+      const present = new Set(rows.map((r) => r.path));
+      const links: { source: string; target: string }[] = [];
+      for (const r of rows) {
+        if (r.parent_path && present.has(r.parent_path)) links.push({ source: r.parent_path, target: r.path });
+        else if (r.depth === 1 && present.has('ROOT')) links.push({ source: 'ROOT', target: r.path });
+      }
+      const roots = Array.from(new Set(nodes.filter((n) => n.depth === 1).map((n) => n.root)));
+      return ok({ nodes, links, roots, count: nodes.length });
+    }
+
+    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree'] }, 400);
   } catch (err: unknown) {
     return ok({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
