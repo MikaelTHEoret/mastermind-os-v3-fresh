@@ -132,8 +132,8 @@ void main(){
   float g = texture2D(uCodeTex, fract(uv)).a;
   float colMask = step(0.2, hash(col*2.3));
   vec3 c = mix(vec3(0.4,0.5,1.0), vec3(0.85,0.95,1.0), g*0.7);
-  float a = g * colMask * 1.3;
-  gl_FragColor = vec4(c*(1.0+1.0*g), a);
+  float a = g * colMask * 0.8;
+  gl_FragColor = vec4(c*(0.8+0.7*g), a);
 }`;
 
 // dense VIOLET column rain pouring onto the focus (brighter toward the bottom)
@@ -232,7 +232,7 @@ export default function GoldenOrrery() {
       renderer.setSize(W, H); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); mount.appendChild(renderer.domElement);
       const composer = new EffectComposer(renderer); composer.setSize(W, H); composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       composer.addPass(new RenderPass(scene, camera));
-      const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.9, 0.6, 0.18); composer.addPass(bloom);
+      const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.55, 0.5, 0.34); composer.addPass(bloom);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 55; controls.maxDistance = 520;
       controls.autoRotate = true; controls.autoRotateSpeed = 0.16;
@@ -394,7 +394,7 @@ export default function GoldenOrrery() {
           if (t.role === 'hidden' && (u.uAlpha.value as number) < 0.02) m.visible = false;
         });
         const fm = meshes.get(focusRef.current);
-        if (fm) { const ft = fm.userData as Tgt; glow.position.copy(fm.position); glow.scale.setScalar(Math.max(8, ft.curScale * 3.5)); (glow.material as import('three').SpriteMaterial).color.set(colorOf(ft.node.root)); const gm = glow.material as import('three').SpriteMaterial; gm.opacity = gm.opacity + (0.5 - gm.opacity) * 0.12; }
+        if (fm) { const ft = fm.userData as Tgt; glow.position.copy(fm.position); glow.scale.setScalar(Math.max(8, ft.curScale * 2.6)); (glow.material as import('three').SpriteMaterial).color.set(colorOf(ft.node.root)); const gm = glow.material as import('three').SpriteMaterial; gm.opacity = gm.opacity + (0.3 - gm.opacity) * 0.12; }
         rainMat.uniforms.uTime.value = tt; points.rotation.y += 0.0004;
         const rp = rays.geometry.attributes.position.array as Float32Array; let k = 0; const ctr = meshes.get(focusRef.current);
         if (ctr) for (const cid of childIds) { const cm = meshes.get(cid); if (!cm) continue; rp[k++] = ctr.position.x; rp[k++] = ctr.position.y; rp[k++] = ctr.position.z; rp[k++] = cm.position.x; rp[k++] = cm.position.y; rp[k++] = cm.position.z; }
