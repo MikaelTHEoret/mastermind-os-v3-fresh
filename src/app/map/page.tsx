@@ -322,14 +322,14 @@ export default function GoldenOrrery() {
       };
 
       const raycaster = new THREE.Raycaster(); const ptr = new THREE.Vector2(); let hoverId: string | null = null;
-      const pick = (ev: PointerEvent): import('three').Mesh | null => {
+      const pick = (ev: MouseEvent): import('three').Mesh | null => {
         const r = renderer.domElement.getBoundingClientRect(); ptr.x = ((ev.clientX - r.left) / r.width) * 2 - 1; ptr.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
         raycaster.setFromCamera(ptr, camera);
         const vis = [...meshes.values()].filter((m) => m.visible && ((m.userData as Tgt).u.uAlpha.value as number) > 0.12);
         return (raycaster.intersectObjects(vis, false)[0]?.object as import('three').Mesh) || null;
       };
       const onMove = (ev: PointerEvent) => { const m = pick(ev); const id = m ? (m.userData as Tgt).node.id : null; if (id !== hoverId) { hoverId = id; renderer.domElement.style.cursor = id && id !== focusRef.current ? 'pointer' : 'grab'; } };
-      const onClick = (ev: PointerEvent) => { const m = pick(ev); if (!m) return; const t = m.userData as Tgt; if (t.role === 'child' || t.role === 'ghost' || t.role === 'spine') applyView(t.node.id); };
+      const onClick = (ev: MouseEvent) => { const m = pick(ev); if (!m) return; const t = m.userData as Tgt; if (t.role === 'child' || t.role === 'ghost' || t.role === 'spine') applyView(t.node.id); };
       const onKey = (e: KeyboardEvent) => { if (e.key === 'Backspace' || e.key === 'Escape') { const p = parentOf.get(focusRef.current); if (p) applyView(p); } };
       renderer.domElement.addEventListener('pointermove', onMove); renderer.domElement.addEventListener('click', onClick); window.addEventListener('keydown', onKey);
       const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); };
