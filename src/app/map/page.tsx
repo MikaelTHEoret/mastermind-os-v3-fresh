@@ -136,6 +136,26 @@ void main(){
   gl_FragColor = vec4(c*(1.0+1.0*g), a);
 }`;
 
+// dense VIOLET column rain pouring onto the focus (brighter toward the bottom)
+const COL_FRAG = `
+precision highp float;
+uniform float uTime; uniform sampler2D uCodeTex;
+varying vec2 vUv;
+float hash(float x){ return fract(sin(x*127.1)*43758.5453); }
+void main(){
+  vec2 uv = vUv * vec2(20.0, 58.0);
+  float col = floor(uv.x);
+  float sp = 1.2 + hash(col)*2.2;
+  uv.y = uv.y + uTime*sp*3.0 + hash(col)*50.0;
+  float g = texture2D(uCodeTex, fract(uv)).a;
+  float colMask = step(0.12, hash(col*2.3));
+  float edge = smoothstep(0.0,0.16,vUv.x)*smoothstep(1.0,0.84,vUv.x);
+  float fall = smoothstep(1.0,0.0,vUv.y);
+  vec3 c = mix(vec3(0.55,0.3,1.0), vec3(0.86,0.72,1.0), g);
+  float a = g*colMask*edge*(0.45+0.85*fall)*1.5;
+  gl_FragColor = vec4(c*(1.0+1.3*g), a);
+}`;
+
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 export default function GoldenOrrery() {
@@ -161,6 +181,9 @@ export default function GoldenOrrery() {
       const THREE = await import('three');
       const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
       const { Reflector } = await import('three/examples/jsm/objects/Reflector.js');
+      const { EffectComposer } = await import('three/examples/jsm/postprocessing/EffectComposer.js');
+      const { RenderPass } = await import('three/examples/jsm/postprocessing/RenderPass.js');
+      const { UnrealBloomPass } = await import('three/examples/jsm/postprocessing/UnrealBloomPass.js');
       if (disposed) return;
       const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
@@ -203,10 +226,13 @@ export default function GoldenOrrery() {
       const baseR = (n: RawNode) => Math.max(3, 3 + Math.sqrt(n.n_chunks) * 0.22);
 
       const W = mount.clientWidth, H = mount.clientHeight;
-      const scene = new THREE.Scene();
+      const scene = new THREE.Scene(); scene.background = new THREE.Color('#04060f');
       const camera = new THREE.PerspectiveCamera(58, W / H, 0.1, 6000); camera.position.set(0, 16, 200);
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setSize(W, H); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); mount.appendChild(renderer.domElement);
+      const composer = new EffectComposer(renderer); composer.setSize(W, H); composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      composer.addPass(new RenderPass(scene, camera));
+      const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.9, 0.6, 0.18); composer.addPass(bloom);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 55; controls.maxDistance = 520;
       controls.autoRotate = true; controls.autoRotateSpeed = 0.16;
@@ -241,7 +267,7 @@ export default function GoldenOrrery() {
       const rainMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uCodeTex: { value: atlas } }, vertexShader: RAIN_VERT, fragmentShader: RAIN_FRAG, transparent: true, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending });
       const rainSphere = new THREE.Mesh(new THREE.SphereGeometry(720, 40, 28), rainMat); scene.add(rainSphere);
       const pcount = 600; const parr = new Float32Array(pcount * 3); const pcol = new Float32Array(pcount * 3);
-      const pPal = [new THREE.Color('#7fe8ff'), new THREE.Color('#c79bff'), new THREE.Color('#ff9ec4'), new THREE.Color('#9ab8ff')];
+      const pPal = [new THREE.Color('#b06bff'), new THREE.Color('#c79bff'), new THREE.Color('#7fe8ff'), new THREE.Color('#ff9ec4'), new THREE.Color('#9ab8ff')];
       for (let i = 0; i < pcount; i++) { parr[i * 3] = (Math.random() - 0.5) * 820; parr[i * 3 + 1] = (Math.random() - 0.5) * 520; parr[i * 3 + 2] = (Math.random() - 0.5) * 820; const c = pPal[(Math.random() * pPal.length) | 0]; pcol[i * 3] = c.r; pcol[i * 3 + 1] = c.g; pcol[i * 3 + 2] = c.b; }
       const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.Float32BufferAttribute(parr, 3)); pgeo.setAttribute('color', new THREE.Float32BufferAttribute(pcol, 3));
       const points = new THREE.Points(pgeo, new THREE.PointsMaterial({ vertexColors: true, size: 4.5, map: glowTex, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
@@ -255,6 +281,19 @@ export default function GoldenOrrery() {
       const fdGeo = new THREE.BufferGeometry(); fdGeo.setAttribute('position', new THREE.Float32BufferAttribute(fdPos, 3)); fdGeo.setAttribute('color', new THREE.Float32BufferAttribute(fdCol, 3));
       const floorDots = new THREE.Points(fdGeo, new THREE.PointsMaterial({ vertexColors: true, size: 8, map: glowTex, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true }));
       scene.add(floorDots);
+
+      // octagonal violet PORTAL behind the focus (billboarded each frame)
+      const octPts: import('three').Vector3[] = [];
+      for (let i = 0; i <= 8; i++) { const a = (i / 8) * Math.PI * 2 + Math.PI / 8; octPts.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0)); }
+      const octGeo = new THREE.BufferGeometry().setFromPoints(octPts);
+      const portalOuter = new THREE.Line(octGeo, new THREE.LineBasicMaterial({ color: new THREE.Color('#a657ff'), transparent: true, opacity: 0.9 }));
+      const portalInner = new THREE.Line(octGeo, new THREE.LineBasicMaterial({ color: new THREE.Color('#e6d2ff'), transparent: true, opacity: 0.85 })); portalInner.scale.setScalar(0.9);
+      const portalDisc = new THREE.Mesh(new THREE.CircleGeometry(0.96, 8, Math.PI / 8), new THREE.MeshBasicMaterial({ color: new THREE.Color('#2a1556'), transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
+      const portal = new THREE.Group(); portal.add(portalDisc); portal.add(portalOuter); portal.add(portalInner); scene.add(portal);
+
+      // focused VIOLET rain column pouring onto the core
+      const colMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uCodeTex: { value: atlas } }, vertexShader: RAIN_VERT, fragmentShader: COL_FRAG, transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
+      const rainCol = new THREE.Mesh(new THREE.PlaneGeometry(64, 300), colMat); rainCol.position.set(0, 150, 0); scene.add(rainCol);
 
       const rays = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(291 * 6), 3)), new THREE.LineBasicMaterial({ color: 0x8fe6ff, transparent: true, opacity: 0.12 })); scene.add(rays);
       const spineGeom = new THREE.BufferGeometry(); spineGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(40 * 3), 3));
@@ -332,7 +371,7 @@ export default function GoldenOrrery() {
       const onClick = (ev: MouseEvent) => { const m = pick(ev); if (!m) return; const t = m.userData as Tgt; if (t.role === 'child' || t.role === 'ghost' || t.role === 'spine') applyView(t.node.id); };
       const onKey = (e: KeyboardEvent) => { if (e.key === 'Backspace' || e.key === 'Escape') { const p = parentOf.get(focusRef.current); if (p) applyView(p); } };
       renderer.domElement.addEventListener('pointermove', onMove); renderer.domElement.addEventListener('click', onClick); window.addEventListener('keydown', onKey);
-      const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); };
+      const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); bloom.setSize(w, h); };
       window.addEventListener('resize', onResize);
 
       applyView('ROOT');
@@ -364,7 +403,10 @@ export default function GoldenOrrery() {
         for (const sid of spineIds) { const sm = meshes.get(sid); if (!sm) continue; sp[j++] = sm.position.x; sp[j++] = sm.position.y; sp[j++] = sm.position.z; spinePts.push(sm.position.clone()); }
         spineGeom.setDrawRange(0, spineIds.length); spineGeom.attributes.position.needsUpdate = true;
         if (spinePts.length >= 2) { pulseDot.visible = true; const frac = (tt * 0.25) % 1; const seg = (spinePts.length - 1) * (1 - frac); const i0 = Math.min(spinePts.length - 2, Math.floor(seg)); const f = seg - i0; pulseDot.position.lerpVectors(spinePts[i0], spinePts[i0 + 1], f); } else pulseDot.visible = false;
-        controls.update(); updateLabels(); renderer.render(scene, camera);
+        colMat.uniforms.uTime.value = tt;
+        rainCol.rotation.y = Math.atan2(camera.position.x - rainCol.position.x, camera.position.z - rainCol.position.z);
+        { const ffm = meshes.get(focusRef.current); if (ffm) { const ft2 = ffm.userData as Tgt; const camDir = new THREE.Vector3().subVectors(ffm.position, camera.position).normalize(); portal.position.copy(ffm.position).addScaledVector(camDir, Math.max(8, ft2.curScale * 1.4)); portal.quaternion.copy(camera.quaternion); portal.scale.setScalar(Math.max(16, ft2.curScale * 2.9)); } }
+        controls.update(); updateLabels(); composer.render();
       };
       animate();
 
@@ -375,6 +417,7 @@ export default function GoldenOrrery() {
         pool.forEach((d) => d.remove());
         controls.dispose(); sphere.dispose(); atlas.dispose(); glowTex.dispose(); circuitTex.dispose(); rays.geometry.dispose(); spineGeom.dispose(); rainSphere.geometry.dispose(); rainMat.dispose(); pgeo.dispose(); (points.material as import('three').Material).dispose(); grid.geometry.dispose(); (grid.material as import('three').Material).dispose(); reflector.getRenderTarget().dispose(); reflector.geometry.dispose(); (reflector.material as import('three').Material).dispose(); cubeRT.dispose(); fdGeo.dispose(); (floorDots.material as import('three').Material).dispose();
         meshes.forEach((m) => (m.material as import('three').Material).dispose()); (glow.material as import('three').Material).dispose(); (pulseDot.material as import('three').Material).dispose();
+        composer.dispose?.(); octGeo.dispose(); (portalOuter.material as import('three').Material).dispose(); (portalInner.material as import('three').Material).dispose(); portalDisc.geometry.dispose(); (portalDisc.material as import('three').Material).dispose(); rainCol.geometry.dispose(); colMat.dispose();
         renderer.dispose(); if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       };
     })();
@@ -391,7 +434,7 @@ export default function GoldenOrrery() {
         .ol-grid{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.6;background-image:repeating-linear-gradient(45deg,transparent,transparent 6px,rgba(111,242,255,.012) 6px,rgba(111,242,255,.012) 8px);animation:olflow 60s linear infinite}
         @keyframes olflow{to{background-position:40px 40px}}
         .ol-scan{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:.5;background:repeating-linear-gradient(0deg,rgba(120,230,255,.03) 0px,rgba(120,230,255,.03) 1px,transparent 1px,transparent 3px)}
-        .ol-frame{position:absolute;inset:12px;pointer-events:none;z-index:2;border:2px solid rgba(120,200,255,.55);border-radius:10px;box-shadow:inset 0 0 80px rgba(120,180,255,.12),inset 0 0 6px rgba(150,255,255,.35),0 0 40px rgba(150,120,255,.22),0 0 16px rgba(120,200,255,.25)}
+        .ol-frame{position:absolute;inset:12px;pointer-events:none;z-index:2;border:2px solid rgba(150,110,235,.6);border-radius:10px;box-shadow:inset 0 0 80px rgba(140,110,230,.16),inset 0 0 6px rgba(200,170,255,.4),0 0 46px rgba(150,90,255,.3),0 0 16px rgba(150,120,255,.3)}
         .ol-frame::before,.ol-frame::after{content:'';position:absolute;width:54px;height:54px;border-color:rgba(199,140,255,.95);border-style:solid;filter:drop-shadow(0 0 9px rgba(199,140,255,.7))}
         .ol-frame::before{top:-2px;left:-2px;border-width:3px 0 0 3px;border-top-left-radius:8px}
         .ol-frame::after{bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-bottom-right-radius:8px}
