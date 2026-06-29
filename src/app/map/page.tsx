@@ -169,6 +169,7 @@ export default function GoldenOrrery() {
   const [view, setView] = useState<ViewState>({ focusId: 'ROOT', path: [], focus: null, childCount: 0 });
   const [leaf, setLeaf] = useState<LeafData | null>(null);
   const [openChunk, setOpenChunk] = useState<{ address: string; title: string; content: string } | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -339,6 +340,7 @@ export default function GoldenOrrery() {
         sibs.forEach((s, i) => setTarget(s.id, V(gp[i][0], gp[i][1] * 0.35, gp[i][2]), Math.max(2, baseR(s) * 0.5), 0.14, 'ghost', MOON, false));
         spineIds = [focusId, ...anc]; childIds = kids.map((k) => k.id);
         setView({ focusId, path: path.map((id) => ({ id, name: byId.get(id)!.name })), focus, childCount: kids.length });
+        try { const u = new URL(window.location.href); if (focusId === 'ROOT') u.searchParams.delete('focus'); else u.searchParams.set('focus', focusId); window.history.replaceState(null, '', u.toString()); } catch { /* url sync skipped */ }
       };
       goToRef.current = applyView;
 
@@ -378,7 +380,8 @@ export default function GoldenOrrery() {
       const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); bloom.setSize(w, h); };
       window.addEventListener('resize', onResize);
 
-      applyView('ROOT');
+      const initialFocus = (() => { try { const f = new URL(window.location.href).searchParams.get('focus'); return f && byId.has(f) ? f : 'ROOT'; } catch { return 'ROOT'; } })();
+      applyView(initialFocus);
       const clock = new THREE.Clock(); let envFrame = 0;
       const animate = () => {
         raf = requestAnimationFrame(animate); const tt = clock.getElapsedTime();
@@ -452,6 +455,7 @@ export default function GoldenOrrery() {
     } catch { setOpenChunk({ address, title, content: '(failed to load)' }); }
   };
 
+  const copyLink = () => { try { navigator.clipboard.writeText(window.location.href); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1500); } catch { /* clipboard blocked */ } };
   const srcFile = (a: string) => { const i = a.indexOf('#'); return i > 0 ? a.slice(0, i) : a; };
   const chunkRef = (a: string) => { const i = a.indexOf('#'); return i >= 0 ? a.slice(i + 1) : a; };
 
@@ -521,6 +525,7 @@ export default function GoldenOrrery() {
           <span style={{ color: C.text }}>{view.focus.n_chunks.toLocaleString()} <span style={{ color: C.textDim }}>chunks</span></span>
           {view.focus.coherence != null && <span style={{ color: C.textDim }}>coherence <span style={{ color: cohColor }}>{view.focus.coherence}</span></span>}
           {parentId && <span onClick={() => goToRef.current(parentId)} style={{ cursor: 'pointer', color: C.cyan, fontFamily: ORBITRON, fontSize: 10, letterSpacing: 1 }}>↩ BACK</span>}
+          <span onClick={copyLink} style={{ cursor: 'pointer', color: linkCopied ? C.green : C.cyan, fontFamily: ORBITRON, fontSize: 10, letterSpacing: 1 }}>{linkCopied ? '✓ COPIED' : '⧉ LINK'}</span>
         </div>
       )}
 
