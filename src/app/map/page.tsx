@@ -349,12 +349,12 @@ export default function GoldenOrrery() {
           if (!show) return; active.add(id);
           projV.copy(m.position); projV.project(camera); if (projV.z > 1) return;
           const x = (projV.x * 0.5 + 0.5) * W, y = (-projV.y * 0.5 + 0.5) * H;
-          const n = t.node; const isC = t.role === 'center'; const isS = t.role === 'spine'; const col = colorOf(n.root);
+          const n = t.node; const isC = t.role === 'center'; const isS = t.role === 'spine'; const isHov = id === hoverId; const col = colorOf(n.root);
           const d = ensure(id); d.style.setProperty('--branch', col);
-          d.className = 'ol-plaque' + (isC ? ' ol-focus' : isS ? ' ol-spine' : '');
+          d.className = 'ol-plaque' + (isC ? ' ol-focus' : isS ? ' ol-spine' : '') + (isHov && !isC ? ' ol-hover' : '');
           const meta = isC ? `${n.n_chunks.toLocaleString()} CHUNKS${n.coherence != null ? ` · COH ${n.coherence}` : ''}` : (isS ? '' : `${n.n_chunks.toLocaleString()}${n.coherence != null ? ` · ${n.coherence}` : ''}`);
           d.innerHTML = `<div class="ol-t">${isC ? '◈ ' : ''}${n.name}</div>${meta ? `<div class="ol-m">${meta}</div>` : ''}`;
-          d.style.left = x + 'px'; d.style.top = (y - (isC ? 30 : 16)) + 'px'; d.style.opacity = String(Math.min(1, op));
+          const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion); let labelY = y - (isC ? 30 : 16); if (isC) { const top = m.position.clone().addScaledVector(upv, t.curScale * 1.18); top.project(camera); labelY = (-top.y * 0.5 + 0.5) * H - 16; } d.style.left = x + 'px'; d.style.top = labelY + 'px'; d.style.opacity = String(Math.min(1, op));
           d.style.display = 'block';
         });
         pool.forEach((d, id) => { if (!active.has(id)) d.style.display = 'none'; });
@@ -388,7 +388,7 @@ export default function GoldenOrrery() {
         } catch { /* env update skipped */ } }
         meshes.forEach((m) => {
           const t = m.userData as Tgt; const u = t.u; m.position.lerp(t.tPos, 0.16);
-          const hov = (m.userData as Tgt).node.id === hoverId ? 1.07 : 1.0;
+          const hov = (m.userData as Tgt).node.id === hoverId ? 1.13 : 1.0;
           t.curScale += (t.tScale * hov - t.curScale) * 0.16; m.scale.setScalar(t.curScale);
           u.uAlpha.value = (u.uAlpha.value as number) + ((t.tOpac as number) - (u.uAlpha.value as number)) * 0.16; u.uTime.value = tt;
           if (t.role === 'hidden' && (u.uAlpha.value as number) < 0.02) m.visible = false;
@@ -444,6 +444,7 @@ export default function GoldenOrrery() {
         .ol-focus{padding:9px 12px;border-color:rgba(111,242,255,.4)}
         .ol-focus .ol-t{font-size:17px;color:#fbffff}
         .ol-spine{padding:3px 7px;opacity:.85}.ol-spine .ol-t{font-size:9.5px;color:#cdeaff}
+        .ol-plaque.ol-hover{transform:translate(-50%,-100%) scale(1.09);border-color:rgba(207,233,255,.85);box-shadow:0 0 22px color-mix(in srgb,var(--branch) 55%,transparent),inset 0 0 18px rgba(111,242,255,.06)}
       `}} />
       <div className="ol-grid" />
       <div ref={mountRef} style={{ position: 'absolute', inset: 0, zIndex: 1 }} />
