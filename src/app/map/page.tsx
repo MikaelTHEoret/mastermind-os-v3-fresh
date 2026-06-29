@@ -24,6 +24,8 @@ type GLink = { source: string; target: string };
 type TreeResp = { nodes: RawNode[]; links: GLink[]; roots: string[]; count: number };
 type Crumb = { id: string; name: string };
 type ViewState = { focusId: string; path: Crumb[]; focus: RawNode | null; childCount: number };
+type ChunkCard = { address: string; title: string | null; subject: string | null; source_type: string | null; chars: number | null; snippet: string };
+type LeafData = { path: string; total: number; chunks: ChunkCard[]; loading: boolean };
 
 function shell(n: number, radius: number): [number, number, number][] {
   if (n <= 0) return [];
@@ -165,6 +167,8 @@ export default function GoldenOrrery() {
   const [tree, setTree] = useState<TreeResp | null>(null);
   const [err, setErr] = useState('');
   const [view, setView] = useState<ViewState>({ focusId: 'ROOT', path: [], focus: null, childCount: 0 });
+  const [leaf, setLeaf] = useState<LeafData | null>(null);
+  const [openChunk, setOpenChunk] = useState<{ address: string; title: string; content: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -424,6 +428,30 @@ export default function GoldenOrrery() {
     return () => { disposed = true; cleanup(); };
   }, [tree]);
 
+  useEffect(() => {
+    const f = view.focus;
+    if (!f || !f.is_leaf) { setLeaf(null); setOpenChunk(null); return; }
+    let cancelled = false;
+    setLeaf({ path: view.focusId, total: f.n_chunks, chunks: [], loading: true });
+    (async () => {
+      try {
+        const r = await fetch(`/api/codex?op=leaf&path=${encodeURIComponent(view.focusId)}&k=24`);
+        const j = await r.json();
+        if (!cancelled) setLeaf({ path: view.focusId, total: j.total ?? 0, chunks: (j.chunks || []) as ChunkCard[], loading: false });
+      } catch { if (!cancelled) setLeaf({ path: view.focusId, total: f.n_chunks, chunks: [], loading: false }); }
+    })();
+    return () => { cancelled = true; };
+  }, [view.focusId, view.focus]);
+
+  const openCard = async (address: string, title: string) => {
+    setOpenChunk({ address, title, content: 'Loading\u2026' });
+    try {
+      const r = await fetch(`/api/codex?op=node&address=${encodeURIComponent(address)}`);
+      const j = await r.json();
+      setOpenChunk({ address, title, content: (j.content as string) || (j.snippet as string) || '(no content)' });
+    } catch { setOpenChunk({ address, title, content: '(failed to load)' }); }
+  };
+
   const parentId = view.path.length >= 2 ? view.path[view.path.length - 2].id : null;
   const cohColor = view.focus?.coherence == null ? C.cyan : view.focus.coherence >= 0.78 ? C.green : view.focus.coherence >= 0.6 ? C.gold : C.magenta;
 
@@ -445,6 +473,22 @@ export default function GoldenOrrery() {
         .ol-focus .ol-t{font-size:17px;color:#fbffff}
         .ol-spine{padding:3px 7px;opacity:.85}.ol-spine .ol-t{font-size:9.5px;color:#cdeaff}
         .ol-plaque.ol-hover{transform:translate(-50%,-100%) scale(1.09);border-color:rgba(207,233,255,.85);box-shadow:0 0 22px color-mix(in srgb,var(--branch) 55%,transparent),inset 0 0 18px rgba(111,242,255,.06)}
+        .ol-readpanel{position:absolute;top:58px;right:14px;bottom:58px;width:360px;max-width:42vw;z-index:4;display:flex;flex-direction:column;background:linear-gradient(160deg,rgba(10,18,34,.74),rgba(4,9,20,.68));border:1px solid rgba(120,160,255,.22);border-radius:8px;box-shadow:0 0 30px rgba(80,60,160,.2),inset 0 0 40px rgba(80,120,200,.05);backdrop-filter:blur(12px);overflow:hidden}
+        .ol-readhead{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid rgba(120,160,255,.18);flex:0 0 auto}
+        .ol-readlist{overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:7px}
+        .ol-readlist::-webkit-scrollbar{width:7px}.ol-readlist::-webkit-scrollbar-thumb{background:rgba(120,160,255,.25);border-radius:4px}
+        .ol-card{cursor:pointer;padding:9px 11px;border-radius:5px;background:rgba(120,160,255,.05);border:1px solid rgba(120,160,255,.14);border-left:2px solid rgba(150,120,255,.5);transition:background .15s,border-color .15s,box-shadow .15s}
+        .ol-card:hover{background:rgba(120,160,255,.1);border-left-color:#6ff2ff;box-shadow:0 0 14px rgba(111,242,255,.12)}
+        .ol-card-h{display:flex;gap:7px;align-items:baseline;margin-bottom:4px}
+        .ol-card-src{flex:0 0 auto;font-family:${ORBITRON};font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#b89cff;border:1px solid rgba(184,156,255,.35);border-radius:3px;padding:1px 5px}
+        .ol-card-title{font-family:${RAJDHANI};font-size:12.5px;font-weight:600;color:#eafbff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ol-card-snip{font-family:${RAJDHANI};font-size:11.5px;line-height:1.45;color:rgba(190,225,245,.72);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+        .ol-card-meta{margin-top:5px;font-family:${ORBITRON};font-size:8px;letter-spacing:.5px;color:rgba(150,200,230,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .ol-modal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(2,5,12,.72);backdrop-filter:blur(3px)}
+        .ol-modal-box{width:min(760px,86vw);max-height:80vh;display:flex;flex-direction:column;background:linear-gradient(160deg,rgba(12,20,38,.97),rgba(5,10,22,.97));border:1px solid rgba(120,160,255,.3);border-radius:10px;box-shadow:0 0 60px rgba(90,70,180,.35);padding:16px 18px}
+        .ol-modal-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:10px;border-bottom:1px solid rgba(120,160,255,.2);margin-bottom:10px}
+        .ol-modal-body{overflow-y:auto;font-family:${RAJDHANI};font-size:13.5px;line-height:1.6;color:rgba(220,245,255,.9);white-space:pre-wrap;word-break:break-word}
+        .ol-modal-body::-webkit-scrollbar{width:8px}.ol-modal-body::-webkit-scrollbar-thumb{background:rgba(120,160,255,.3);border-radius:4px}
       `}} />
       <div className="ol-grid" />
       <div ref={mountRef} style={{ position: 'absolute', inset: 0, zIndex: 1 }} />
@@ -480,6 +524,42 @@ export default function GoldenOrrery() {
       <div style={{ position: 'absolute', bottom: 20, left: 18, color: C.textDim, fontSize: 10, fontFamily: ORBITRON, letterSpacing: 1, zIndex: 4, opacity: 0.6 }}>click to enter · backspace to ascend · drag to orbit</div>
 
       {err && <div style={{ position: 'absolute', top: 64, left: 18, background: 'rgba(4,12,24,.9)', border: `1px solid ${C.gold}`, borderRadius: 6, padding: '12px 14px', color: C.gold, fontSize: 12, maxWidth: 480, zIndex: 5, fontFamily: RAJDHANI }}>tree load error: {err}</div>}
+
+      {leaf && (
+        <div className="ol-readpanel">
+          <div className="ol-readhead">
+            <span style={{ fontFamily: ORBITRON, fontSize: 12, letterSpacing: '0.12em', color: C.cyan, textShadow: `0 0 10px ${C.cyan}88`, textTransform: 'uppercase' }}>◈ {view.focus?.name}</span>
+            <span style={{ fontFamily: RAJDHANI, fontSize: 11, color: C.textDim }}>{leaf.loading ? 'loading…' : `${leaf.chunks.length} of ${leaf.total.toLocaleString()}`}</span>
+          </div>
+          <div className="ol-readlist">
+            {leaf.loading && <div style={{ color: C.textDim, fontFamily: RAJDHANI, fontSize: 12, padding: '12px 4px' }}>reading the archive…</div>}
+            {!leaf.loading && leaf.chunks.length === 0 && <div style={{ color: C.textDim, fontFamily: RAJDHANI, fontSize: 12, padding: '12px 4px' }}>no readable chunks at this leaf.</div>}
+            {leaf.chunks.map((c) => (
+              <div key={c.address} className="ol-card" onClick={() => openCard(c.address, (c.title && c.title.trim()) || c.subject || c.address)}>
+                <div className="ol-card-h">
+                  <span className="ol-card-src">{c.source_type || '—'}</span>
+                  <span className="ol-card-title">{(c.title && c.title.trim()) || c.subject || c.address}</span>
+                </div>
+                <div className="ol-card-snip">{c.snippet}</div>
+                <div className="ol-card-meta">{c.chars != null ? `${c.chars.toLocaleString()} chars · ` : ''}{c.address}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {openChunk && (
+        <div className="ol-modal" onClick={() => setOpenChunk(null)}>
+          <div className="ol-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="ol-modal-head">
+              <span style={{ fontFamily: ORBITRON, fontSize: 12, letterSpacing: '0.08em', color: C.cyan }}>{openChunk.title}</span>
+              <span onClick={() => setOpenChunk(null)} style={{ cursor: 'pointer', color: C.textDim, fontFamily: ORBITRON, fontSize: 15, lineHeight: 1 }}>✕</span>
+            </div>
+            <div className="ol-modal-body">{openChunk.content}</div>
+            <div style={{ fontFamily: ORBITRON, fontSize: 9, color: C.textDim, letterSpacing: 1, marginTop: 10 }}>{openChunk.address}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

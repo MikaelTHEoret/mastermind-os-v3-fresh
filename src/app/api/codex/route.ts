@@ -164,7 +164,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return ok({ nodes, links, roots, count: nodes.length });
     }
 
-    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree'] }, 400);
+    if (op === 'leaf') {
+      // The chunks that live AT a leaf (or any) fractal node: transcript_archive.bloom_path == node.path.
+      // This is what makes the orrery READ the archive — descend to a leaf, get its real content cards.
+      const path = p.get('path') || '';
+      if (!path) return ok({ error: 'path required' }, 400);
+      const rows = (await sql`SELECT address, source_type, doc_id, title, topic_tags, evidence_class, subject, core_hash, char_count, content FROM transcript_archive WHERE bloom_path = ${path} ORDER BY char_count DESC NULLS LAST LIMIT ${k * 3}`) as Row[];
+      const total = (await sql`SELECT count(*)::int AS n FROM transcript_archive WHERE bloom_path = ${path}`) as Array<{ n: number }>;
+      return ok({ path, total: total[0]?.n ?? rows.length, chunks: clean(rows, k) });
+    }
+
+    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree', 'leaf'] }, 400);
   } catch (err: unknown) {
     return ok({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
