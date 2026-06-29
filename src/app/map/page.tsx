@@ -294,11 +294,11 @@ export default function GoldenOrrery() {
       const portalOuter = new THREE.Line(octGeo, new THREE.LineBasicMaterial({ color: new THREE.Color('#a657ff'), transparent: true, opacity: 0.9 }));
       const portalInner = new THREE.Line(octGeo, new THREE.LineBasicMaterial({ color: new THREE.Color('#e6d2ff'), transparent: true, opacity: 0.85 })); portalInner.scale.setScalar(0.9);
       const portalDisc = new THREE.Mesh(new THREE.CircleGeometry(0.96, 8, Math.PI / 8), new THREE.MeshBasicMaterial({ color: new THREE.Color('#2a1556'), transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false }));
-      const portal = new THREE.Group(); portal.add(portalDisc); portal.add(portalOuter); portal.add(portalInner); scene.add(portal);
+      const portal = new THREE.Group(); portal.add(portalDisc); portal.add(portalOuter); portal.add(portalInner); scene.add(portal); portal.visible = false;
 
       // focused VIOLET rain column pouring onto the core
       const colMat = new THREE.ShaderMaterial({ uniforms: { uTime: { value: 0 }, uCodeTex: { value: atlas } }, vertexShader: RAIN_VERT, fragmentShader: COL_FRAG, transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending });
-      const rainCol = new THREE.Mesh(new THREE.PlaneGeometry(64, 300), colMat); rainCol.position.set(0, 150, 0); scene.add(rainCol);
+      const rainCol = new THREE.Mesh(new THREE.PlaneGeometry(64, 300), colMat); rainCol.position.set(0, 150, 0); scene.add(rainCol); rainCol.visible = false;
 
       const rays = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(291 * 6), 3)), new THREE.LineBasicMaterial({ color: 0x8fe6ff, transparent: true, opacity: 0.12 })); scene.add(rays);
       const spineGeom = new THREE.BufferGeometry(); spineGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(40 * 3), 3));
