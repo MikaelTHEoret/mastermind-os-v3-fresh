@@ -452,6 +452,9 @@ export default function GoldenOrrery() {
     } catch { setOpenChunk({ address, title, content: '(failed to load)' }); }
   };
 
+  const srcFile = (a: string) => { const i = a.indexOf('#'); return i > 0 ? a.slice(0, i) : a; };
+  const chunkRef = (a: string) => { const i = a.indexOf('#'); return i >= 0 ? a.slice(i + 1) : a; };
+
   const parentId = view.path.length >= 2 ? view.path[view.path.length - 2].id : null;
   const cohColor = view.focus?.coherence == null ? C.cyan : view.focus.coherence >= 0.78 ? C.green : view.focus.coherence >= 0.6 ? C.gold : C.magenta;
 
@@ -481,8 +484,8 @@ export default function GoldenOrrery() {
         .ol-card:hover{background:rgba(120,160,255,.1);border-left-color:#6ff2ff;box-shadow:0 0 14px rgba(111,242,255,.12)}
         .ol-card-h{display:flex;gap:7px;align-items:baseline;margin-bottom:4px}
         .ol-card-src{flex:0 0 auto;font-family:${ORBITRON};font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#b89cff;border:1px solid rgba(184,156,255,.35);border-radius:3px;padding:1px 5px}
-        .ol-card-title{font-family:${RAJDHANI};font-size:12.5px;font-weight:600;color:#eafbff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        .ol-card-snip{font-family:${RAJDHANI};font-size:11.5px;line-height:1.45;color:rgba(190,225,245,.72);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+        .ol-card-title{font-family:${ORBITRON};font-size:9.5px;font-weight:500;letter-spacing:.3px;color:#8fcfe8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:lowercase}
+        .ol-card-snip{font-family:${RAJDHANI};font-size:12.5px;line-height:1.5;color:rgba(206,232,248,.85);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
         .ol-card-meta{margin-top:5px;font-family:${ORBITRON};font-size:8px;letter-spacing:.5px;color:rgba(150,200,230,.4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .ol-modal{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(2,5,12,.72);backdrop-filter:blur(3px)}
         .ol-modal-box{width:min(760px,86vw);max-height:80vh;display:flex;flex-direction:column;background:linear-gradient(160deg,rgba(12,20,38,.97),rgba(5,10,22,.97));border:1px solid rgba(120,160,255,.3);border-radius:10px;box-shadow:0 0 60px rgba(90,70,180,.35);padding:16px 18px}
@@ -535,13 +538,13 @@ export default function GoldenOrrery() {
             {leaf.loading && <div style={{ color: C.textDim, fontFamily: RAJDHANI, fontSize: 12, padding: '12px 4px' }}>reading the archive…</div>}
             {!leaf.loading && leaf.chunks.length === 0 && <div style={{ color: C.textDim, fontFamily: RAJDHANI, fontSize: 12, padding: '12px 4px' }}>no readable chunks at this leaf.</div>}
             {leaf.chunks.map((c) => (
-              <div key={c.address} className="ol-card" onClick={() => openCard(c.address, (c.title && c.title.trim()) || c.subject || c.address)}>
+              <div key={c.address} className="ol-card" onClick={() => openCard(c.address, srcFile(c.address))}>
                 <div className="ol-card-h">
                   <span className="ol-card-src">{c.source_type || '—'}</span>
-                  <span className="ol-card-title">{(c.title && c.title.trim()) || c.subject || c.address}</span>
+                  <span className="ol-card-title">{srcFile(c.address)}{c.subject ? ` · ${c.subject}` : ''}</span>
                 </div>
                 <div className="ol-card-snip">{c.snippet}</div>
-                <div className="ol-card-meta">{c.chars != null ? `${c.chars.toLocaleString()} chars · ` : ''}{c.address}</div>
+                <div className="ol-card-meta">{chunkRef(c.address)}{c.chars != null ? ` · ${c.chars.toLocaleString()} chars` : ''}</div>
               </div>
             ))}
           </div>
