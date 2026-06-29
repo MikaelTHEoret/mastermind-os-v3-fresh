@@ -125,15 +125,15 @@ uniform float uTime; uniform sampler2D uCodeTex;
 varying vec2 vUv;
 float hash(float x){ return fract(sin(x*127.1)*43758.5453); }
 void main(){
-  vec2 uv = vUv * vec2(70.0, 30.0);
+  vec2 uv = vUv * vec2(48.0, 26.0);
   float col = floor(uv.x);
   float sp = 0.5 + hash(col)*1.4;
   uv.y = uv.y + uTime*sp + hash(col)*50.0;
   float g = texture2D(uCodeTex, fract(uv)).a;
-  float colMask = step(0.2, hash(col*2.3));
-  vec3 c = mix(vec3(0.4,0.5,1.0), vec3(0.85,0.95,1.0), g*0.7);
-  float a = g * colMask * 0.8;
-  gl_FragColor = vec4(c*(0.8+0.7*g), a);
+  float colMask = step(0.55, hash(col*2.3));
+  vec3 c = mix(vec3(0.32,0.26,0.6), vec3(0.7,0.62,0.95), g*0.7);
+  float a = g * colMask * 0.55;
+  gl_FragColor = vec4(c*(0.7+0.6*g), a);
 }`;
 
 // dense VIOLET column rain pouring onto the focus (brighter toward the bottom)
