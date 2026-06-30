@@ -170,13 +170,24 @@ export default function GoldenOrrery() {
   const [leaf, setLeaf] = useState<LeafData | null>(null);
   const [openChunk, setOpenChunk] = useState<{ address: string; title: string; content: string } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [axis, setAxis] = useState<'subject' | 'source'>('subject');
+  const [srcLeaf, setSrcLeaf] = useState<{ path: string; total: number; loading: boolean; conversations: { doc_id: string; n_chunks: number; source_type: string | null }[] } | null>(null);
+  const [openConv, setOpenConv] = useState<{ doc_id: string; subjects: { bloom_path: string; n: number }[] | null } | null>(null);
+  const bootFocusRef = useRef<string | null>(null);
+  const treesRef = useRef<{ subject?: TreeResp; source?: TreeResp }>({});
 
   useEffect(() => {
     (async () => {
-      try { const r = await fetch('/api/codex?op=tree'); const j = (await r.json()) as TreeResp; if (!j.nodes) setErr(JSON.stringify(j)); else setTree(j); }
-      catch (e) { setErr(String(e)); }
+      try {
+        const cached = treesRef.current[axis];
+        if (cached) { setTree(cached); return; }
+        const r = await fetch(`/api/codex?op=tree${axis === 'source' ? '&axis=source' : ''}`);
+        const j = (await r.json()) as TreeResp;
+        if (!j.nodes) setErr(JSON.stringify(j));
+        else { treesRef.current[axis] = j; setTree(j); }
+      } catch (e) { setErr(String(e)); }
     })();
-  }, []);
+  }, [axis]);
 
   useEffect(() => {
     if (!tree || !mountRef.current) return;
@@ -383,7 +394,8 @@ export default function GoldenOrrery() {
       const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); bloom.setSize(w, h); };
       window.addEventListener('resize', onResize);
 
-      const initialFocus = (() => { try { const f = new URL(window.location.href).searchParams.get('focus'); return f && byId.has(f) ? f : 'ROOT'; } catch { return 'ROOT'; } })();
+      const boot = bootFocusRef.current; bootFocusRef.current = null;
+      const initialFocus = (() => { if (boot && byId.has(boot)) return boot; try { const f = new URL(window.location.href).searchParams.get('focus'); return f && byId.has(f) ? f : 'ROOT'; } catch { return 'ROOT'; } })();
       applyView(initialFocus);
       const clock = new THREE.Clock(); let envFrame = 0;
       const animate = () => {
@@ -436,18 +448,31 @@ export default function GoldenOrrery() {
 
   useEffect(() => {
     const f = view.focus;
-    if (!f || !f.is_leaf) { setLeaf(null); setOpenChunk(null); return; }
+    if (!f || !f.is_leaf) { setLeaf(null); setSrcLeaf(null); setOpenChunk(null); setOpenConv(null); return; }
     let cancelled = false;
-    setLeaf({ path: view.focusId, total: f.n_chunks, chunks: [], loading: true });
-    (async () => {
-      try {
-        const r = await fetch(`/api/codex?op=leaf&path=${encodeURIComponent(view.focusId)}&k=24`);
-        const j = await r.json();
-        if (!cancelled) setLeaf({ path: view.focusId, total: j.total ?? 0, chunks: (j.chunks || []) as ChunkCard[], loading: false });
-      } catch { if (!cancelled) setLeaf({ path: view.focusId, total: f.n_chunks, chunks: [], loading: false }); }
-    })();
+    if (axis === 'source') {
+      setLeaf(null);
+      setSrcLeaf({ path: view.focusId, total: f.n_chunks, loading: true, conversations: [] });
+      (async () => {
+        try {
+          const r = await fetch(`/api/codex?op=srcleaf&path=${encodeURIComponent(view.focusId)}&k=24`);
+          const j = await r.json();
+          if (!cancelled) setSrcLeaf({ path: view.focusId, total: j.total ?? 0, loading: false, conversations: (j.conversations || []) });
+        } catch { if (!cancelled) setSrcLeaf({ path: view.focusId, total: 0, loading: false, conversations: [] }); }
+      })();
+    } else {
+      setSrcLeaf(null);
+      setLeaf({ path: view.focusId, total: f.n_chunks, chunks: [], loading: true });
+      (async () => {
+        try {
+          const r = await fetch(`/api/codex?op=leaf&path=${encodeURIComponent(view.focusId)}&k=24`);
+          const j = await r.json();
+          if (!cancelled) setLeaf({ path: view.focusId, total: j.total ?? 0, chunks: (j.chunks || []) as ChunkCard[], loading: false });
+        } catch { if (!cancelled) setLeaf({ path: view.focusId, total: f.n_chunks, chunks: [], loading: false }); }
+      })();
+    }
     return () => { cancelled = true; };
-  }, [view.focusId, view.focus]);
+  }, [view.focusId, view.focus, axis]);
 
   const openCard = async (address: string, title: string) => {
     setOpenChunk({ address, title, content: 'Loading\u2026' });
@@ -458,6 +483,17 @@ export default function GoldenOrrery() {
     } catch { setOpenChunk({ address, title, content: '(failed to load)' }); }
   };
 
+  const switchAxis = (target: 'subject' | 'source', focusId?: string) => {
+    setOpenChunk(null); setOpenConv(null);
+    if (target === axis) { if (focusId) goToRef.current(focusId); return; }
+    bootFocusRef.current = focusId || 'ROOT';
+    setAxis(target);
+  };
+  const openConversation = async (docId: string) => {
+    setOpenConv({ doc_id: docId, subjects: null });
+    try { const r = await fetch(`/api/codex?op=docsubjects&doc_id=${encodeURIComponent(docId)}&k=24`); const j = await r.json(); setOpenConv({ doc_id: docId, subjects: (j.subjects || []) }); }
+    catch { setOpenConv({ doc_id: docId, subjects: [] }); }
+  };
   const copyLink = () => { try { navigator.clipboard.writeText(window.location.href); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1500); } catch { /* clipboard blocked */ } };
   const srcFile = (a: string) => { const i = a.indexOf('#'); return i > 0 ? a.slice(0, i) : a; };
   const chunkRef = (a: string) => { const i = a.indexOf('#'); return i >= 0 ? a.slice(i + 1) : a; };
@@ -517,6 +553,11 @@ export default function GoldenOrrery() {
       </div>
 
       <div style={{ position: 'absolute', top: 14, right: 18, display: 'flex', alignItems: 'center', gap: 10, zIndex: 4 }}>
+        <div style={{ display: 'flex', border: `1px solid ${C.cyan}44`, borderRadius: 4, overflow: 'hidden' }}>
+          {(['subject', 'source'] as const).map((a) => (
+            <span key={a} onClick={() => switchAxis(a)} title={a === 'source' ? 'where it came from (provenance)' : 'what it means (subjects)'} style={{ cursor: 'pointer', fontFamily: ORBITRON, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', padding: '5px 10px', color: a === axis ? '#04060f' : C.cyan, background: a === axis ? C.cyan : 'transparent', transition: 'background .15s' }}>{a}</span>
+          ))}
+        </div>
         <span style={{ fontFamily: ORBITRON, fontSize: 11, letterSpacing: 3, color: C.cyan, textShadow: `0 0 12px ${C.cyan}88` }}>◈ GOLDEN ORRERY</span>
         <a href="/codex" style={{ fontFamily: ORBITRON, fontSize: 9.5, letterSpacing: 1, textTransform: 'uppercase', color: C.cyan, border: `1px solid ${C.cyan}55`, borderRadius: 3, padding: '5px 10px', textDecoration: 'none' }}>◇ codex</a>
       </div>
@@ -524,7 +565,7 @@ export default function GoldenOrrery() {
       {view.focus && (
         <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', maxWidth: '60vw', display: 'flex', gap: 18, alignItems: 'center', zIndex: 4, padding: '9px 18px', borderRadius: 4, background: 'linear-gradient(135deg,rgba(111,242,255,.04) 25%,transparent 25%) 0 0/18px 18px, rgba(4,12,24,.55)', border: `1px solid ${C.cyan}33`, borderTop: `1px solid ${C.cyan}66`, boxShadow: `0 0 18px ${C.cyan}18, inset 0 0 28px ${C.cyan}0a`, backdropFilter: 'blur(10px)', fontFamily: RAJDHANI, fontSize: 13 }}>
           <span style={{ fontFamily: ORBITRON, fontSize: 9, letterSpacing: 2, color: C.cyan }}>◈ {view.focusId === 'ROOT' ? 'CORE' : (view.focus.is_leaf ? 'LEAF' : 'NODE')}</span>
-          <span style={{ color: C.text }}>{view.childCount} <span style={{ color: C.textDim }}>{view.focus.is_leaf ? 'leaves' : view.focusId === 'ROOT' ? 'branches' : 'subjects'}</span></span>
+          <span style={{ color: C.text }}>{view.childCount} <span style={{ color: C.textDim }}>{view.focus.is_leaf ? (axis === 'source' ? 'sources' : 'leaves') : view.focusId === 'ROOT' ? 'branches' : (axis === 'source' ? 'groups' : 'subjects')}</span></span>
           <span style={{ color: C.text }}>{view.focus.n_chunks.toLocaleString()} <span style={{ color: C.textDim }}>chunks</span></span>
           {view.focus.coherence != null && <span style={{ color: C.textDim }}>coherence <span style={{ color: cohColor }}>{view.focus.coherence}</span></span>}
           {parentId && <span onClick={() => goToRef.current(parentId)} style={{ cursor: 'pointer', color: C.cyan, fontFamily: ORBITRON, fontSize: 10, letterSpacing: 1 }}>↩ BACK</span>}
@@ -555,6 +596,52 @@ export default function GoldenOrrery() {
                 <div className="ol-card-meta">{chunkRef(c.address)}{c.chars != null ? ` · ${c.chars.toLocaleString()} chars` : ''}</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {srcLeaf && (
+        <div className="ol-readpanel">
+          <div className="ol-readhead">
+            <span style={{ fontFamily: ORBITRON, fontSize: 12, letterSpacing: '0.12em', color: C.cyan, textShadow: `0 0 10px ${C.cyan}88`, textTransform: 'uppercase' }}>◈ {view.focus?.name}</span>
+            <span style={{ fontFamily: RAJDHANI, fontSize: 11, color: C.textDim }}>{srcLeaf.loading ? 'loading…' : `${srcLeaf.conversations.length} of ${srcLeaf.total.toLocaleString()} sources`}</span>
+          </div>
+          <div className="ol-readlist">
+            {srcLeaf.loading && <div style={{ color: C.textDim, fontFamily: RAJDHANI, fontSize: 12, padding: '12px 4px' }}>reading the archive…</div>}
+            {!srcLeaf.loading && srcLeaf.conversations.length === 0 && <div style={{ color: C.textDim, fontFamily: RAJDHANI, fontSize: 12, padding: '12px 4px' }}>no sources at this leaf.</div>}
+            {srcLeaf.conversations.map((cv) => (
+              <div key={cv.doc_id} className="ol-card" onClick={() => openConversation(cv.doc_id)}>
+                <div className="ol-card-h">
+                  <span className="ol-card-src">{cv.source_type || '—'}</span>
+                  <span className="ol-card-title">{cv.doc_id}</span>
+                </div>
+                <div className="ol-card-meta">{cv.n_chunks.toLocaleString()} chunks · tap to see the subjects it feeds →</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {openConv && (
+        <div className="ol-modal" onClick={() => setOpenConv(null)}>
+          <div className="ol-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="ol-modal-head">
+              <span style={{ fontFamily: ORBITRON, fontSize: 12, letterSpacing: '0.08em', color: C.cyan }}>{openConv.doc_id}</span>
+              <span onClick={() => setOpenConv(null)} style={{ cursor: 'pointer', color: C.textDim, fontFamily: ORBITRON, fontSize: 15, lineHeight: 1 }}>✕</span>
+            </div>
+            <div style={{ fontFamily: ORBITRON, fontSize: 9, letterSpacing: 1, color: C.textDim, marginBottom: 10 }}>SUBJECTS THIS SOURCE FEEDS — tap one to cross into the meaning tree</div>
+            <div className="ol-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {openConv.subjects == null && <div style={{ color: C.textDim, fontFamily: RAJDHANI }}>tracing…</div>}
+              {openConv.subjects && openConv.subjects.length === 0 && <div style={{ color: C.textDim, fontFamily: RAJDHANI }}>no mapped subjects.</div>}
+              {openConv.subjects && openConv.subjects.map((s) => (
+                <div key={s.bloom_path} onClick={() => switchAxis('subject', s.bloom_path)} className="ol-card" style={{ cursor: 'pointer' }}>
+                  <div className="ol-card-h">
+                    <span className="ol-card-src" style={{ color: C.cyan, borderColor: `${C.cyan}55` }}>{s.n}</span>
+                    <span className="ol-card-title" style={{ color: '#cfe9ff' }}>{s.bloom_path}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

@@ -146,7 +146,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (op === 'tree') {
       // The Golden Tree overview — the fractal_nodes clustering tree (ROOT -> 8 branches -> 227 leaves),
       // each node a "subject sun" carrying n_chunks + coherence. Always-on: structure only, no embedder, no box.
-      const rows = (await sql`SELECT path, name, parent_path, depth, is_leaf, n_chunks, coherence FROM fractal_nodes ORDER BY depth, path`) as Array<{ path: string; name: string; parent_path: string | null; depth: number; is_leaf: boolean; n_chunks: number | null; coherence: number | null }>;
+      const axis = p.get('axis') === 'source' ? 'source' : 'subject';
+      const rows = (axis === 'source'
+        ? await sql`SELECT path, name, parent_path, depth, is_leaf, n_chunks, coherence FROM source_nodes ORDER BY depth, path`
+        : await sql`SELECT path, name, parent_path, depth, is_leaf, n_chunks, coherence FROM fractal_nodes ORDER BY depth, path`) as Array<{ path: string; name: string; parent_path: string | null; depth: number; is_leaf: boolean; n_chunks: number | null; coherence: number | null }>;
       const rootOf = (path: string, depth: number): string => (depth <= 0 ? 'ROOT' : path.split('/')[0]);
       const nodes = rows.map((r) => ({
         id: r.path, name: r.name, depth: r.depth, is_leaf: r.is_leaf,
@@ -161,7 +164,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         else if (r.depth === 1 && present.has('ROOT')) links.push({ source: 'ROOT', target: r.path });
       }
       const roots = Array.from(new Set(nodes.filter((n) => n.depth === 1).map((n) => n.root)));
-      return ok({ nodes, links, roots, count: nodes.length });
+      return ok({ nodes, links, roots, count: nodes.length, axis });
     }
 
     if (op === 'leaf') {
@@ -174,7 +177,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return ok({ path, total: total[0]?.n ?? rows.length, chunks: clean(rows, k) });
     }
 
-    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree', 'leaf'] }, 400);
+    if (op === 'srcleaf') {
+      // The SOURCE leaf: the conversations/files that live at a source_nodes leaf (provenance axis).
+      const path = p.get('path') || '';
+      if (!path) return ok({ error: 'path required' }, 400);
+      const rows = (await sql`SELECT doc_id, n_chunks, source_type FROM source_doc_map WHERE src_path = ${path} ORDER BY n_chunks DESC LIMIT ${k * 4}`) as Array<{ doc_id: string; n_chunks: number; source_type: string | null }>;
+      const tot = (await sql`SELECT count(*)::int AS n, COALESCE(sum(n_chunks),0)::int AS chunks FROM source_doc_map WHERE src_path = ${path}`) as Array<{ n: number; chunks: number }>;
+      return ok({ path, total: tot[0]?.n ?? rows.length, chunks_total: tot[0]?.chunks ?? 0, conversations: rows });
+    }
+
+    if (op === 'docsubjects') {
+      // CROSS-LINK forward: the SUBJECT leaves a conversation feeds (its chunks' bloom_paths). doc_id -> subjects.
+      if (!docId) return ok({ error: 'doc_id required' }, 400);
+      const rows = (await sql`SELECT bloom_path, count(*)::int AS n FROM transcript_archive WHERE doc_id = ${docId} AND bloom_path IS NOT NULL GROUP BY bloom_path ORDER BY n DESC LIMIT ${k * 2}`) as Array<{ bloom_path: string; n: number }>;
+      return ok({ doc_id: docId, subjects: rows });
+    }
+
+    if (op === 'subjsources') {
+      // CROSS-LINK reverse: the SOURCES feeding a subject leaf. bloom_path -> source files (via source_doc_map).
+      const path = p.get('path') || '';
+      if (!path) return ok({ error: 'path required' }, 400);
+      const rows = (await sql`SELECT sdm.src_path, count(*)::int AS n FROM transcript_archive ta JOIN source_doc_map sdm USING(doc_id) WHERE ta.bloom_path = ${path} GROUP BY sdm.src_path ORDER BY n DESC LIMIT ${k * 2}`) as Array<{ src_path: string; n: number }>;
+      return ok({ path, sources: rows });
+    }
+
+    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree', 'leaf', 'srcleaf', 'docsubjects', 'subjsources'] }, 400);
   } catch (err: unknown) {
     return ok({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
