@@ -117,7 +117,7 @@ void main(){
 }`;
 
 type Preset = { lvl: number; focus: number; codeScale: number; codeSpeed: number; codeOpacity: number; circuit: number; rimPower: number; rim: number; pulse: number; noise: number };
-const SUN: Preset = { lvl: 0, focus: 1, codeScale: 1.3, codeSpeed: 0.02, codeOpacity: 0.3, circuit: 0.28, rimPower: 1.6, rim: 0.75, pulse: 0.22, noise: 0.045 };
+const SUN: Preset = { lvl: 0, focus: 1, codeScale: 1.3, codeSpeed: 0.02, codeOpacity: 0.3, circuit: 0.28, rimPower: 1.6, rim: 0.62, pulse: 0.15, noise: 0.045 };
 const PLANET: Preset = { lvl: 1, focus: 0, codeScale: 1.8, codeSpeed: 0.013, codeOpacity: 0.26, circuit: 0.24, rimPower: 1.8, rim: 0.6, pulse: 0.12, noise: 0.03 };
 const MOON: Preset = { lvl: 2, focus: 0, codeScale: 2.4, codeSpeed: 0.007, codeOpacity: 0.2, circuit: 0.18, rimPower: 2.2, rim: 0.5, pulse: 0.05, noise: 0.018 };
 const RAIN_VERT = `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`;
@@ -228,7 +228,10 @@ export default function GoldenOrrery() {
       for (const l of tree.links) { childrenOf.get(l.source)?.push(byId.get(l.target)!); parentOf.set(l.target, l.source); }
       childrenOf.forEach((a) => a.sort((x, y) => y.n_chunks - x.n_chunks));
       const pathTo = (id: string): string[] => { const p: string[] = []; let c: string | undefined = id; while (c) { p.unshift(c); c = parentOf.get(c); } return p; };
-      const baseR = (n: RawNode) => Math.max(3, 3 + Math.sqrt(n.n_chunks) * 0.22);
+      // radius SATURATES at 46 (~ a 40k-chunk node): the all-encompassing ROOT core is the sum of every chunk,
+      // so an uncapped sqrt(n) law lets it balloon past its branches & eat the frame whenever the corpus grows.
+      // Cap keeps the core "biggest among siblings, not a sun that swallows the view" — re-cluster-proof.
+      const baseR = (n: RawNode) => Math.min(46, Math.max(3, 3 + Math.sqrt(n.n_chunks) * 0.22));
 
       const W = mount.clientWidth, H = mount.clientHeight;
       const scene = new THREE.Scene(); scene.background = new THREE.Color('#04060f');
@@ -239,7 +242,7 @@ export default function GoldenOrrery() {
       composer.addPass(new RenderPass(scene, camera));
       const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), 0.55, 0.5, 0.34); composer.addPass(bloom);
       const controls = new OrbitControls(camera, renderer.domElement);
-      controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 55; controls.maxDistance = 520;
+      controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 55; controls.maxDistance = 700;
       controls.autoRotate = true; controls.autoRotateSpeed = 0.16;
       const cubeRT = new THREE.WebGLCubeRenderTarget(256, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
       const cubeCam = new THREE.CubeCamera(1, 4000, cubeRT); scene.add(cubeCam);
@@ -401,7 +404,7 @@ export default function GoldenOrrery() {
           if (t.role === 'hidden' && (u.uAlpha.value as number) < 0.02) m.visible = false;
         });
         const fm = meshes.get(focusRef.current);
-        if (fm) { const ft = fm.userData as Tgt; glow.position.copy(fm.position); glow.scale.setScalar(Math.max(8, ft.curScale * 2.6)); (glow.material as import('three').SpriteMaterial).color.set(colorOf(ft.node.root)); const gm = glow.material as import('three').SpriteMaterial; gm.opacity = gm.opacity + (0.3 - gm.opacity) * 0.12; }
+        if (fm) { const ft = fm.userData as Tgt; glow.position.copy(fm.position); glow.scale.setScalar(Math.max(8, ft.curScale * 2.0)); (glow.material as import('three').SpriteMaterial).color.set(colorOf(ft.node.root)); const gm = glow.material as import('three').SpriteMaterial; gm.opacity = gm.opacity + (0.16 - gm.opacity) * 0.12; }
         rainMat.uniforms.uTime.value = tt; points.rotation.y += 0.0004;
         const rp = rays.geometry.attributes.position.array as Float32Array; let k = 0; const ctr = meshes.get(focusRef.current);
         if (ctr) for (const cid of childIds) { const cm = meshes.get(cid); if (!cm) continue; rp[k++] = ctr.position.x; rp[k++] = ctr.position.y; rp[k++] = ctr.position.z; rp[k++] = cm.position.x; rp[k++] = cm.position.y; rp[k++] = cm.position.z; }
