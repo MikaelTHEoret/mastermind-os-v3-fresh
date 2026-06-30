@@ -62,10 +62,16 @@ function ok(obj: unknown, code = 200): NextResponse {
 const OLLAMA_EMBED = process.env.OLLAMA_EMBED_URL || 'http://localhost:11434/api/embed';
 
 async function embedQuery(q: string): Promise<number[] | null> {
+  // Optional auth for a tunneled embedder: Cloudflare Access service token, or a bearer token.
+  // No-op until the matching env vars are set, so this is safe to ship ahead of the tunnel/lock.
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const cfId = process.env.CF_ACCESS_CLIENT_ID, cfSecret = process.env.CF_ACCESS_CLIENT_SECRET;
+  if (cfId && cfSecret) { headers['CF-Access-Client-Id'] = cfId; headers['CF-Access-Client-Secret'] = cfSecret; }
+  if (process.env.OLLAMA_EMBED_TOKEN) headers['Authorization'] = `Bearer ${process.env.OLLAMA_EMBED_TOKEN}`;
   try {
     const r = await fetch(OLLAMA_EMBED, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ model: 'nomic-embed-text', input: q.slice(0, 8000) }),
     });
     const j = await r.json();
