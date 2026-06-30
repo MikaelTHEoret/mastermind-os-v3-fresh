@@ -201,7 +201,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return ok({ path, sources: rows });
     }
 
-    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree', 'leaf', 'srcleaf', 'docsubjects', 'subjsources'] }, 400);
+    if (op === 'children') {
+      // Direct children of a node — for incremental tree descent (agents shouldn't pull the whole tree).
+      // depth-1 branches have parent_path NULL by convention, so children of ROOT = (parent_path IS NULL AND depth=1).
+      const axis = p.get('axis') === 'source' ? 'source' : 'subject';
+      const path = p.get('path') || 'ROOT';
+      const rows = (path === 'ROOT'
+        ? (axis === 'source'
+            ? await sql`SELECT path, name, depth, is_leaf, n_chunks, coherence FROM source_nodes WHERE parent_path IS NULL AND depth = 1 ORDER BY n_chunks DESC`
+            : await sql`SELECT path, name, depth, is_leaf, n_chunks, coherence FROM fractal_nodes WHERE parent_path IS NULL AND depth = 1 ORDER BY n_chunks DESC`)
+        : (axis === 'source'
+            ? await sql`SELECT path, name, depth, is_leaf, n_chunks, coherence FROM source_nodes WHERE parent_path = ${path} ORDER BY n_chunks DESC`
+            : await sql`SELECT path, name, depth, is_leaf, n_chunks, coherence FROM fractal_nodes WHERE parent_path = ${path} ORDER BY n_chunks DESC`)) as Array<{ path: string; name: string; depth: number; is_leaf: boolean; n_chunks: number | null; coherence: number | null }>;
+      return ok({ axis, path, count: rows.length, children: rows.map((r) => ({ id: r.path, name: r.name, depth: r.depth, is_leaf: r.is_leaf, n_chunks: r.n_chunks || 0, coherence: r.coherence == null ? null : Math.round(r.coherence * 1000) / 1000 })) });
+    }
+
+    return ok({ error: 'unknown op', op, ops: ['stats', 'docs', 'search', 'node', 'neighbors', 'doc', 'concept', 'tree', 'children', 'leaf', 'srcleaf', 'docsubjects', 'subjsources'] }, 400);
   } catch (err: unknown) {
     return ok({ error: err instanceof Error ? err.message : String(err) }, 500);
   }
