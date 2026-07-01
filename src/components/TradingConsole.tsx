@@ -5,6 +5,12 @@
 // the denial. Deliberately no order/trade controls — nothing may write until
 // the whole validation ladder is green (BLUEPRINT discipline).
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+
+// Loaded dynamically + rendered only when the server reports the gate CONFIGURED,
+// which implies ClerkProvider is mounted (keys present) — safe: never rendered without provider.
+const SignInButton = dynamic(() => import('@clerk/nextjs').then((m) => m.SignInButton), { ssr: false });
+const SignOutButton = dynamic(() => import('@clerk/nextjs').then((m) => m.SignOutButton), { ssr: false });
 
 const C = {
   cyan: '#00ffff', magenta: '#ff00ff', gold: '#ffaa00', green: '#00ffaa',
@@ -73,6 +79,17 @@ export default function TradingConsole() {
                   To activate: create a Clerk app, then set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
                   CLERK_SECRET_KEY and OWNER_CLERK_USER_ID in the environment.</>}
           </div>
+          {st.configured && (
+            <div style={{ marginTop: 14 }}>
+              <SignInButton mode="modal">
+                <button style={{ ...mono, background: 'rgba(255,170,0,0.12)', color: C.gold,
+                  border: `1px solid ${C.gold}66`, borderRadius: 6, padding: '8px 18px',
+                  letterSpacing: 2, cursor: 'pointer', fontSize: 12 }}>
+                  SIGN IN AS OWNER
+                </button>
+              </SignInButton>
+            </div>
+          )}
         </div>
       )}
 
@@ -83,8 +100,12 @@ export default function TradingConsole() {
       {st.state === 'ready' && (
         <>
           <div style={box}>
-            <div style={{ fontSize: 12, color: C.dim, marginBottom: 10 }}>
-              VALIDATION GATE — verdicts (WFE&gt;0.70 ∧ DSR&gt;0.95 ∧ PBO&lt;0.50) · open positions: {st.openPositions}
+            <div style={{ fontSize: 12, color: C.dim, marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+              <span>VALIDATION GATE — verdicts (WFE&gt;0.70 ∧ DSR&gt;0.95 ∧ PBO&lt;0.50) · open positions: {st.openPositions}</span>
+              <SignOutButton>
+                <button style={{ ...mono, background: 'none', color: C.dim, border: `1px solid ${C.line}`,
+                  borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 10 }}>SIGN OUT</button>
+              </SignOutButton>
             </div>
             {st.gateResults.length === 0 && <div style={{ color: C.dim }}>no gate runs recorded yet.</div>}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
