@@ -1,4 +1,4 @@
-// src/app/api/resident/route.ts -- server-side bridge to resident_server :8771
+// src/app/api/orchestrator/route.ts -- server-side bridge to orchestrator_server :8771
 // (same pattern as /api/modules -> :8770). Avoids CORS; the panel talks to this route.
 import { NextRequest, NextResponse } from 'next/server';
 const BASE = 'http://127.0.0.1:8771';
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     const r = await fetch(`${BASE}${path}${qs ? '?' + qs : ''}`, { cache: 'no-store' });
     return NextResponse.json(await r.json(), { status: r.status });
   } catch (e: any) {
-    return NextResponse.json({ error: 'resident_server :8771 unreachable - ' + e.message }, { status: 502 });
+    return NextResponse.json({ error: 'orchestrator_server :8771 unreachable - ' + e.message }, { status: 502 });
   }
 }
 
@@ -24,6 +24,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(await r.json(), { status: r.status });
   } catch (e: any) {
-    return NextResponse.json({ error: 'resident_server :8771 unreachable - ' + e.message }, { status: 502 });
+    return NextResponse.json({ error: 'orchestrator_server :8771 unreachable - ' + e.message }, { status: 502 });
   }
 }

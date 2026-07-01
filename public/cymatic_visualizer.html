@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Cymatic Canon — driven plate (live)</title>
+<style>
+  :root{--bg:#07080c;--panel:#0e1018;--ink:#e8e6df;--dim:#8a8f9c;--gold:#e8b265;--line:#1d2230;--accent:#6ea8ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,Segoe UI,Roboto,sans-serif}
+  .wrap{display:flex;gap:18px;padding:18px;flex-wrap:wrap;align-items:flex-start}
+  canvas{background:#000;border-radius:50%;box-shadow:0 0 60px rgba(110,168,255,.08),inset 0 0 40px rgba(0,0,0,.6);display:block}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;min-width:300px;max-width:330px}
+  h1{font-size:15px;font-weight:600;letter-spacing:.04em;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12px;margin:0 0 14px}
+  .row{display:flex;align-items:center;gap:10px;margin:9px 0}
+  .row label{color:var(--dim);width:92px;font-size:12px}
+  input[type=range]{flex:1;accent-color:var(--gold)}
+  .val{font-variant-numeric:tabular-nums;color:var(--gold);min-width:54px;text-align:right;font-size:12px}
+  button{background:#161a26;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:12px}
+  button:hover{border-color:var(--gold)} button.on{background:var(--gold);color:#1a1206;border-color:var(--gold)}
+  .read{margin-top:12px;border-top:1px solid var(--line);padding-top:10px;font-size:12.5px}
+  .read div{display:flex;justify-content:space-between;margin:3px 0}
+  .read span:first-child{color:var(--dim)} .read span:last-child{font-variant-numeric:tabular-nums}
+  .meter{height:7px;background:#161a26;border-radius:4px;overflow:hidden;margin-top:3px}
+  .meter i{display:block;height:100%;background:linear-gradient(90deg,#6ea8ff,#e8b265);width:0%}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;max-height:120px;overflow:auto;margin-top:10px}
+  .chip{font-size:11px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;cursor:pointer;color:var(--dim);font-variant-numeric:tabular-nums}
+  .chip:hover{border-color:var(--accent);color:var(--ink)} .chip.cur{background:var(--accent);color:#04101f;border-color:var(--accent)}
+  .hint{color:var(--dim);font-size:11px;margin-top:10px;line-height:1.45}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="540" height="540"></canvas>
+  <div class="panel">
+    <h1>CYMATIC CANON — driven plate</h1>
+    <p class="sub">forced, damped circular membrane · modes build &amp; decay · sand migrates to the nodes</p>
+    <div class="row"><label>drive freq</label><input id="drive" type="range" min="0.85" max="9" step="0.001" value="1"/><span class="val" id="drivev">1.000</span></div>
+    <div class="row"><label>resonance Q</label><input id="q" type="range" min="8" max="120" step="1" value="45"/><span class="val" id="qv">45</span></div>
+    <div class="row"><label>drive power</label><input id="amp" type="range" min="0.2" max="3" step="0.01" value="1"/><span class="val" id="ampv">1.00</span></div>
+    <div class="row"><label>sand</label><input id="np" type="range" min="0" max="2500" step="50" value="1400"/><span class="val" id="npv">1400</span></div>
+    <div class="row"><label>view</label>
+      <button id="vSand" class="on">sand</button><button id="vField">field</button><button id="vNodes">nodes</button></div>
+    <div class="row"><label>sweep</label>
+      <button id="sweep">auto-sweep ▶</button><button id="reseed">reseed sand</button></div>
+    <div class="read" id="read"></div>
+    <div class="meter"><i id="mbar"></i></div>
+    <div class="chips" id="chips"></div>
+    <p class="hint">Turn the drive dial slowly: between resonances the plate is faint and unsettled; as you cross a mode's natural frequency it swells over a moment (set by Q) and the sand walks to the new nodal lines. Auto‑sweep ramps the dial for you.</p>
+  </div>
+</div>
+<script>
+// ---------- Bessel J_m and its zeros ----------
+function besselJ(m,x){ if(x===0)return m===0?1:0; const h=x/2; let t=1; for(let i=1;i<=m;i++)t*=h/i; let s=t; const x2=-h*h;
+  for(let k=1;k<260;k++){ t*=x2/(k*(k+m)); s+=t; if(Math.abs(t)<1e-16*Math.abs(s))break; } return s; }
+function besselZeros(m,c){ const z=[],st=0.01; let fp=besselJ(m,1e-4);
+  for(let x=1e-4+st; z.length<c&&x<260; x+=st){ const f=besselJ(m,x);
+    if(fp*f<0){ let a=x-st,b=x,fa=fp; for(let it=0;it<70;it++){const mid=(a+b)/2,fm=besselJ(m,mid); if(fa*fm<=0)b=mid; else{a=mid;fa=fm;}} z.push((a+b)/2);} fp=f; } return z; }
+
+// ---------- canon ----------
+const MAXM=10,MAXN=6, r0=0.55;          // r0 = off-center drive point (excites all m)
+const JZ={}; for(let m=0;m<=MAXM;m++) JZ[m]=besselZeros(m,MAXN);
+const f0=JZ[0][0];
+let CANON=[];
+for(let m=0;m<=MAXM;m++)for(let n=1;n<=MAXN;n++){ const j=JZ[m][n-1];
+  CANON.push({m,n,j,freq:+(j/f0).toFixed(3),w:j/f0, F:besselJ(m,j*r0), key:`m${m}·n${n}`,
+              diam:m,circles:n-1,sym:m}); }
+CANON.sort((a,b)=>a.w-b.w);
+const K=CANON.length;
+
+// ---------- canvas + precomputation ----------
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,CX=W/2,CY=H/2,R=W/2-6,NR=460;
+const N=W*H;
+const inside=new Uint8Array(N), rIdx=new Uint16Array(N);
+const cosm=[]; for(let m=0;m<=MAXM;m++) cosm[m]=new Float32Array(N);
+for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const i=y*W+x,dx=x-CX,dy=y-CY,rr=Math.sqrt(dx*dx+dy*dy)/R;
+  if(rr<=1){ inside[i]=1; rIdx[i]=Math.min(NR,(rr*NR)|0); const th=Math.atan2(dy,dx);
+    for(let m=0;m<=MAXM;m++) cosm[m][i]=Math.cos(m*th);} }
+const prof=[]; for(let k=0;k<K;k++){ const p=new Float32Array(NR+1),c=CANON[k]; for(let i=0;i<=NR;i++)p[i]=besselJ(c.m,c.j*(i/NR)); prof[k]=p; }
+
+// ---------- state ----------
+let Omega=1, zeta=1/(2*45), power=1, view='sand', sweeping=false, sweepDir=1;
+const A=new Float32Array(K);            // envelope amplitudes (build up / decay)
+const field=new Float32Array(N); let fmax=1;
+let parts=[];
+function seedParts(n){ parts=[]; for(let i=0;i<n;i++){ let x,y,tr=0; do{ x=Math.random()*W; y=Math.random()*H; tr++; }while(!inside[(y|0)*W+(x|0)] && tr<60); parts.push({x,y}); } }
+function reseed(){ seedParts(+document.getElementById('np').value); }
+
+// ---------- dynamics + render ----------
+const img=ctx.createImageData(W,H);
+function step(){
+  // 1) envelope dynamics: each mode relaxes toward its steady-state resonance amplitude
+  let dom=0,domA=0;
+  for(let k=0;k<K;k++){ const w=CANON[k].w;
+    const denom=Math.sqrt((w*w-Omega*Omega)**2 + (2*zeta*w*Omega)**2);
+    const ss = power*CANON[k].F/denom;                 // steady-state resonance amplitude
+    const rate = Math.min(0.5, zeta*w*0.9 + 0.02);     // transient speed ~ damping*freq
+    A[k] += (ss - A[k])*rate;
+    const aa=Math.abs(A[k]); if(aa>domA){domA=aa;dom=k;}
+  }
+  // 2) active modes (skip the negligible ones)
+  const act=[]; for(let k=0;k<K;k++) if(Math.abs(A[k])>0.02*domA && domA>0) act.push(k);
+  // 3) field = sum active A_k * profile * cos(m theta)
+  fmax=1e-9;
+  for(let i=0;i<N;i++){ if(!inside[i]){field[i]=0;continue;} let v=0; const ri=rIdx[i];
+    for(let q=0;q<act.length;q++){ const k=act[q]; v+=A[k]*prof[k][ri]*cosm[CANON[k].m][i]; }
+    field[i]=v; const av=v<0?-v:v; if(av>fmax)fmax=av; }
+  // 4) sand migrates downhill on field^2 (toward nodes); jitter scales with local |field|
+  if(parts.length){ const inv=1/fmax;
+    for(let p of parts){ const xi=p.x|0, yi=p.y|0, i=yi*W+xi; if(!inside[i])continue;
+      const fL=field[i-1]||0,fR=field[i+1]||0,fU=field[i-W]||0,fD=field[i+W]||0,fC=field[i];
+      const gx=(fR*fR-fL*fL), gy=(fD*fD-fU*fU);            // grad of field^2
+      const mag=Math.abs(fC)*inv;
+      p.x -= gx*inv*inv*46 + (Math.random()-0.5)*(0.4+3.4*mag);
+      p.y -= gy*inv*inv*46 + (Math.random()-0.5)*(0.4+3.4*mag);
+      const dx=p.x-CX,dy=p.y-CY,rr=Math.sqrt(dx*dx+dy*dy);
+      if(rr>R-2){ p.x=CX+dx/rr*(R-2); p.y=CY+dy/rr*(R-2); }
+    }
+  }
+  // 5) paint
+  const d=img.data, inv=1/fmax;
+  for(let i=0,p=0;i<N;i++,p+=4){ if(!inside[i]){d[p]=d[p+1]=d[p+2]=0;d[p+3]=255;continue;}
+    const v=field[i]*inv; let r,g,b;
+    if(view==='field'){ const t=Math.max(-1,Math.min(1,v));
+      if(t>=0){r=18+235*t;g=16+158*t;b=10+30*t;} else{const s=-t;r=10+38*s;g=26+118*s;b=38+214*s;} }
+    else if(view==='nodes'){ const e=Math.exp(-(field[i]/(0.05*fmax))**2); r=232*e;g=178*e;b=101*e; }
+    else { const a=Math.abs(v); const sh=18*(1-Math.min(1,a)); r=sh*0.6;g=sh*0.65;b=sh*0.8; } // faint plate
+    d[p]=r;d[p+1]=g;d[p+2]=b;d[p+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+  if(view==='sand'){ ctx.fillStyle='rgba(240,205,140,0.92)'; for(let p of parts){ ctx.fillRect(p.x-0.6,p.y-0.6,1.7,1.7);} }
+  // 6) readout + auto-sweep
+  const c=CANON[dom];
+  document.getElementById('read').innerHTML=
+    `<div><span>drive Ω</span><span>${Omega.toFixed(3)}</span></div>`+
+    `<div><span>dominant mode</span><span>${c.key} @ ${c.freq}</span></div>`+
+    `<div><span>response</span><span>${(domA).toFixed(3)}</span></div>`+
+    `<div><span>detuning</span><span>${(Omega-c.w>=0?'+':'')+(Omega-c.w).toFixed(3)}</span></div>`;
+  document.getElementById('mbar').style.width=Math.min(100,domA*60)+'%';
+  document.querySelectorAll('.chip').forEach(el=>el.classList.toggle('cur', +el.dataset.k===dom));
+  if(sweeping){ Omega+=sweepDir*0.0016; if(Omega>=9){Omega=9;sweepDir=-1;} if(Omega<=0.85){Omega=0.85;sweepDir=1;}
+    document.getElementById('drive').value=Omega; document.getElementById('drivev').textContent=Omega.toFixed(3); }
+  requestAnimationFrame(step);
+}
+
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+$('drive').oninput=e=>{Omega=+e.target.value;$('drivev').textContent=Omega.toFixed(3);};
+$('q').oninput=e=>{zeta=1/(2*(+e.target.value));$('qv').textContent=e.target.value;};
+$('amp').oninput=e=>{power=+e.target.value;$('ampv').textContent=power.toFixed(2);};
+$('np').oninput=e=>{$('npv').textContent=e.target.value;reseed();};
+function setView(v,btn){view=v;['vSand','vField','vNodes'].forEach(id=>$(id).classList.remove('on'));btn.classList.add('on');}
+$('vSand').onclick=function(){setView('sand',this);}; $('vField').onclick=function(){setView('field',this);}; $('vNodes').onclick=function(){setView('nodes',this);};
+$('sweep').onclick=function(){sweeping=!sweeping;this.classList.toggle('on',sweeping);this.textContent=sweeping?'auto-sweep ⏸':'auto-sweep ▶';};
+$('reseed').onclick=reseed;
+$('chips').innerHTML=CANON.map((d,k)=>`<div class="chip" data-k="${k}">${d.key}·${d.freq}</div>`).join('');
+document.querySelectorAll('.chip').forEach(el=>el.onclick=()=>{Omega=CANON[+el.dataset.k].w;$('drive').value=Omega;$('drivev').textContent=Omega.toFixed(3);});
+
+reseed(); step();
+</script>
+</body>
+</html>

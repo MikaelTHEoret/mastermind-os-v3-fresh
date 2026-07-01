@@ -13,8 +13,8 @@
 
 ```bash
 # Required Variables (Add these in Vercel dashboard)
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_cHJpbWFyeS1rYW5nYXJvby01MS5jbGVyay5hY2NvdW50cy5kZXYk
-CLERK_SECRET_KEY=sk_test_tMkstZauUBT7doefmbAhuYhrrCr6VjIjNeGThb7dCS
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_or_live_publishable_key
+CLERK_SECRET_KEY=sk_test_or_live_secret_key
 ```
 
 ### 🎨 Clerk Dashboard Customization

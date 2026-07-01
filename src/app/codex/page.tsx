@@ -143,6 +143,7 @@ export default function CodexNavigator() {
             &#11041; CODEX NAVIGATOR
           </h1>
           <span style={{ color: C.violet, fontFamily: ORBITRON, fontSize: 11, letterSpacing: 2 }}>living knowledge navigator</span>
+          <a href="/map" style={{ marginLeft: 'auto', fontFamily: ORBITRON, fontSize: 11, letterSpacing: 1, textTransform: 'uppercase', color: C.gold, border: `1px solid ${C.gold}`, borderRadius: 4, padding: '6px 12px', textDecoration: 'none', whiteSpace: 'nowrap' }}>&#9728; golden tree</a>
         </div>
         {stats && (
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', color: C.muted, fontSize: 12, marginBottom: 16 }}>

@@ -12,6 +12,7 @@
     "mcp:test": "cd scripts/mcp && timeout 10s node mastermind-mcp-server.js || echo 'MCP server test completed'"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.5.12",
     "@neondatabase/serverless": "^1.0.1",
     "@radix-ui/react-checkbox": "^1.3.2",
     "@radix-ui/react-popover": "^1.1.14",

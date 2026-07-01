@@ -65,4 +65,9 @@ export function seedModules(): void {
         description: 'Live chat stream with bot / auto-reply / human classification.',
         version: '1.0', dependencies: [], capabilities: ['chat-stream', 'actor-class'],
         source: 'command-center', accent: 'green', enabled: true });
+
+  reg({ id: 'trading-console', name: 'Trading (owner)', kind: 'panel', status: 'live', faculty: 'hands',
+        description: 'Owner-gated cockpit over the validation-gate organism: verdicts (WFE/DSR/PBO), ladder state. The gate engine lives in mastermind-trading; nothing trades until the ladder is green.',
+        version: '0.1', dependencies: [], capabilities: ['gate-verdicts', 'owner-gate', 'ladder-status'],
+        source: 'assimilated:mastermind-trading', accent: 'gold', enabled: true });
 }

@@ -1,0 +1,162 @@
+﻿// src/lib/integrations/providerCatalog.ts
+// Client-safe metadata (NO secrets). The "wrap the line around the key" intelligence:
+// given a provider + the raw value the operator pastes, the system knows the env-var name,
+// the storage target, the validation rule, and how to construct the final line/file.
+
+export type IntegrationTarget = "app" | "local" | "serverless";
+export type IntegrationCategory =
+  | "llm" | "compute" | "database" | "auth" | "storage" | "search" | "devops" | "comms" | "custom";
+
+export interface ProviderField {
+  envKey: string;            // canonical env var name, e.g. OPENAI_API_KEY
+  label: string;             // human label for the input
+  secret: boolean;           // mask in UI + encrypt at rest
+  pattern?: string;          // regex string for format validation (empty = no check)
+  placeholder?: string;
+}
+
+export interface Provider {
+  id: string;
+  label: string;
+  category: IntegrationCategory;
+  target: IntegrationTarget; // app = encrypted DB; local = OS-standard path; serverless = deploy env
+  fields: ProviderField[];
+  osPath?: string;           // for local/serverless: where it lands on the operator machine (devlog #105)
+  docs?: string;
+  note?: string;
+}
+
+const sk = (p: string) => "^" + p + "[A-Za-z0-9_\\-]{16,}$";
+
+export const PROVIDERS: Provider[] = [
+  // ---- LLM / model providers (target: app -- used by Mastermind, encrypted in DB) ----
+  { id:"openai", label:"OpenAI", category:"llm", target:"app",
+    fields:[{envKey:"OPENAI_API_KEY",label:"API key",secret:true,pattern:"^sk-[A-Za-z0-9_\\-]{20,}$",placeholder:"sk-..."}],
+    docs:"https://platform.openai.com/api-keys" },
+  { id:"anthropic", label:"Anthropic (Claude)", category:"llm", target:"app",
+    fields:[{envKey:"ANTHROPIC_API_KEY",label:"API key",secret:true,pattern:"^sk-ant-[A-Za-z0-9_\\-]{20,}$",placeholder:"sk-ant-..."}],
+    docs:"https://console.anthropic.com/settings/keys" },
+  { id:"google", label:"Google Gemini", category:"llm", target:"app",
+    fields:[{envKey:"GEMINI_API_KEY",label:"API key",secret:true,pattern:"^AIza[0-9A-Za-z_\\-]{20,}$",placeholder:"AIza..."}],
+    docs:"https://aistudio.google.com/apikey" },
+  { id:"mistral", label:"Mistral", category:"llm", target:"app",
+    fields:[{envKey:"MISTRAL_API_KEY",label:"API key",secret:true,pattern:"^[A-Za-z0-9]{24,}$"}] },
+  { id:"groq", label:"Groq", category:"llm", target:"app",
+    fields:[{envKey:"GROQ_API_KEY",label:"API key",secret:true,pattern:"^gsk_[A-Za-z0-9]{20,}$",placeholder:"gsk_..."}] },
+  { id:"deepseek", label:"DeepSeek", category:"llm", target:"app",
+    fields:[{envKey:"DEEPSEEK_API_KEY",label:"API key",secret:true,pattern:"^sk-[A-Za-z0-9]{20,}$"}] },
+  { id:"xai", label:"xAI (Grok)", category:"llm", target:"app",
+    fields:[{envKey:"XAI_API_KEY",label:"API key",secret:true,pattern:"^xai-[A-Za-z0-9]{20,}$",placeholder:"xai-..."}] },
+  { id:"openrouter", label:"OpenRouter", category:"llm", target:"app",
+    fields:[{envKey:"OPENROUTER_API_KEY",label:"API key",secret:true,pattern:"^sk-or-[A-Za-z0-9\\-]{20,}$",placeholder:"sk-or-..."}] },
+  { id:"perplexity", label:"Perplexity", category:"llm", target:"app",
+    fields:[{envKey:"PERPLEXITY_API_KEY",label:"API key",secret:true,pattern:"^pplx-[A-Za-z0-9]{20,}$",placeholder:"pplx-..."}] },
+  { id:"huggingface", label:"Hugging Face", category:"llm", target:"app",
+    fields:[{envKey:"HF_TOKEN",label:"Access token",secret:true,pattern:"^hf_[A-Za-z0-9]{20,}$",placeholder:"hf_..."}] },
+  { id:"replicate", label:"Replicate", category:"llm", target:"app",
+    fields:[{envKey:"REPLICATE_API_TOKEN",label:"API token",secret:true,pattern:"^r8_[A-Za-z0-9]{20,}$",placeholder:"r8_..."}] },
+  { id:"cohere", label:"Cohere", category:"llm", target:"app",
+    fields:[{envKey:"COHERE_API_KEY",label:"API key",secret:true,pattern:"^[A-Za-z0-9]{30,}$"}] },
+  { id:"elevenlabs", label:"ElevenLabs", category:"llm", target:"app",
+    fields:[{envKey:"ELEVENLABS_API_KEY",label:"API key",secret:true,pattern:"^[A-Za-z0-9]{24,}$"}] },
+  { id:"ollama", label:"Ollama (local, not secret)", category:"llm", target:"app",
+    fields:[{envKey:"OLLAMA_HOST",label:"Host URL",secret:false,placeholder:"http://127.0.0.1:11434"}],
+    note:"Config value, not a secret -- the local Ollama endpoint Mastermind routes to." },
+
+  // ---- compute / deployment (target: local|serverless -- OS-standard path, devlog #105) ----
+  { id:"kaggle", label:"Kaggle (free GPU)", category:"compute", target:"local",
+    fields:[{envKey:"KAGGLE_USERNAME",label:"Username",secret:false},
+            {envKey:"KAGGLE_KEY",label:"API key",secret:true,pattern:"^[A-Za-z0-9]{20,}$"}],
+    osPath:"~/.kaggle/kaggle.json",
+    note:"Lands as kaggle.json in the Kaggle CLI standard folder on your machine. Claude never sees the value." },
+  { id:"oracle_vps", label:"Oracle VPS (SSH key)", category:"compute", target:"local",
+    fields:[{envKey:"ORACLE_VPS_SSH_KEY",label:"Private key (PEM)",secret:true},
+            {envKey:"ORACLE_VPS_IP",label:"VM public IP",secret:false,placeholder:"e.g. 132.145.x.x"}],
+    osPath:"~/.ssh/oracle_vps",
+    note:"Private key lands in ~/.ssh on your machine; the public IP is not a secret." },
+  { id:"cloudflare", label:"Cloudflare Workers", category:"compute", target:"serverless",
+    fields:[{envKey:"CLOUDFLARE_API_TOKEN",label:"API token",secret:true,pattern:"^[A-Za-z0-9_\\-]{30,}$"},
+            {envKey:"CLOUDFLARE_ACCOUNT_ID",label:"Account ID",secret:false}],
+    osPath:"env:CLOUDFLARE_API_TOKEN",
+    note:"Used by wrangler at deploy time. Stored as a local env var." },
+  { id:"modal", label:"Modal", category:"compute", target:"app",
+    fields:[{envKey:"MODAL_TOKEN_ID",label:"Token ID",secret:true},{envKey:"MODAL_TOKEN_SECRET",label:"Token secret",secret:true}] },
+
+  // ---- database / vector ----
+  { id:"neon", label:"Neon / Postgres", category:"database", target:"app",
+    fields:[{envKey:"DATABASE_URL",label:"Connection string",secret:true,pattern:"^postgres(ql)?:\\/\\/",placeholder:"postgres://user:pass@host/db"}] },
+  { id:"supabase", label:"Supabase", category:"database", target:"app",
+    fields:[{envKey:"SUPABASE_URL",label:"Project URL",secret:false},{envKey:"SUPABASE_SERVICE_ROLE_KEY",label:"Service role key",secret:true}] },
+  { id:"pinecone", label:"Pinecone", category:"database", target:"app",
+    fields:[{envKey:"PINECONE_API_KEY",label:"API key",secret:true}] },
+  { id:"upstash", label:"Upstash Redis", category:"database", target:"app",
+    fields:[{envKey:"UPSTASH_REDIS_REST_URL",label:"REST URL",secret:false},{envKey:"UPSTASH_REDIS_REST_TOKEN",label:"REST token",secret:true}] },
+
+  // ---- auth ----
+  { id:"clerk", label:"Clerk (auth)", category:"auth", target:"app",
+    fields:[{envKey:"NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",label:"Publishable key",secret:false,pattern:"^pk_(test|live)_"},
+            {envKey:"CLERK_SECRET_KEY",label:"Secret key",secret:true,pattern:"^sk_(test|live)_"}] },
+
+  // ---- storage ----
+  { id:"aws", label:"AWS / S3", category:"storage", target:"app",
+    fields:[{envKey:"AWS_ACCESS_KEY_ID",label:"Access key ID",secret:false,pattern:"^AKIA[0-9A-Z]{16}$"},
+            {envKey:"AWS_SECRET_ACCESS_KEY",label:"Secret access key",secret:true}] },
+
+  // ---- search ----
+  { id:"tavily", label:"Tavily Search", category:"search", target:"app",
+    fields:[{envKey:"TAVILY_API_KEY",label:"API key",secret:true,pattern:"^tvly-[A-Za-z0-9]{20,}$",placeholder:"tvly-..."}] },
+  { id:"serper", label:"Serper", category:"search", target:"app",
+    fields:[{envKey:"SERPER_API_KEY",label:"API key",secret:true}] },
+  { id:"brave", label:"Brave Search", category:"search", target:"app",
+    fields:[{envKey:"BRAVE_SEARCH_API_KEY",label:"API key",secret:true}] },
+  { id:"exa", label:"Exa", category:"search", target:"app",
+    fields:[{envKey:"EXA_API_KEY",label:"API key",secret:true}] },
+
+  // ---- devops ----
+  { id:"github", label:"GitHub", category:"devops", target:"app",
+    fields:[{envKey:"GITHUB_TOKEN",label:"Personal access token",secret:true,pattern:"^(ghp_|github_pat_)[A-Za-z0-9_]{20,}$",placeholder:"ghp_..."}] },
+  { id:"vercel", label:"Vercel", category:"devops", target:"app",
+    fields:[{envKey:"VERCEL_TOKEN",label:"API token",secret:true,pattern:"^[A-Za-z0-9]{20,}$"}] },
+
+  // ---- comms / billing ----
+  { id:"stripe", label:"Stripe", category:"comms", target:"app",
+    fields:[{envKey:"STRIPE_SECRET_KEY",label:"Secret key",secret:true,pattern:"^(sk|rk)_(live|test)_[A-Za-z0-9]{20,}$",placeholder:"sk_live_..."}] },
+  { id:"resend", label:"Resend", category:"comms", target:"app",
+    fields:[{envKey:"RESEND_API_KEY",label:"API key",secret:true,pattern:"^re_[A-Za-z0-9_]{20,}$",placeholder:"re_..."}] },
+  { id:"sendgrid", label:"SendGrid", category:"comms", target:"app",
+    fields:[{envKey:"SENDGRID_API_KEY",label:"API key",secret:true,pattern:"^SG\\.[A-Za-z0-9_\\-]{20,}\\.[A-Za-z0-9_\\-]{20,}$",placeholder:"SG...."}] },
+  { id:"twilio", label:"Twilio", category:"comms", target:"app",
+    fields:[{envKey:"TWILIO_ACCOUNT_SID",label:"Account SID",secret:false},{envKey:"TWILIO_AUTH_TOKEN",label:"Auth token",secret:true}] },
+
+  // ---- custom / free-form ----
+  { id:"custom", label:"Custom (any env var)", category:"custom", target:"app",
+    fields:[{envKey:"CUSTOM_ENV_VAR",label:"Variable name",secret:false},{envKey:"__value__",label:"Value",secret:true}],
+    note:"Define any environment variable name + value yourself." },
+];
+
+export function getProvider(id: string): Provider | undefined {
+  return PROVIDERS.find(p => p.id === id);
+}
+
+// Construct the exact line/representation that wraps the raw value -- shown as a live preview
+// and used for storage. For app: KEY=value. For local osPath: a file/env directive.
+export function constructLine(envKey: string, value: string): string {
+  return envKey + "=" + value;
+}
+
+export function validateField(field: ProviderField, value: string): string | null {
+  if (!value) return field.secret ? "Value is required" : null;
+  if (field.pattern) {
+    try {
+      const re = new RegExp(field.pattern);
+      if (!re.test(value)) return "Value does not match the expected format for " + field.envKey;
+    } catch { /* bad pattern -> skip */ }
+  }
+  return null;
+}
+
+export const CATEGORY_LABELS: Record<IntegrationCategory, string> = {
+  llm:"Models & LLM providers", compute:"Compute & deployment", database:"Databases & vectors",
+  auth:"Authentication", storage:"Storage", search:"Search & retrieval", devops:"DevOps",
+  comms:"Comms & billing", custom:"Custom",
+};

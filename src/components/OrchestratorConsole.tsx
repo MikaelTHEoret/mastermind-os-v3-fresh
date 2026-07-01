@@ -1,5 +1,5 @@
 'use client';
-// ResidentConsole.tsx -- the RESIDENT tab: chat with the resident orchestrator (hermes3),
+// OrchestratorConsole.tsx -- the ORCHESTRATOR tab: chat with the Nexus Core orchestrator (hermes3),
 // decision cards with the labeling gate (Approve / Hold / Reject / Correct -> gold labels),
 // trace history + trainset counter, and a file dropbox (gated: saved, never auto-ingested).
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -11,14 +11,14 @@ const body = 'Rajdhani, monospace';
 
 type Trace = { id:number; ts:string; task:string; verb:string; valid:boolean;
                outcome:number|null; corrected:boolean; action:any; gold_action:any };
-type Msg = { who:'you'|'resident'|'system'; text:string; trace?:any };
+type Msg = { who:'you'|'orchestrator'|'system'; text:string; trace?:any };
 
 const VERB_COLOR: Record<string,string> = {
   SPAWN:C.magenta, GENERATE_TABLE:C.violet, FLAG:C.gold, REUSE:C.green,
   ROUTE:C.cyan, PERSIST:C.cyan, ALLOCATE:C.gold, ENQUEUE_CANDIDATE:C.violet, BLOCK:C.red };
 
 function api(path:string, post?:any, qs?:string){
-  const u = `/api/resident?path=${encodeURIComponent(path)}${qs?`&qs=${encodeURIComponent(qs)}`:''}`;
+  const u = `/api/orchestrator?path=${encodeURIComponent(path)}${qs?`&qs=${encodeURIComponent(qs)}`:''}`;
   return post ? fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(post)}).then(r=>r.json())
               : fetch(u,{cache:'no-store'}).then(r=>r.json());
 }
@@ -57,11 +57,12 @@ function DecisionCard({t, onLabel}:{t:Trace; onLabel:(id:number,what:string,payl
         <Btn label="HOLD" color={C.gold} onClick={()=>onLabel(t.id,'approve',0)}/>
         <Btn label="REJECT" color={C.red} onClick={()=>onLabel(t.id,'approve',-1)}/>
         <Btn label="CORRECT" color={C.magenta} onClick={()=>{setDraft(JSON.stringify(t.action,null,1));setEditing(true);}}/>
+        {t.outcome===1 && ['REUSE','GENERATE_TABLE','SPAWN'].includes(t.verb) && <Btn label="EXECUTE" color={C.cyan} onClick={()=>onLabel(t.id,'execute')}/>}
       </div>)}
     </div>);
 }
 
-export default function ResidentConsole(){
+export default function OrchestratorConsole(){
   const [msgs,setMsgs] = useState<Msg[]>([]);
   const [input,setInput] = useState('');
   const [busy,setBusy] = useState(false);
@@ -85,8 +86,10 @@ export default function ResidentConsole(){
     setInput(''); setBusy(true);
     setMsgs(m=>[...m,{who:'you',text:intent}]);
     const r = await api('/decide',{intent});
-    if(r?.error){ setMsgs(m=>[...m,{who:'system',text:'resident error: '+r.error}]); }
-    else { setMsgs(m=>[...m,{who:'resident',
+    if(r?.error){ setMsgs(m=>[...m,{who:'system',text:'orchestrator error: '+r.error}]); }
+    else if(r.verb==='NOOP'||r.verb==='CLARIFY'){ setMsgs(m=>[...m,{who:'orchestrator',
+      text:(r.action?.note||'…')+(r.verb==='CLARIFY'?' (awaiting your answer)':'')}]); }
+    else { setMsgs(m=>[...m,{who:'orchestrator',
       text:`trace#${r.trace_id_db} -> ${r.verb} (${r.valid?'schema ok':'INVALID: '+r.validation}) - PENDING_APPROVAL`,trace:r.action}]); }
     setBusy(false); refresh();
   };
@@ -94,6 +97,19 @@ export default function ResidentConsole(){
   const onLabel = async (id:number,what:string,payload?:any)=>{
     if(what==='approve') await api('/approve',{id,outcome:payload});
     else if(what==='correct') await api('/correct',{id,action:payload});
+    else if(what==='execute'){
+      const r = await api('/execute',{id});
+      const res = r?.result;
+      const sum = !res ? '' :
+        res.kind==='evidence_bundle' ? ` - ${res.n} hits: ${(res.hits||[]).map((h:any)=>h.address).slice(0,3).join(', ')}` :
+        res.kind==='grounded_answer' ? ` - grounded=${res.grounded}: ${String(res.answer||'').slice(0,180)}` :
+        res.kind==='web_document'   ? ` - HTTP ${res.status}, ${res.bytes}B` :
+        res.kind==='computation'    ? ` - ${res.expr} = ${res.result}` :
+        ' - '+JSON.stringify(res).slice(0,180);
+      if(r?.error) setMsgs(m=>[...m,{who:'system',text:'execute error: '+r.error}]);
+      else if(r?.ran===false) setMsgs(m=>[...m,{who:'system',text:`exec#${id} refused: ${r.reason}`}]);
+      else setMsgs(m=>[...m,{who:'orchestrator',text:`exec#${id} -> ${r.worker} (outcome ${r.exec_outcome})${sum}`}]);
+    }
     refresh();
   };
 
@@ -115,23 +131,23 @@ export default function ResidentConsole(){
     <div style={{display:'grid',gridTemplateColumns:'1.4fr 1fr',gap:10}}>
       <div>
         <div style={panel(C.cyan)}>
-          {pTitle(`Resident · ${health?.model ?? 'offline'} ${health?.ok?'· ONLINE':''}`,C.cyan)}
+          {pTitle(`Orchestrator · ${health?.model ?? 'offline'} ${health?.ok?'· ONLINE':''}`,C.cyan)}
           <div style={{height:340,overflowY:'auto',padding:'10px 12px'}}>
             {msgs.length===0 && <div style={{fontFamily:body,fontSize:12,color:'rgba(255,255,255,0.4)'}}>
-              Give the resident an intent. It retrieves context, emits one gated action, and waits at the gate.</div>}
+              Give the orchestrator an intent. It retrieves context, emits one gated action, and waits at the gate.</div>}
             {msgs.map((m,i)=>(<div key={i} style={{marginBottom:8}}>
-              <span style={{fontFamily:mono,fontSize:9,color:m.who==='you'?C.gold:m.who==='resident'?C.magenta:C.red}}>
+              <span style={{fontFamily:mono,fontSize:9,color:m.who==='you'?C.gold:m.who==='orchestrator'?C.magenta:C.red}}>
                 {m.who.toUpperCase()}</span>
               <div style={{fontFamily:body,fontSize:13,color:'rgba(255,255,255,0.85)'}}>{m.text}</div>
               {m.trace && <pre style={{fontFamily:body,fontSize:11,color:'rgba(255,0,255,0.7)',whiteSpace:'pre-wrap',margin:'2px 0 0 0'}}>{JSON.stringify(m.trace,null,1)}</pre>}
             </div>))}
-            {busy && <div style={{fontFamily:mono,fontSize:10,color:C.cyan}}>RESIDENT DECIDING…</div>}
+            {busy && <div style={{fontFamily:mono,fontSize:10,color:C.cyan}}>ORCHESTRATOR DECIDING…</div>}
             <div ref={endRef}/>
           </div>
 
           <div style={{display:'flex',gap:6,padding:'8px 10px',borderTop:`1px solid ${C.cyan}25`}}>
             <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')send();}}
-              placeholder="intent for the resident…" style={{flex:1,background:'rgba(0,0,0,0.5)',
+              placeholder="intent for the orchestrator…" style={{flex:1,background:'rgba(0,0,0,0.5)',
               color:C.cyan,border:`1px solid ${C.cyan}35`,borderRadius:4,fontFamily:body,fontSize:13,padding:'6px 8px',outline:'none'}}/>
             <Btn label={busy?'…':'SEND'} color={C.cyan} onClick={send}/>
           </div>
