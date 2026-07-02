@@ -5,12 +5,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPrimaryDb } from "@/lib/db";
 import { encryptSecret, maskSecret } from "@/lib/integrations/crypto";
 import { getProvider, validateField } from "@/lib/integrations/providerCatalog";
+import { requireOwner, ownerGateConfigured } from "@/lib/trading/auth";
 import fs from "fs";
 import os from "os";
 import path from "path";
 
 export const runtime = "nodejs";
 const USER = "local";
+
+// Secrets endpoint. On a configured (public) deployment, only the owner may touch it.
+// When the owner gate is unconfigured (local dev on the trusted machine), allow through.
+async function gate(): Promise<NextResponse | null> {
+  if (!ownerGateConfigured()) return null;
+  const g = await requireOwner();
+  return g.ok ? null : NextResponse.json({ ok: false, error: g.reason }, { status: g.status });
+}
 
 function placeLocal(providerId: string, values: Record<string,string>): any {
   const home = os.homedir();
@@ -43,6 +52,7 @@ function placeLocal(providerId: string, values: Record<string,string>): any {
 }
 
 export async function GET() {
+  const denied = await gate(); if (denied) return denied;
   try {
     const sql = getPrimaryDb();
     const rows = await sql`
@@ -58,6 +68,7 @@ export async function GET() {
 
 // Body: { provider_id, environment?, values: { ENV_KEY: rawValue, ... } }
 export async function POST(req: NextRequest) {
+  const denied = await gate(); if (denied) return denied;
   try {
     const b = await req.json();
     const providerId: string = b.provider_id || "custom";
@@ -101,6 +112,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = await gate(); if (denied) return denied;
   try {
     const b = await req.json();
     const sql = getPrimaryDb();
@@ -115,6 +127,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = await gate(); if (denied) return denied;
   try {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });

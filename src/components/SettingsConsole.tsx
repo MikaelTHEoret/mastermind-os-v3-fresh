@@ -50,12 +50,17 @@ function KeyManager() {
   const setVal = (k:string, v:string) => setVals(s => ({ ...s, [k]: v }));
 
   const save = async () => {
-    if (!prov) return;
+    let payloadVals = vals;
+    if (pid === 'custom') {
+      const name = (vals['__name__'] || '').trim();
+      if (!name) { setMsg('Error: variable name required'); return; }
+      payloadVals = { [name]: vals['__val__'] || '' };
+    } else if (!prov) return;
     // format is advisory only -- never blocks a save
     setBusy(true); setMsg(null);
     try {
       const r = await fetch('/api/keys', { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ provider_id: pid, environment: env, values: vals }) });
+        body: JSON.stringify({ provider_id: pid, environment: env, values: payloadVals }) });
       const j = await r.json();
       if (j.ok) {
         let m = 'Saved.';
@@ -112,7 +117,23 @@ function KeyManager() {
 
         {prov?.note && <div style={{ fontFamily:body, fontSize:11, color:C.gold, marginBottom:10 }}>{prov.note}</div>}
 
-        {prov?.fields.map(f => {
+        {pid === 'custom' ? (
+          <>
+            <div style={{ marginBottom:10 }}>
+              <label style={lbl}>Variable name</label>
+              <input value={vals['__name__']||''} placeholder="MY_API_KEY" autoComplete="off" spellCheck={false}
+                onChange={e=>setVal('__name__', e.target.value.trim())} style={inp} />
+            </div>
+            <div style={{ marginBottom:10 }}>
+              <label style={lbl}>Value <span style={{ color:C.dim, textTransform:'none' }}>(stored encrypted)</span></label>
+              <input type="password" value={vals['__val__']||''} autoComplete="off" spellCheck={false}
+                onChange={e=>setVal('__val__', e.target.value)} style={inp} />
+              <div style={{ fontFamily:body, fontSize:11, color:C.green, marginTop:3 }}>
+                {'-> ' + previewLine(vals['__name__']||'NAME', vals['__val__']||'', true)}
+              </div>
+            </div>
+          </>
+        ) : prov?.fields.map(f => {
           const v = vals[f.envKey] || '';
           const err = v ? validateField(f, v) : null;
           return (
