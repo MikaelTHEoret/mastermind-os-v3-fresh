@@ -175,6 +175,111 @@ function KeyManager() {
   );
 }
 
+// ============================ BTCC dedicated tab (devlog: trading arc) ============================
+// Focused secret-config surface for the trading module's target exchange. Same storage path as the
+// generic KeyManager (POST /api/keys, provider_id 'btcc', AES-256-GCM at rest) -- NOT a parallel store.
+function BtccPanel() {
+  const prov = getProvider('btcc')!;
+  const [list, setList] = useState<any[]>([]);
+  const [env, setEnv]   = useState('all');
+  const [vals, setVals] = useState<Record<string,string>>({});
+  const [msg, setMsg]   = useState<string|null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try { const r = await fetch('/api/keys'); const j = await r.json();
+      if (j.ok) setList((j.integrations||[]).filter((it:any) => it.provider_id === 'btcc')); }
+    catch { /* offline ok */ }
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      const r = await fetch('/api/keys', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ provider_id:'btcc', environment: env, values: vals }) });
+      const j = await r.json();
+      if (j.ok) { setMsg('Saved ' + (j.saved?.length||0) + ' value(s).'); setVals({}); load(); }
+      else setMsg('Error: ' + j.error);
+    } catch (e:any) { setMsg('Error: ' + e.message); }
+    finally { setBusy(false); }
+  };
+  const toggle = async (id:number, active:boolean) => {
+    await fetch('/api/keys', { method:'PATCH', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id, is_active: active }) }); load();
+  };
+  const del = async (id:number) => { await fetch('/api/keys?id=' + id, { method:'DELETE' }); load(); };
+
+  const stored = (envKey:string) => list.find(it => it.env_key === envKey && it.is_active);
+  const hasInput = Object.values(vals).some(v => (v||'').trim() !== '');
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:640 }}>
+      <div style={{ fontFamily:body, fontSize:12, color:C.gold, background:`${C.gold}10`,
+        border:`1px solid ${C.gold}33`, borderRadius:6, padding:'8px 10px', lineHeight:1.5 }}>
+        {prov.note} Enter keys only here (never in chat or committed files); values are encrypted
+        (AES-256-GCM) and never shown back in full.
+        {' '}<a href={prov.docs} target="_blank" rel="noreferrer" style={{ color:C.cyan }}>BTCC API docs</a>
+      </div>
+
+      <div style={{ background:'rgba(0,0,0,0.25)', border:`1px solid ${C.cyan}22`, borderRadius:8, padding:14 }}>
+        <div style={{ display:'flex', gap:12, marginBottom:12, alignItems:'flex-end' }}>
+          <div style={{ flex:'0 0 160px' }}>
+            <label style={lbl}>Environment</label>
+            <select value={env} onChange={e=>setEnv(e.target.value)} style={inp}>
+              <option value="all">All</option><option value="development">Development</option><option value="production">Production</option>
+            </select>
+          </div>
+          <Badge color={C.cyan}>APP · ENCRYPTED DB</Badge>
+        </div>
+
+        {prov.fields.map(f => {
+          const v = vals[f.envKey] || '';
+          const err = v ? validateField(f, v) : null;
+          const cur = stored(f.envKey);
+          return (
+            <div key={f.envKey} style={{ marginBottom:10 }}>
+              <label style={lbl}>{f.label} <span style={{ color:C.dim, textTransform:'none' }}>({f.envKey})</span>
+                {cur
+                  ? <span style={{ color:C.green, textTransform:'none', marginLeft:8 }}>set · {cur.value_masked} · {cur.environment}</span>
+                  : <span style={{ color:C.red, textTransform:'none', marginLeft:8 }}>not set</span>}
+              </label>
+              <input type="password" value={v} placeholder={cur ? '(leave blank to keep current)' : (f.placeholder||'')}
+                autoComplete="off" spellCheck={false}
+                onChange={e=>setVals(s => ({ ...s, [f.envKey]: e.target.value }))}
+                style={{ ...inp, borderColor: err?C.red:C.dim }} />
+              <div style={{ fontFamily:body, fontSize:11, color:C.green, marginTop:3 }}>
+                {'-> ' + previewLine(f.envKey, v, true)}
+              </div>
+              {err && <div style={{ fontFamily:body, fontSize:11, color:C.gold, marginTop:2 }}>format hint: {err} (you can still save)</div>}
+            </div>
+          );
+        })}
+
+        <div style={{ display:'flex', gap:10, alignItems:'center', marginTop:6 }}>
+          <Btn onClick={save} disabled={busy || !hasInput}>{busy?'SAVING...':'SAVE BTCC CREDENTIALS'}</Btn>
+          {msg && <span style={{ fontFamily:body, fontSize:12, color: msg.startsWith('Error')?C.red:C.green }}>{msg}</span>}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontFamily:mono, fontSize:10, letterSpacing:1.5, color:C.cyan, marginBottom:8 }}>STORED BTCC CREDENTIALS ({list.length})</div>
+        {list.length===0 && <div style={{ fontFamily:body, fontSize:12, color:C.dim }}>None yet.</div>}
+        {list.map(it => (
+          <div key={it.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', marginBottom:6,
+            background:'rgba(0,0,0,0.25)', border:`1px solid ${C.dim}`, borderRadius:6, opacity: it.is_active?1:0.5 }}>
+            <span style={{ fontFamily:mono, fontSize:11, color:C.cyan, minWidth:170 }}>{it.env_key}</span>
+            <span style={{ fontFamily:body, fontSize:12, color:C.sub, flex:1 }}>{it.value_masked}</span>
+            <Badge color={C.sub}>{it.environment}</Badge>
+            <Btn color={it.is_active?C.gold:C.green} onClick={()=>toggle(it.id, !it.is_active)}>{it.is_active?'DISABLE':'ENABLE'}</Btn>
+            <Btn color={C.red} onClick={()=>del(it.id)}>DELETE</Btn>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ============================ declarative schema (every other section) ============================
 type FieldType = 'text'|'password'|'number'|'toggle'|'select'|'textarea'|'info';
 interface SField { key:string; label:string; type:FieldType; options?:string[]; placeholder?:string; help?:string; def?:any; unit?:string; }
@@ -196,6 +301,7 @@ const SCHEMA: SSection[] = [
     { key:'background', label:'Background', type:'select', options:['enhanced','plain'], def:'enhanced' },
   ]},
   { id:'integrations', label:'Integrations & API Keys', special:'keymanager' },
+  { id:'btcc', label:'BTCC Exchange', special:'btcc' },
   { id:'issuedKeys', label:'Issued API Keys', fields:[
     { key:'_info', label:'Keys Mastermind ISSUES to external callers live in table mastermind_api_keys (separate from the provider credentials above). These defaults apply to newly issued keys.', type:'info' },
     { key:'defaultUsageLimit', label:'Default usage limit', type:'number', unit:'calls', def:10000 },
@@ -339,11 +445,13 @@ export default function SettingsConsole() {
           <div style={{ display:'flex', gap:10, alignItems:'center' }}>
             {sec.id==='advanced' && <Btn color={C.gold} onClick={exportCfg}>EXPORT CONFIG</Btn>}
             {msg && <span style={{ fontFamily:body, fontSize:12, color: msg.startsWith('Error')?C.red:C.green }}>{msg}</span>}
-            {sec.special!=='keymanager' && <Btn onClick={saveAll} disabled={!dirty} color={dirty?C.green:C.dim}>{dirty?'SAVE CHANGES':'SAVED'}</Btn>}
+            {!sec.special && <Btn onClick={saveAll} disabled={!dirty} color={dirty?C.green:C.dim}>{dirty?'SAVE CHANGES':'SAVED'}</Btn>}
           </div>
         </div>
         {sec.special==='keymanager'
           ? <KeyManager/>
+          : sec.special==='btcc'
+          ? <BtccPanel/>
           : <div style={{ maxWidth:560 }}>{sec.fields?.map(f => <GenericField key={f.key} f={f} value={val(sec.id, f.key, f.def)} onChange={v=>setField(sec.id, f.key, v)} />)}</div>}
       </div>
     </div>
