@@ -212,6 +212,23 @@ function BtccPanel() {
 
   const stored = (envKey:string) => list.find(it => it.env_key === envKey && it.is_active);
   const hasInput = Object.values(vals).some(v => (v||'').trim() !== '');
+  const [test, setTest] = useState<string|null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const testConnection = async () => {
+    setTesting(true); setTest(null);
+    try {
+      const r = await fetch('/api/trading/btcc/status');
+      const j = await r.json();
+      if (j.ok && j.connected) {
+        const a = j.account;
+        const bal = a && (a.balance ?? a.equity);
+        setTest('CONNECTED' + (bal !== undefined ? (' -- balance ' + bal) : ''));
+      } else if (j.credsPresent === false) setTest('No credentials saved yet.');
+      else setTest('FAILED: ' + (j.error || j.reason || 'unknown'));
+    } catch (e:any) { setTest('FAILED: ' + e.message); }
+    finally { setTesting(false); }
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, maxWidth:640 }}>
@@ -258,7 +275,9 @@ function BtccPanel() {
 
         <div style={{ display:'flex', gap:10, alignItems:'center', marginTop:6 }}>
           <Btn onClick={save} disabled={busy || !hasInput}>{busy?'SAVING...':'SAVE BTCC CREDENTIALS'}</Btn>
+          <Btn color={C.magenta} onClick={testConnection} disabled={testing}>{testing?'TESTING...':'TEST CONNECTION'}</Btn>
           {msg && <span style={{ fontFamily:body, fontSize:12, color: msg.startsWith('Error')?C.red:C.green }}>{msg}</span>}
+          {test && <span style={{ fontFamily:body, fontSize:12, color: test.startsWith('CONNECTED')?C.green:(test.startsWith('FAILED')?C.red:C.gold) }}>{test}</span>}
         </div>
       </div>
 
