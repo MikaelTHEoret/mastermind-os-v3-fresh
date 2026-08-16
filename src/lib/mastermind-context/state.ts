@@ -113,11 +113,14 @@ export async function systemStatus(principal: GatewayPrincipal) {
   requireScope(principal, 'identity');
   const sql = getMemoryDb();
   try {
-    const [archive, memories, fractal] = await Promise.all([
-      sql`SELECT count(*)::int AS chunks, count(DISTINCT doc_id)::int AS documents, count(embedding)::int AS embedded FROM transcript_archive` as Promise<Array<{ chunks: number; documents: number; embedded: number }>>,
-      sql`SELECT count(*)::int AS memories, count(embedding)::int AS embedded FROM harmonic_memories` as Promise<Array<{ memories: number; embedded: number }>>,
-      sql`SELECT count(*)::int AS nodes FROM fractal_nodes` as Promise<Array<{ nodes: number }>>,
+    const [archiveRaw, memoriesRaw, fractalRaw] = await Promise.all([
+      sql`SELECT count(*)::int AS chunks, count(DISTINCT doc_id)::int AS documents, count(embedding)::int AS embedded FROM transcript_archive`,
+      sql`SELECT count(*)::int AS memories, count(embedding)::int AS embedded FROM harmonic_memories`,
+      sql`SELECT count(*)::int AS nodes FROM fractal_nodes`,
     ]);
+    const archive = archiveRaw as unknown as Array<{ chunks: number; documents: number; embedded: number }>;
+    const memories = memoriesRaw as unknown as Array<{ memories: number; embedded: number }>;
+    const fractal = fractalRaw as unknown as Array<{ nodes: number }>;
     return {
       gateway: { name: 'mastermind-embodiment-gateway', version: '0.1.0', transport: ['internal-service', 'rest', 'streamable-http-mcp'] },
       identity: { authorized: true, actorResolved: true, authMode: principal.authMode, host: principal.host },
