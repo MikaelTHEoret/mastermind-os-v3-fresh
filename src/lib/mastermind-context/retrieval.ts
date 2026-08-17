@@ -183,16 +183,26 @@ export async function pinnedContext(
   const project = projectId(projectInput);
   const sql = getMemoryDb();
   const rows = await sql`
-    SELECT id::text, content, layer, project, tags, priority, updated_at
-    FROM harmonic_memories
-    WHERE (${includeIdentity}::boolean AND layer = 'identity')
-       OR (${includeToolbox}::boolean AND layer = 'toolbox')
-       OR (${includeProject}::boolean AND layer = 'project' AND project = ${project})
+    WITH ranked AS (
+      SELECT id::text, content, layer, project, tags, priority, updated_at,
+        row_number() OVER (
+          PARTITION BY layer
+          ORDER BY priority DESC NULLS LAST, updated_at DESC NULLS LAST
+        ) AS layer_rank
+      FROM harmonic_memories
+      WHERE (${includeIdentity}::boolean AND layer = 'identity')
+         OR (${includeToolbox}::boolean AND layer = 'toolbox')
+         OR (${includeProject}::boolean AND layer = 'project' AND project = ${project})
+    )
+    SELECT id, content, layer, project, tags, priority, updated_at
+    FROM ranked
+    WHERE (layer = 'identity' AND layer_rank <= 8)
+       OR (layer = 'toolbox' AND layer_rank <= 8)
+       OR (layer = 'project' AND layer_rank <= 12)
     ORDER BY
       CASE layer WHEN 'identity' THEN 0 WHEN 'toolbox' THEN 1 ELSE 2 END,
       priority DESC NULLS LAST,
       updated_at DESC NULLS LAST
-    LIMIT 40
   ` as MemoryRow[];
   return rows.map((row) => memoryResult(row, ['pinned'], 1));
 }

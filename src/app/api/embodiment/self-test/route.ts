@@ -1,10 +1,19 @@
 // src/app/api/embodiment/self-test/route.ts — preview-only, content-free acceptance probe for the shared gateway.
 import { NextResponse } from 'next/server';
-import { createEmbodimentSession } from '@/lib/mastermind-context/gateway';
+import {
+  buildContextPack,
+  fetchArchive,
+  pinnedContext,
+  projectState,
+  searchArchive,
+  searchMemory,
+  systemStatus,
+} from '@/lib/mastermind-context/gateway';
 import {
   GatewayPrincipal,
   internalGatewayScopes,
   safeError,
+  staticMcpTokenConfigured,
 } from '@/lib/mastermind-context/security';
 
 export const dynamic = 'force-dynamic';
@@ -20,8 +29,12 @@ function list(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function warningMessages(value: unknown): string[] {
-  return list(value).map((item) => safeError(item)).filter(Boolean).slice(0, 12);
+function warningMessages(...values: unknown[]): string[] {
+  return values
+    .flatMap((value) => list(value))
+    .map((item) => safeError(item))
+    .filter(Boolean)
+    .slice(0, 20);
 }
 
 export async function GET() {
@@ -57,32 +70,48 @@ export async function GET() {
     roles: ['owner', 'operator'],
     scopes: internalGatewayScopes(),
   };
+  const project = process.env.MASTERMIND_DEFAULT_PROJECT || 'mastermind';
+  const intent = 'Mastermind persistent ecosystem embodiment gateway memory archive continuity';
 
   try {
-    const session = await createEmbodimentSession(principal, {
-      project: process.env.MASTERMIND_DEFAULT_PROJECT || 'mastermind',
-      intent: 'Validate the Mastermind embodiment gateway across identity, continuity, memory, archive, and safety boundaries.',
-      scopes: internalGatewayScopes(),
-      budget: 6_000,
-    });
+    const [status, pinned, state, memory, archive, context] = await Promise.all([
+      systemStatus(principal),
+      pinnedContext(principal, project, internalGatewayScopes()),
+      projectState(principal, { project, limit: 10 }),
+      searchMemory(principal, { query: intent, project, limit: 10 }),
+      searchArchive(principal, { query: intent, limit: 10 }),
+      buildContextPack(principal, {
+        project,
+        intent,
+        scopes: internalGatewayScopes(),
+        budget: 6_000,
+      }),
+    ]);
 
-    const identity = record(session.identity);
-    const context = record(session.contextPack);
-    const status = record(session.status);
+    const firstArchive = archive.results[0];
+    const exact = firstArchive
+      ? await fetchArchive(principal, { address: firstArchive.address, contextWindow: 1 })
+      : { found: false, centerAddress: null, passages: [] as unknown[] };
+
     const database = record(status.database);
     const retrieval = record(status.retrieval);
     const safety = record(status.safety);
-    const sections = record(context.sections);
     const continuity = record(context.continuity);
-    const capabilities = list(session.capabilities).map(record);
-    const warnings = warningMessages(context.warnings);
+    const summary = record(context.retrievalSummary);
+    const pinnedSummary = record(summary.pinned);
+    const taskSummary = record(summary.tasks);
+    const memorySummary = record(summary.memory);
+    const archiveSummary = record(summary.archive);
+    const capabilities = list(status.capabilities).map(record);
+    const warnings = warningMessages(state.warnings, memory.warnings, archive.warnings, context.warnings);
 
     const counts = {
-      identityToolbox: list(sections.L0_identity_toolbox_and_principles).length,
-      projectContext: list(sections.L1_project_context).length,
-      tasks: list(sections.L2_active_tasks_and_checkpoints).length,
-      memories: list(sections.L3_relevant_curated_memories).length,
-      archiveEvidence: list(sections.L4_archive_evidence).length,
+      identityToolboxPinned: pinned.filter((item) => item.layer === 'identity' || item.layer === 'toolbox').length,
+      projectPinned: pinned.filter((item) => item.layer === 'project').length,
+      tasks: state.taskCount,
+      memories: memory.resultCount,
+      archiveEvidence: archive.resultCount,
+      exactArchivePassages: list(exact.passages).length,
       sourceReferences: list(context.sourceRefs).length,
       warnings: warnings.length,
     };
@@ -94,16 +123,26 @@ export async function GET() {
 
     const checks = {
       canonicalOwnerConfigured: true,
-      canonicalIdentity: identity.canonicalName === 'Mastermind',
-      providerIndependentIdentity: identity.providerIndependent === true,
+      recoveryTokenConfigured: staticMcpTokenConfigured(),
       databaseConnected: database.connected === true,
       contextPackBuilt: context.ok === true,
-      identityContextRecovered: counts.identityToolbox > 0,
-      projectContextRecovered: counts.projectContext > 0,
+      identityContextRecovered: counts.identityToolboxPinned > 0,
+      projectContextRecovered: counts.projectPinned > 0,
       memoryRetrievalReturned: counts.memories > 0,
       archiveRetrievalReturned: counts.archiveEvidence > 0,
+      archiveSearchFetchRoundTrip:
+        exact.found === true &&
+        exact.centerAddress === firstArchive?.address &&
+        counts.exactArchivePassages > 0,
       stableSourceReferencesReturned: counts.sourceReferences > 0,
-      continuityEnvelopePresent: Object.keys(continuity).length > 0,
+      retrievalSummaryMatches:
+        Number(pinnedSummary.project || 0) === counts.projectPinned &&
+        Number(taskSummary.resultCount || 0) === counts.tasks &&
+        Number(memorySummary.resultCount || 0) === counts.memories &&
+        Number(archiveSummary.resultCount || 0) === counts.archiveEvidence,
+      persistentTaskParentConfigured: Boolean((process.env.MASTERMIND_PARENT_ID || '').trim()),
+      activeTaskRecovered: Boolean(continuity.activeTaskId),
+      checkpointRecovered: Boolean(continuity.latestCheckpoint),
       lexicalRetrievalAvailable: retrieval.lexicalAvailable === true,
       noRawSqlTool: safety.rawSqlExposed === false,
       noShellTool: safety.shellExposed === false,
@@ -111,37 +150,50 @@ export async function GET() {
       noConsequentialCapabilityEnabled: consequentialAvailable === false,
     };
 
-    const critical = [
-      checks.canonicalIdentity,
-      checks.providerIndependentIdentity,
+    const dataPlane = [
       checks.databaseConnected,
       checks.contextPackBuilt,
       checks.identityContextRecovered,
       checks.projectContextRecovered,
       checks.memoryRetrievalReturned,
       checks.archiveRetrievalReturned,
+      checks.archiveSearchFetchRoundTrip,
       checks.stableSourceReferencesReturned,
+      checks.retrievalSummaryMatches,
       checks.lexicalRetrievalAvailable,
       checks.noRawSqlTool,
       checks.noShellTool,
       checks.noArbitraryUrlTool,
       checks.noConsequentialCapabilityEnabled,
     ].every(Boolean);
+    const continuityPlane = [
+      checks.persistentTaskParentConfigured,
+      checks.activeTaskRecovered,
+      checks.checkpointRecovered,
+    ].every(Boolean);
+    const ok = dataPlane && continuityPlane;
 
     return NextResponse.json(
       {
-        ok: critical,
-        phase: 'shared-gateway-data-plane',
+        ok,
+        phase: 'shared-gateway-acceptance',
+        planes: {
+          dataPlane,
+          continuityPlane,
+          transportAuthPlane: 'validated separately through OAuth discovery and fail-closed 401 challenge',
+        },
         checks,
         counts,
         continuity: {
-          activeTaskRecovered: Boolean(continuity.activeTaskId),
+          activeTaskRecovered: checks.activeTaskRecovered,
           currentRevision: typeof continuity.currentRevision === 'number'
             ? continuity.currentRevision
             : null,
-          checkpointRecovered: Boolean(continuity.latestCheckpoint),
+          checkpointRecovered: checks.checkpointRecovered,
         },
         retrieval: {
+          memoryMode: memory.retrievalMode,
+          archiveMode: archive.retrievalMode,
           lexicalAvailable: retrieval.lexicalAvailable === true,
           denseConfigured: retrieval.denseConfigured === true,
           fusion: retrieval.fusion || null,
@@ -149,7 +201,7 @@ export async function GET() {
         warnings,
       },
       {
-        status: critical ? 200 : 503,
+        status: ok ? 200 : 503,
         headers: { 'cache-control': 'no-store' },
       },
     );
@@ -157,7 +209,7 @@ export async function GET() {
     return NextResponse.json(
       {
         ok: false,
-        phase: 'shared-gateway-data-plane',
+        phase: 'shared-gateway-acceptance',
         error: safeError(error),
       },
       { status: 500, headers: { 'cache-control': 'no-store' } },
