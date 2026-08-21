@@ -27,7 +27,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 ## In progress
 
 - Hybrid body foundation: replace desktop-rendered operation with native Zenith fallback, an enhanced headless controller entering through the proxy like a real player, server-enhanced telemetry, and a parent-only manual takeover lease.
-- The integration is skeleton-only and disabled. No Zenith runtime or plugin has been installed and no live server restart is authorized by this checkpoint.
+- The exact pinned Zenith runtime and Mastermind plugin are privately staged and passed a listener-free, account-free disabled boot. They are not installed as a live service, and no live server restart is authorized by this checkpoint.
 
 ## M3F foundation completed
 
@@ -52,7 +52,17 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - A private parent login takes an exclusive physical-control lease and cancels AI input before human control begins. Handback requires stable paired telemetry.
 - Native Zenith is the fallback driver; an authenticated headless Mastermind controller is the enhanced driver and uses the same controller entrance as the parent's real client.
 - Stock Zenith accepts only one controller. Seamless parent preemption of an active service controller is an explicit acceptance gate and may justify a minimal reviewed core hook if the plugin API cannot enforce it safely.
+- The plugin's tested admission policy now permits only an authenticated parent to replace the exact service controller. Upstream inspection proved the public plugin event occurs too late to enforce that replacement, so the minimal core hook remains required before activation.
 - The previous rendered Fabric bridge remains available for regression/reference work but is no longer the intended production body.
+
+## Offline Zenith staging evidence
+
+- ZenithProxy JAR — 61,674,658 bytes — SHA-256 `CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2`
+- Mastermind Zenith plugin JAR — 16,160 bytes — SHA-256 `854480CAB45D28891C3F5A8201DC947ECC3685AB4F76FB953532A1602CA31E4F`
+- Exact upstream build: 74 tests, zero failures/errors, three skips.
+- Plugin build: 13 tests, zero failures/errors/skips.
+- Disabled idle boot: approximately 162.8 MB working set, 216.3 MB private memory, 0.015% normalized CPU, zero observed TCP connections, and no leaked process or listener after stop.
+- Evidence manifest: `minecraft/zenith-staging/manifest.v1.json`; operator procedure: `docs/MINECRAFT_ZENITH_STAGING_RUNBOOK.md`.
 
 ## Verified build artifacts
 

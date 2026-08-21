@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "status": "staged-disabled",
+  "verifiedAt": "2026-08-21T14:52:00.000Z",
+  "zenith": {
+    "release": "3.5.8+26.2.0",
+    "minecraftVersion": "26.2.0",
+    "sourceRepository": "https://github.com/rfresh2/ZenithProxy",
+    "releasePage": "https://github.com/rfresh2/ZenithProxy/releases/tag/3.5.8%2B26.2.0",
+    "sourceCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "runtimeFile": "ZenithProxy.jar",
+    "runtimeBytes": 61674658,
+    "runtimeSha256": "CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2",
+    "buildJava": "25.0.4",
+    "upstreamTests": {
+      "tests": 74,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    }
+  },
+  "mastermindPlugin": {
+    "version": "0.1.0",
+    "file": "mastermind-zenith-companion-0.1.0.jar",
+    "bytes": 16160,
+    "sha256": "854480CAB45D28891C3F5A8201DC947ECC3685AB4F76FB953532A1602CA31E4F",
+    "tests": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "offlineAcceptance": {
+    "upstreamAutoConnect": false,
+    "proxyListener": false,
+    "lanBroadcast": false,
+    "upnp": false,
+    "autoUpdate": false,
+    "pluginLoaded": true,
+    "pluginEnabled": false,
+    "observedTcpConnections": 0,
+    "workingSetAverageMb": 162.8,
+    "workingSetMaximumMb": 162.8,
+    "privateMemoryAverageMb": 216.3,
+    "privateMemoryMaximumMb": 216.3,
+    "normalizedCpuPercent": 0.015,
+    "leakedProcessAfterStop": false,
+    "listenerAfterStop": false
+  },
+  "activationGates": {
+    "parentPreemptionCoreHook": "required-not-implemented",
+    "accountLogin": "not-authorized",
+    "proxyListener": "not-authorized",
+    "familyServerConnection": "not-authorized",
+    "liveWorldMutation": "not-authorized"
+  }
+}
