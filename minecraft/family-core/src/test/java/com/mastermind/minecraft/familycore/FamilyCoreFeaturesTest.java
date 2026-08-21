@@ -19,8 +19,8 @@ final class FamilyCoreFeaturesTest {
         assertEquals("mastermind.family-core", FamilyCoreProtocol.NAME);
         assertEquals(1, FamilyCoreProtocol.VERSION);
         assertEquals(64 * 1024, FamilyCoreProtocol.MAX_PAYLOAD_BYTES);
-        assertEquals(8, FamilyCoreProtocol.SERVER_MESSAGE_TYPES.size());
-        assertEquals(5, FamilyCoreProtocol.CONTROL_MESSAGE_TYPES.size());
+        assertEquals(10, FamilyCoreProtocol.SERVER_MESSAGE_TYPES.size());
+        assertEquals(6, FamilyCoreProtocol.CONTROL_MESSAGE_TYPES.size());
     }
 
     @Test

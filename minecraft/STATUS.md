@@ -26,7 +26,8 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 
 ## In progress
 
-- Review, staged secret scan, branch push, and draft PR for the completed foundation checkpoint.
+- Hybrid body foundation: replace desktop-rendered operation with native Zenith fallback, an enhanced headless controller entering through the proxy like a real player, server-enhanced telemetry, and a parent-only manual takeover lease.
+- The integration is skeleton-only and disabled. No Zenith runtime or plugin has been installed and no live server restart is authorized by this checkpoint.
 
 ## M3F foundation completed
 
@@ -42,6 +43,16 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 
 - Navigate, follow, gather/mine, cancellation, and safe stop still require fresh controlled live acceptance evidence.
 - Implemented or capability-advertised is not treated as live-verified.
+
+## Accepted body direction
+
+- ZenithProxy `3.5.8+26.2.0` at source commit `550257ac720c06e4902c8d5dcbc7869b898ea7bd` is the pinned external body candidate.
+- The Mastermind integration uses Zenith's plugin API first; a core fork is a reviewed fallback only.
+- `family-core` remains the authoritative server telemetry and enforcement layer, while the control plane remains the brain.
+- A private parent login takes an exclusive physical-control lease and cancels AI input before human control begins. Handback requires stable paired telemetry.
+- Native Zenith is the fallback driver; an authenticated headless Mastermind controller is the enhanced driver and uses the same controller entrance as the parent's real client.
+- Stock Zenith accepts only one controller. Seamless parent preemption of an active service controller is an explicit acceptance gate and may justify a minimal reviewed core hook if the plugin API cannot enforce it safely.
+- The previous rendered Fabric bridge remains available for regression/reference work but is no longer the intended production body.
 
 ## Verified build artifacts
 

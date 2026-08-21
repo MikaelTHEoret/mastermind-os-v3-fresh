@@ -65,6 +65,21 @@ Routine survival and home maintenance make no model calls. Models are reserved f
 - Memory synchronization is downstream of gameplay and cannot block survival, cancellation, chat intake, or server ticks.
 - The brain begins as modules inside the existing Minecraft control-plane process; it does not add an always-on Python or Node service.
 - Skeleton code returns `FEATURE_DISABLED` or `FEATURE_NOT_IMPLEMENTED` and never pretends to act.
+- The primary companion body is a pinned ZenithProxy runtime with a Mastermind plugin. The rendered Fabric client is retained only as a reference and rollback path.
+- Native Zenith is the conservative default/fallback driver. The enhanced headless Mastermind controller enters through Zenith's normal Minecraft-protocol controller login, using the same embodiment path as a real player client.
+- Zenith owns the authenticated upstream player session, fallback Baritone behavior, reconnect/respawn, and private controller login; `family-core` provides authoritative server telemetry and policy enforcement.
+- Integration starts with Zenith's public plugin API. A maintained Zenith core fork is permitted only if a required safety hook is unavailable and its AGPL, review, testing, and upgrade obligations are explicitly accepted.
+- Raw Zenith terminal commands, Web APIs, packets, and credentials are never exposed to player chat or a model.
+
+## Parent manual control
+
+- A parent can connect a normal Minecraft client to a private Zenith endpoint and directly place, inspect, or unstuck `The_AlChemist___`.
+- Driver priority is parent, enhanced Mastermind service controller, native Zenith fallback, then idle. A lease permits only one physical driver.
+- An authenticated controller admitted by Zenith suspends fallback movement before Mastermind assigns its role. Status pings and unauthenticated sockets do not affect body state. Only an explicitly allowlisted parent UUID may receive parent authority.
+- Manual control is exclusive: Baritone and all queued physical actions are cancelled and remain unavailable while the parent is connected.
+- Handback is fail-closed and returns first to native Zenith fallback. Enhanced control must authenticate a new service-controller lease.
+- Stock Zenith's single-controller admission must not make the parent wait indefinitely behind the service controller. Activation requires verified service disconnection/preemption behavior; if the plugin API cannot provide it, a minimal reviewed Zenith hook is required.
+- The endpoint is restricted to loopback or the private LAN. Public tunnels, UPnP, public binding, and IP-only authorization are forbidden.
 
 ## Resource budgets
 

@@ -14,6 +14,8 @@ export const FAMILY_CORE_SERVER_TYPES = Object.freeze([
   'player.left',
   'server.event',
   'admin.result',
+  'companion.telemetry',
+  'companion.event',
 ]);
 
 export const FAMILY_CORE_CONTROL_TYPES = Object.freeze([
@@ -22,6 +24,7 @@ export const FAMILY_CORE_CONTROL_TYPES = Object.freeze([
   'computer.requestStatus',
   'admin.execute',
   'server.shutdown',
+  'companion.requestSnapshot',
 ]);
 
 const SERVER_TYPES = new Set(FAMILY_CORE_SERVER_TYPES);
@@ -35,6 +38,7 @@ const PLAYER_ROLES = new Set(['parent', 'child', 'guest']);
 const ADMIN_STATUSES = new Set(['succeeded', 'failed', 'rejected']);
 const SERVER_EVENT_KINDS = new Set(['started', 'ready', 'stopping', 'stopped', 'warning', 'death', 'advancement']);
 const ADMIN_OPERATIONS = new Set(['status.query', 'player.message', 'whitelist.add', 'whitelist.remove', 'save.flush']);
+const COMPANION_EVENT_KINDS = new Set(['damage', 'death', 'respawn', 'dimension-change', 'home-zone-enter', 'home-zone-exit', 'policy-block']);
 const UNSAFE_TEXT = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/u;
 
 export class FamilyCoreProtocolError extends Error {
@@ -89,6 +93,13 @@ function integerValue(value, label, min, max) {
   return value;
 }
 
+function numberValue(value, label, min, max) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max) {
+    fail('INVALID_MESSAGE', `${label} is outside its allowed range`);
+  }
+  return value;
+}
+
 function booleanValue(value, label) {
   if (typeof value !== 'boolean') fail('INVALID_MESSAGE', `${label} must be boolean`);
   return value;
@@ -124,6 +135,60 @@ function playerIdentity(value, label = 'player') {
     displayName: stringValue(player.displayName, `${label}.displayName`, { max: 64 }),
     role: stringValue(player.role, `${label}.role`, { values: PLAYER_ROLES }),
     identityBound: booleanValue(player.identityBound, `${label}.identityBound`),
+  };
+}
+
+function companionTelemetry(value, label) {
+  const telemetry = exactObject(value, label, [
+    'companionUuid', 'observationSessionId', 'serverTick', 'observedAt', 'dimension',
+    'position', 'vitals', 'nearbyThreats', 'homeZone',
+  ]);
+  const position = exactObject(telemetry.position, `${label}.position`, ['x', 'y', 'z', 'yaw', 'pitch', 'onGround']);
+  const vitals = exactObject(telemetry.vitals, `${label}.vitals`, ['health', 'maxHealth', 'hunger', 'air', 'onFire', 'alive']);
+  if (!Array.isArray(telemetry.nearbyThreats) || telemetry.nearbyThreats.length > 32) {
+    fail('INVALID_MESSAGE', `${label}.nearbyThreats is invalid`);
+  }
+  const nearbyThreats = telemetry.nearbyThreats.map((item, index) => {
+    const threat = exactObject(item, `${label}.nearbyThreats[${index}]`, ['entityUuid', 'typeId', 'distance', 'hostile']);
+    return {
+      entityUuid: uuidValue(threat.entityUuid, `${label}.nearbyThreats[${index}].entityUuid`, true),
+      typeId: stringValue(threat.typeId, `${label}.nearbyThreats[${index}].typeId`, { max: 128, pattern: REGISTRY_ID }),
+      distance: numberValue(threat.distance, `${label}.nearbyThreats[${index}].distance`, 0, 128),
+      hostile: booleanValue(threat.hostile, `${label}.nearbyThreats[${index}].hostile`),
+    };
+  });
+  let homeZone = null;
+  if (telemetry.homeZone !== null) {
+    const zone = exactObject(telemetry.homeZone, `${label}.homeZone`, ['zoneId', 'inside']);
+    homeZone = {
+      zoneId: stringValue(zone.zoneId, `${label}.homeZone.zoneId`, { max: 128, pattern: SAFE_ID }),
+      inside: booleanValue(zone.inside, `${label}.homeZone.inside`),
+    };
+  }
+  return {
+    companionUuid: uuidValue(telemetry.companionUuid, `${label}.companionUuid`),
+    observationSessionId: uuidValue(telemetry.observationSessionId, `${label}.observationSessionId`),
+    serverTick: integerValue(telemetry.serverTick, `${label}.serverTick`, 0, Number.MAX_SAFE_INTEGER),
+    observedAt: timestampValue(telemetry.observedAt, `${label}.observedAt`),
+    dimension: stringValue(telemetry.dimension, `${label}.dimension`, { max: 128, pattern: REGISTRY_ID }),
+    position: {
+      x: numberValue(position.x, `${label}.position.x`, -30_000_000, 30_000_000),
+      y: numberValue(position.y, `${label}.position.y`, -2_048, 2_048),
+      z: numberValue(position.z, `${label}.position.z`, -30_000_000, 30_000_000),
+      yaw: numberValue(position.yaw, `${label}.position.yaw`, -360, 360),
+      pitch: numberValue(position.pitch, `${label}.position.pitch`, -90, 90),
+      onGround: booleanValue(position.onGround, `${label}.position.onGround`),
+    },
+    vitals: {
+      health: numberValue(vitals.health, `${label}.vitals.health`, 0, 2_048),
+      maxHealth: numberValue(vitals.maxHealth, `${label}.vitals.maxHealth`, 1, 2_048),
+      hunger: integerValue(vitals.hunger, `${label}.vitals.hunger`, 0, 20),
+      air: integerValue(vitals.air, `${label}.vitals.air`, 0, 30_000),
+      onFire: booleanValue(vitals.onFire, `${label}.vitals.onFire`),
+      alive: booleanValue(vitals.alive, `${label}.vitals.alive`),
+    },
+    nearbyThreats,
+    homeZone,
   };
 }
 
@@ -189,6 +254,18 @@ function validateServerPayload(type, value) {
         data: boundedJson(payload.data, 'data'),
       };
     }
+    case 'companion.telemetry':
+      return companionTelemetry(value, `${type}.payload`);
+    case 'companion.event': {
+      const payload = exactObject(value, `${type}.payload`, ['companionUuid', 'observationSessionId', 'serverTick', 'kind', 'data']);
+      return {
+        companionUuid: uuidValue(payload.companionUuid, 'companionUuid'),
+        observationSessionId: uuidValue(payload.observationSessionId, 'observationSessionId'),
+        serverTick: integerValue(payload.serverTick, 'serverTick', 0, Number.MAX_SAFE_INTEGER),
+        kind: stringValue(payload.kind, 'kind', { values: COMPANION_EVENT_KINDS }),
+        data: boundedJson(payload.data, 'data'),
+      };
+    }
     default:
       fail('UNSUPPORTED_MESSAGE', `Server message '${type}' is unsupported`);
   }
@@ -228,6 +305,13 @@ function validateControlPayload(type, value) {
         shutdownId: uuidValue(payload.shutdownId, 'shutdownId'),
         reason: stringValue(payload.reason, 'reason', { max: 256 }),
         delaySeconds: integerValue(payload.delaySeconds, 'delaySeconds', 0, 300),
+      };
+    }
+    case 'companion.requestSnapshot': {
+      const payload = exactObject(value, `${type}.payload`, ['requestId', 'companionUuid']);
+      return {
+        requestId: uuidValue(payload.requestId, 'requestId'),
+        companionUuid: uuidValue(payload.companionUuid, 'companionUuid'),
       };
     }
     default:

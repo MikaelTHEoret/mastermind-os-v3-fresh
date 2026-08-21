@@ -10,6 +10,9 @@ export const FAMILY_COMPANION_FEATURE_FLAGS = Object.freeze({
   modRequestExecution: false,
   inGameApprovals: false,
   visionRecovery: false,
+  zenithBody: false,
+  enhancedHeadlessController: false,
+  hybridTelemetry: false,
 });
 
 export const FAMILY_COMPANION_FEATURE_STATES = Object.freeze({
@@ -22,6 +25,9 @@ export const FAMILY_COMPANION_FEATURE_STATES = Object.freeze({
   modRequestExecution: 'stubbed',
   inGameApprovals: 'planned',
   visionRecovery: 'planned',
+  zenithBody: 'stubbed',
+  enhancedHeadlessController: 'stubbed',
+  hybridTelemetry: 'stubbed',
 });
 
 for (const state of Object.values(FAMILY_COMPANION_FEATURE_STATES)) {

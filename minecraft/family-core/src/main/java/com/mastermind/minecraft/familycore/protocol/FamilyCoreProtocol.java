@@ -13,12 +13,13 @@ public final class FamilyCoreProtocol {
 
     public static final Set<String> SERVER_MESSAGE_TYPES = Set.of(
         "server.hello", "server.heartbeat", "chat.received", "computer.requested",
-        "player.joined", "player.left", "server.event", "admin.result"
+        "player.joined", "player.left", "server.event", "admin.result",
+        "companion.telemetry", "companion.event"
     );
 
     public static final Set<String> CONTROL_MESSAGE_TYPES = Set.of(
         "computer.broadcast", "computer.private", "computer.requestStatus",
-        "admin.execute", "server.shutdown"
+        "admin.execute", "server.shutdown", "companion.requestSnapshot"
     );
 
     private static final Pattern UNSAFE_TEXT = Pattern.compile("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F\\u202A-\\u202E\\u2066-\\u2069]");

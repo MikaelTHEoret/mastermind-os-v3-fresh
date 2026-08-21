@@ -15,6 +15,8 @@ public final class FamilyCoreFeatures {
         flags.put("identityEvents", false);
         flags.put("adminExecution", false);
         flags.put("serverShutdown", false);
+        flags.put("companionTelemetry", false);
+        flags.put("companionEvents", false);
         FLAGS = Collections.unmodifiableMap(flags);
     }
 

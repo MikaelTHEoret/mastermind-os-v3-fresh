@@ -154,3 +154,56 @@ test('admin operations are allowlisted and digest-bound', () => {
     (error) => error instanceof FamilyCoreProtocolError && error.code === 'INVALID_MESSAGE',
   );
 });
+
+test('validates bounded authoritative companion telemetry without enabling runtime capture', () => {
+  const message = serverMessage({
+    type: 'companion.telemetry',
+    payload: {
+      companionUuid: IDS.player,
+      observationSessionId: IDS.instance,
+      serverTick: 42,
+      observedAt: '2026-08-21T12:00:00.000Z',
+      dimension: 'minecraft:overworld',
+      position: { x: 10.5, y: 64, z: -3.25, yaw: 90, pitch: 0, onGround: true },
+      vitals: { health: 20, maxHealth: 20, hunger: 18, air: 300, onFire: false, alive: true },
+      nearbyThreats: [{ entityUuid: null, typeId: 'minecraft:zombie', distance: 7.5, hostile: true }],
+      homeZone: { zoneId: 'family-home', inside: true },
+    },
+  });
+  const telemetry = validateFamilyCoreMessage(message, { direction: 'server' }).payload;
+  assert.equal(telemetry.dimension, 'minecraft:overworld');
+  assert.equal(telemetry.nearbyThreats.length, 1);
+  assert.equal(telemetry.homeZone.inside, true);
+});
+
+test('rejects excessive companion telemetry and supports typed snapshot requests', () => {
+  const baseThreat = { entityUuid: null, typeId: 'minecraft:zombie', distance: 7.5, hostile: true };
+  const message = serverMessage({
+    type: 'companion.telemetry',
+    payload: {
+      companionUuid: IDS.player,
+      observationSessionId: IDS.instance,
+      serverTick: 42,
+      observedAt: '2026-08-21T12:00:00.000Z',
+      dimension: 'minecraft:overworld',
+      position: { x: 0, y: 64, z: 0, yaw: 0, pitch: 0, onGround: true },
+      vitals: { health: 20, maxHealth: 20, hunger: 20, air: 300, onFire: false, alive: true },
+      nearbyThreats: Array.from({ length: 33 }, () => baseThreat),
+      homeZone: null,
+    },
+  });
+  assert.throws(
+    () => validateFamilyCoreMessage(message, { direction: 'server' }),
+    (error) => error instanceof FamilyCoreProtocolError && error.code === 'INVALID_MESSAGE',
+  );
+  const request = createFamilyCoreMessage({
+    sessionId: IDS.session,
+    seq: 2,
+    source: 'control-plane',
+    type: 'companion.requestSnapshot',
+    messageId: IDS.message,
+    sentAt: '2026-08-21T12:00:01.000Z',
+    payload: { requestId: IDS.correlation, companionUuid: IDS.player },
+  });
+  assert.equal(request.type, 'companion.requestSnapshot');
+});
