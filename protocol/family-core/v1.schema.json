@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mastermind.local/protocol/family-core/v1.schema.json",
+  "title": "Mastermind Family Core protocol v1 envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol", "version", "messageId", "sessionId", "seq", "sentAt",
+    "source", "type", "correlationId", "payload"
+  ],
+  "properties": {
+    "protocol": { "const": "mastermind.family-core" },
+    "version": { "const": 1 },
+    "messageId": { "type": "string", "format": "uuid" },
+    "sessionId": { "type": "string", "format": "uuid" },
+    "seq": { "type": "integer", "minimum": 1 },
+    "sentAt": { "type": "string", "format": "date-time" },
+    "source": { "enum": ["family-core", "control-plane"] },
+    "type": {
+      "enum": [
+        "server.hello", "server.heartbeat", "chat.received", "computer.requested",
+        "player.joined", "player.left", "server.event", "admin.result",
+        "computer.broadcast", "computer.private", "computer.requestStatus",
+        "admin.execute", "server.shutdown"
+      ]
+    },
+    "correlationId": { "oneOf": [{ "type": "string", "format": "uuid" }, { "type": "null" }] },
+    "payload": { "type": "object" }
+  }
+}

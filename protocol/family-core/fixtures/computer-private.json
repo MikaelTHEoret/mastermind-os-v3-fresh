@@ -1,0 +1,15 @@
+{
+  "protocol": "mastermind.family-core",
+  "version": 1,
+  "messageId": "01919a62-8e84-7c6b-8eb0-4f79592f3ac4",
+  "sessionId": "01919a62-8e84-7c6b-8eb0-4f79592f3abf",
+  "seq": 1,
+  "sentAt": "2026-08-21T12:00:02.000Z",
+  "source": "control-plane",
+  "type": "computer.private",
+  "correlationId": "01919a62-8e84-7c6b-8eb0-4f79592f3ac3",
+  "payload": {
+    "minecraftUuid": "01919a62-8e84-7c6b-8eb0-4f79592f3ac1",
+    "text": "This approval detail is private."
+  }
+}
