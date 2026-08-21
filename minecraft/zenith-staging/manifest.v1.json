@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "status": "staged-disabled",
-  "verifiedAt": "2026-08-21T14:52:00.000Z",
+  "status": "patched-candidate-staged-disabled",
+  "verifiedAt": "2026-08-21T15:08:00.000Z",
   "zenith": {
     "release": "3.5.8+26.2.0",
     "minecraftVersion": "26.2.0",
@@ -19,11 +19,30 @@
       "skipped": 3
     }
   },
+  "corePatchCandidate": {
+    "patchFile": "minecraft/zenith-core-patches/0001-controller-admission-preemption-hook.patch",
+    "patchBytes": 6521,
+    "patchSha256": "616598AFDE4AA976DEF6008FDD929BC837AD9F545C3835B73AE7AE2DFEBB7934",
+    "baseCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "changedFiles": 4,
+    "additions": 99,
+    "deletions": 7,
+    "runtimeBytes": 61675883,
+    "runtimeSha256": "700E9E91F38725A068D1F8E93D3B6F56F36221BB6F25EC174A36ED59110D8161",
+    "testResultFiles": {
+      "tests": 75,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    },
+    "fullSuiteExit": "gradle-result-socket-reset-after-all-result-files-were-written",
+    "targetedHookTestExit": "success"
+  },
   "mastermindPlugin": {
     "version": "0.1.0",
     "file": "mastermind-zenith-companion-0.1.0.jar",
-    "bytes": 16160,
-    "sha256": "854480CAB45D28891C3F5A8201DC947ECC3685AB4F76FB953532A1602CA31E4F",
+    "bytes": 17880,
+    "sha256": "C7FD53C476C6BC11C39D959A6D633518F800C60C18080FEC5A2BCC0DC309F561",
     "tests": {
       "tests": 13,
       "failures": 0,
@@ -32,6 +51,7 @@
     }
   },
   "offlineAcceptance": {
+    "resourceMeasurementRuntimeSha256": "CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2",
     "upstreamAutoConnect": false,
     "proxyListener": false,
     "lanBroadcast": false,
@@ -39,6 +59,9 @@
     "autoUpdate": false,
     "pluginLoaded": true,
     "pluginEnabled": false,
+    "patchedHookDetectedDuringOfflineFakeIdentitySimulation": true,
+    "stockRuntimeRefusedTakeoverPluginLoadDuringOfflineFakeIdentitySimulation": true,
+    "simulationRestoredToDisabledBlankIdentityState": true,
     "observedTcpConnections": 0,
     "workingSetAverageMb": 162.8,
     "workingSetMaximumMb": 162.8,
@@ -49,7 +72,7 @@
     "listenerAfterStop": false
   },
   "activationGates": {
-    "parentPreemptionCoreHook": "required-not-implemented",
+    "parentPreemptionCoreHook": "isolated-built-hook-detected-live-preemption-pending",
     "accountLogin": "not-authorized",
     "proxyListener": "not-authorized",
     "familyServerConnection": "not-authorized",

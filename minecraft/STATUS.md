@@ -51,16 +51,22 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - `family-core` remains the authoritative server telemetry and enforcement layer, while the control plane remains the brain.
 - A private parent login takes an exclusive physical-control lease and cancels AI input before human control begins. Handback requires stable paired telemetry.
 - Native Zenith is the fallback driver; an authenticated headless Mastermind controller is the enhanced driver and uses the same controller entrance as the parent's real client.
-- Stock Zenith accepts only one controller. Seamless parent preemption of an active service controller is an explicit acceptance gate and may justify a minimal reviewed core hook if the plugin API cannot enforce it safely.
-- The plugin's tested admission policy now permits only an authenticated parent to replace the exact service controller. Upstream inspection proved the public plugin event occurs too late to enforce that replacement, so the minimal core hook remains required before activation.
+- Stock Zenith accepts only one controller. Upstream inspection proved its public plugin event occurs too late to enforce replacement, so a minimal core hook is required for seamless parent preemption.
+- The isolated four-file patch candidate adds a synchronous deny-by-default admission event, revokes old-controller packet input before atomic replacement, and preserves the new lease during old-session disconnect cleanup. The plugin detected the hook during an account-free/listener-free fake-identity simulation.
+- The plugin's tested admission policy permits only an authenticated parent to replace the exact service controller. Real two-controller race, disconnect, recovery-hold, and handback acceptance remain required before activation.
 - The previous rendered Fabric bridge remains available for regression/reference work but is no longer the intended production body.
 
 ## Offline Zenith staging evidence
 
 - ZenithProxy JAR — 61,674,658 bytes — SHA-256 `CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2`
-- Mastermind Zenith plugin JAR — 16,160 bytes — SHA-256 `854480CAB45D28891C3F5A8201DC947ECC3685AB4F76FB953532A1602CA31E4F`
+- Patched ZenithProxy candidate JAR — 61,675,883 bytes — SHA-256 `700E9E91F38725A068D1F8E93D3B6F56F36221BB6F25EC174A36ED59110D8161`
+- Mastermind Zenith plugin JAR — 17,880 bytes — SHA-256 `C7FD53C476C6BC11C39D959A6D633518F800C60C18080FEC5A2BCC0DC309F561`
+- Controller-admission patch — 6,521 bytes — SHA-256 `616598AFDE4AA976DEF6008FDD929BC837AD9F545C3835B73AE7AE2DFEBB7934`
 - Exact upstream build: 74 tests, zero failures/errors, three skips.
 - Plugin build: 13 tests, zero failures/errors/skips.
+- Patched upstream result files: 75 tests, zero failures/errors, three skips; Gradle's result socket reset after writing the results, and the hook test reran alone with a clean successful exit.
+- Offline fake-identity simulation: patched hook detected, no account/upstream/listener enabled, then configuration restored to all-false flags and blank identities.
+- Stock-runtime negative simulation: takeover request failed plugin preflight because the pinned hook was absent; no module registered, then configuration was restored to disabled blank defaults.
 - Disabled idle boot: approximately 162.8 MB working set, 216.3 MB private memory, 0.015% normalized CPU, zero observed TCP connections, and no leaked process or listener after stop.
 - Evidence manifest: `minecraft/zenith-staging/manifest.v1.json`; operator procedure: `docs/MINECRAFT_ZENITH_STAGING_RUNBOOK.md`.
 

@@ -22,6 +22,11 @@ public final class MastermindZenithPlugin implements ZenithProxyPlugin {
     public void onLoad(PluginAPI pluginAPI) {
         log = pluginAPI.getLogger();
         config = pluginAPI.registerConfig(BuildConstants.PLUGIN_ID, MastermindZenithConfig.class);
+        if (config.enabled
+            && config.parentTakeoverEnabled
+            && !ControlLeaseModule.isControllerAdmissionHookAvailable()) {
+            throw new IllegalStateException("Refusing to load: parent takeover requires the pinned Zenith controller-admission core hook");
+        }
         pluginAPI.registerModule(new ControlLeaseModule());
         log.info("Mastermind Zenith companion skeleton loaded; enabled={}", config.enabled);
     }
