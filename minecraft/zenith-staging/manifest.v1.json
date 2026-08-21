@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "status": "family-loopback-secure-body-live-parent-preemption-verified-handback-pending",
-  "verifiedAt": "2026-08-21T18:08:00.000Z",
+  "status": "isolated-family-account-parent-preemption-and-signed-handback-verified-managed-promotion-pending",
+  "verifiedAt": "2026-08-21T20:08:07.202Z",
   "zenith": {
     "release": "3.5.8+26.2.0",
     "minecraftVersion": "26.2.0",
@@ -51,6 +51,17 @@
     "plaintextAuthCache": false,
     "normalAuthenticationFallbackAllowed": false
   },
+  "nativeBotTickAdmissionPatch": {
+    "patchFile": "minecraft/zenith-core-patches/0003-native-bot-tick-admission-gate.patch",
+    "patchBytes": 2834,
+    "patchSha256": "37FD01424395880104376A5256AA1C9E0A7C33358D814400ECCF3149315E6230",
+    "baseCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "changedFiles": 3,
+    "additions": 39,
+    "deletions": 1,
+    "stockBehaviorWhenPluginAbsent": "allow",
+    "mastermindRecoveryHoldBehavior": "deny"
+  },
   "combinedLiveCandidate": {
     "runtimeFile": "ZenithProxy.jar",
     "runtimeBytes": 61678737,
@@ -75,16 +86,32 @@
     "jvmMaximumHeapMb": 512
   },
   "mastermindPlugin": {
-    "version": "0.1.0",
-    "file": "mastermind-zenith-companion-0.1.0.jar",
-    "bytes": 17880,
-    "sha256": "C7FD53C476C6BC11C39D959A6D633518F800C60C18080FEC5A2BCC0DC309F561",
+    "version": "0.2.0",
+    "file": "mastermind-zenith-companion-0.2.0.jar",
+    "bytes": 35436,
+    "sha256": "FAFD35F0B28A7F1D520EC47DA44AB7706DAA13E6D17558A8EA0CAC8ED1CDD10A",
     "tests": {
-      "tests": 13,
+      "tests": 20,
       "failures": 0,
       "errors": 0,
       "skipped": 0
     }
+  },
+  "familyCoreHandbackTelemetry": {
+    "version": "0.2.0",
+    "file": "family-core-0.2.0.jar",
+    "bytes": 18481,
+    "sha256": "755B4E01F2C268C92F1BDC95FB8295602C0EB064EFC227A30D6264BE9E4870BE",
+    "tests": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "transport": "bounded-atomic-local-file",
+    "authentication": "hmac-sha256-32-byte-private-key",
+    "serverSessionAndSequenceBound": true,
+    "staleReplayAndTamperFailClosed": true
   },
   "headlessController": {
     "version": "0.1.0",
@@ -196,6 +223,32 @@
     "safeRestartFallbackVerifiedAfterParentDisconnect": true,
     "stableTelemetryHandbackVerified": false
   },
+  "isolatedPairedHandbackAcceptance": {
+    "familyAccountUsed": true,
+    "managedFamilyServerMutated": false,
+    "serverSource": "verified-stopped-family-server-snapshot-copy",
+    "serverAddress": "127.0.0.1",
+    "serverPort": 25569,
+    "zenithListenerAddress": "127.0.0.1",
+    "zenithListenerPort": 25568,
+    "runtimeBytes": 61679343,
+    "runtimeSha256": "00C2AE1ED1D74C2B3AFF4E3872C69CA034D7FB3CB91032FC7E8A0C0ED5A050B5",
+    "controllerAdmissionHookDetected": true,
+    "nativeBotTickAdmissionHookDetected": true,
+    "signedAttestationFrameBytes": 133,
+    "serviceControllerReachedPlay": true,
+    "parentPreemptedService": true,
+    "serviceSocketRevokedBeforeParentAdmission": true,
+    "parentReachedHumanLease": true,
+    "parentPhysicalControlUserConfirmed": true,
+    "parentDisconnectEnteredRecoveryHold": true,
+    "stableSignedTelemetryAdmittedNativeFallback": true,
+    "restartRequiredForHandback": false,
+    "finalArtifactServiceDisconnectReplayVerified": true,
+    "allBuiltinActionAutomationDisabled": true,
+    "candidateProcessesStoppedWithoutLeak": true,
+    "normalSafeProxyRestored": true
+  },
   "activationGates": {
     "parentPreemptionCoreHook": "loopback-two-controller-protocol-verified",
     "accountLogin": "family-live-verified-secure-injection",
@@ -203,7 +256,7 @@
     "familyServerConnection": "family-live-verified-after-stopped-snapshot",
     "liveWorldMutation": "parent-manual-movement-only-no-action-automation",
     "familyParentPreemption": "family-live-verified",
-    "stableTelemetryHandback": "pending",
+    "stableTelemetryHandback": "isolated-family-account-live-verified-managed-promotion-pending",
     "gameplayActions": "disabled"
   }
 }

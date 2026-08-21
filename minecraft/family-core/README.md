@@ -2,7 +2,7 @@
 
 This directory is the compileable, server-only Fabric foundation for the Family Companion chat bridge.
 
-All runtime switches are false. The mod currently registers no `/computer` command, chat listener, WebSocket connection, administration executor, or shutdown handler. It is intentionally absent from the live Family Server provisioner and artifact lock.
+Chat, commands, WebSocket control, administration, and shutdown remain disabled. One isolated staging lane can publish authenticated companion handback attestations. It is also disabled by default and activates only from a private `config/mastermind-family-core.properties` file containing the exact companion UUID plus absolute paths to a 32-byte HMAC key and atomic attestation target. It exposes no socket or gameplay action.
 
 Build and test it in isolation from the repository root:
 
@@ -10,4 +10,4 @@ Build and test it in isolation from the repository root:
 .\minecraft\family-agent-bridge\gradlew.bat -p .\minecraft\family-core test build --no-daemon
 ```
 
-The generated JAR is a build artifact only. Do not copy it into a live server until the server-chat milestone has isolated staging evidence, a verified world snapshot, and an explicit promotion decision.
+The generated JAR is a build artifact only. Promote the attestation lane separately from later chat features, after isolated tests, a verified world snapshot, and an explicit activation decision.

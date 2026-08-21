@@ -27,6 +27,11 @@ public final class MastermindZenithPlugin implements ZenithProxyPlugin {
             && !ControlLeaseModule.isControllerAdmissionHookAvailable()) {
             throw new IllegalStateException("Refusing to load: parent takeover requires the pinned Zenith controller-admission core hook");
         }
+        if (config.enabled
+            && config.parentTakeoverEnabled
+            && !ControlLeaseModule.isNativeTickAdmissionHookAvailable()) {
+            throw new IllegalStateException("Refusing to load: parent takeover requires the pinned native bot-tick admission core hook");
+        }
         pluginAPI.registerModule(new ControlLeaseModule());
         log.info("Mastermind Zenith companion skeleton loaded; enabled={}", config.enabled);
     }

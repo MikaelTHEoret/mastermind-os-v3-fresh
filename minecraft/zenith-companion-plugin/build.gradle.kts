@@ -32,4 +32,9 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+sourceSets {
+    main { java.srcDir("../handback-attestation/src/main/java") }
+    test { java.srcDir("../handback-attestation/src/test/java") }
+}
+
 tasks.test { useJUnitPlatform() }
