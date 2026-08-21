@@ -1,6 +1,6 @@
 # Family Minecraft status
 
-Current milestone: M2 — Client Bridge (in progress)
+Current milestone: M3F — Family Companion foundation (implemented; review checkpoint pending)
 
 ## Completed
 
@@ -18,20 +18,30 @@ Current milestone: M2 — Client Bridge (in progress)
 - The local agent now owns the authenticated companion WebSocket, sanitized status, typed action/cancel endpoints, and safe shutdown ordering.
 - The Family dashboard shows redacted companion state and exposes only bounded typed controls; it never receives launch paths, process identity, Microsoft tokens, or the bridge credential.
 - A separate, hash-pinned Baritone 1.18.0 provider for Minecraft 26.2 implements navigate, follow, bounded gather/explore, escape, and return-to-named-waypoint through the typed API.
+- Live acceptance on 2026-08-21 verified account authentication, managed provisioning, client launch, bridge readiness with all 15 v1 capabilities, and `direct.say` from `The_AlChemist___` in the Family Server.
+- The protocol-null defect that rejected required nullable fields was fixed by preserving explicit JSON nulls in the Java codec; focused Node and Gradle protocol checks passed.
 - A dependency-free Java 25 credential bootstrap keeps the Minecraft access token off the operating-system command line and passes it to Fabric only inside the launched JVM.
 - The locked Mojang/Fabric 26.2 client provisioner, local public-client registration, Microsoft device-code/Xbox/Minecraft exchange, CurrentUser DPAPI vault, and async verified launch factory are implemented.
 - The client command uses only verified Java/classpath/native/logging/profile inputs; private account fields are carried only by the bounded MFC1 stdin frame. Minecraft 26.2 auto-connect uses `--quickPlayMultiplayer`.
 
 ## In progress
 
-- Provision the complete managed Mojang/Fabric client profile through the dashboard.
-- Register an approved Microsoft public-client application and complete device-code sign-in.
-- Install the four verified client mods and perform controlled in-game acceptance tests.
+- Review, staged secret scan, branch push, and draft PR for the completed foundation checkpoint.
 
-## Blockers before M2 acceptance
+## M3F foundation completed
 
-- The companion build has not yet been installed or launched against the live Family Server.
-- Navigate, follow, gather/mine, cancel, and stop require controlled in-game acceptance tests.
+- Canonical dual-character requirements, role matrix, resource limits, profile boundaries, release gates, and four-state feature manifest.
+- Strict brain domain contracts, disabled adapters, provider-neutral model-broker boundary, deterministic fakes, prompt placeholders, and focused tests.
+- Authenticated and sequenced `family-core` protocol v1 with strict JSON parsing, bounded payloads, allowlisted administration operations, replay protection, schema, and tests.
+- Separate server-only Fabric `family-core` skeleton for Minecraft 26.2 / Java 25. All runtime flags are false and the isolated Gradle build passes.
+- Companion bridge v2 observation/action inventory and runtime validators. Negotiation remains v1 and no v2 capability is advertised.
+- Authenticated dashboard status placeholder and a loopback-only reasoning route that validates requests and returns `FEATURE_DISABLED`.
+- Nothing from this foundation is installed into the live server or added to its artifact lock.
+
+## Remaining M2 acceptance
+
+- Navigate, follow, gather/mine, cancellation, and safe stop still require fresh controlled live acceptance evidence.
+- Implemented or capability-advertised is not treated as live-verified.
 
 ## Verified build artifacts
 

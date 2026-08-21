@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-21T00:00:00.000Z",
+  "states": ["planned", "stubbed", "implemented", "live-verified"],
+  "features": {
+    "familyServer.lifecycle": "live-verified",
+    "companion.provision": "live-verified",
+    "companion.authenticate": "live-verified",
+    "companion.launch": "live-verified",
+    "companion.bridgeReady": "live-verified",
+    "companion.directSay": "live-verified",
+    "companion.navigate": "implemented",
+    "companion.follow": "implemented",
+    "companion.gather": "implemented",
+    "companion.cancel": "implemented",
+    "companion.safeStop": "implemented",
+    "familyCore.protocol": "stubbed",
+    "familyCore.serverMod": "stubbed",
+    "computer.chat": "stubbed",
+    "companion.conversation": "stubbed",
+    "brain.modelReasoning": "stubbed",
+    "brain.taskPlanning": "stubbed",
+    "brain.survival": "stubbed",
+    "profiles.capture": "stubbed",
+    "profiles.parentCodexReuse": "stubbed",
+    "computer.modRequests": "stubbed",
+    "computer.inGameApproval": "planned",
+    "brain.visionRecovery": "planned"
+  }
+}
