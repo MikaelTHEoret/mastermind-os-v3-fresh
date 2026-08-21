@@ -27,7 +27,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 ## In progress
 
 - Hybrid body foundation: replace desktop-rendered operation with native Zenith fallback, an enhanced headless controller entering through the proxy like a real player, server-enhanced telemetry, and a parent-only manual takeover lease.
-- The exact pinned Zenith runtime and Mastermind plugin are privately staged and passed a listener-free, account-free disabled boot. They are not installed as a live service, and no live server restart is authorized by this checkpoint.
+- The exact pinned Zenith runtime and Mastermind plugin are privately staged, passed a listener-free disabled boot, and passed an isolated loopback two-controller protocol fixture. They are not installed as a family service.
 
 ## M3F foundation completed
 
@@ -53,7 +53,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Native Zenith is the fallback driver; an authenticated headless Mastermind controller is the enhanced driver and uses the same controller entrance as the parent's real client.
 - Stock Zenith accepts only one controller. Upstream inspection proved its public plugin event occurs too late to enforce replacement, so a minimal core hook is required for seamless parent preemption.
 - The isolated four-file patch candidate adds a synchronous deny-by-default admission event, revokes old-controller packet input before atomic replacement, and preserves the new lease during old-session disconnect cleanup. The plugin detected the hook during an account-free/listener-free fake-identity simulation.
-- The plugin's tested admission policy permits only an authenticated parent to replace the exact service controller. Real two-controller race, disconnect, recovery-hold, and handback acceptance remain required before activation.
+- The plugin's admission policy permits only an authenticated parent to replace the exact service controller. The isolated live protocol fixture verified parent replacement, immediate service revocation, disconnect ordering, unknown-identity rejection, and later service re-entry. Stable paired-telemetry handback remains required before activation.
 - The previous rendered Fabric bridge remains available for regression/reference work but is no longer the intended production body.
 
 ## Offline Zenith staging evidence
@@ -68,6 +68,8 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Offline fake-identity simulation: patched hook detected, no account/upstream/listener enabled, then configuration restored to all-false flags and blank identities.
 - Stock-runtime negative simulation: takeover request failed plugin preflight because the pinned hook was absent; no module registered, then configuration was restored to disabled blank defaults.
 - Disabled idle boot: approximately 162.8 MB working set, 216.3 MB private memory, 0.015% normalized CPU, zero observed TCP connections, and no leaked process or listener after stop.
+- Observation-only headless controller: six tests pass; shaded JAR 29,479,224 bytes; SHA-256 `E1C397C69A4B1C6545E459F80CD464063F1D86F256A2CD3F42853B27B6DB3581`.
+- Loopback protocol fixture: service reached play, unknown identity failed closed, authorized parent preempted and revoked the service, parent exited cleanly, and the service re-entered. No family account, Family Server, or live world was used.
 - Evidence manifest: `minecraft/zenith-staging/manifest.v1.json`; operator procedure: `docs/MINECRAFT_ZENITH_STAGING_RUNBOOK.md`.
 
 ## Verified build artifacts

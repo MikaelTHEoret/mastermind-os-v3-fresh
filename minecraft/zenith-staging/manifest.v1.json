@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "status": "patched-candidate-staged-disabled",
-  "verifiedAt": "2026-08-21T15:08:00.000Z",
+  "status": "protocol-fixture-verified-live-family-pending",
+  "verifiedAt": "2026-08-21T16:34:00.000Z",
   "zenith": {
     "release": "3.5.8+26.2.0",
     "minecraftVersion": "26.2.0",
@@ -50,6 +50,44 @@
       "skipped": 0
     }
   },
+  "headlessController": {
+    "version": "0.1.0",
+    "file": "mastermind-zenith-headless-controller-0.1.0-all.jar",
+    "bytes": 29479224,
+    "sha256": "E1C397C69A4B1C6545E459F80CD464063F1D86F256A2CD3F42853B27B6DB3581",
+    "tests": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "loopbackOnly": true,
+    "credentialTransport": "bounded-stdin-envelope",
+    "actionSurface": "none",
+    "pinnedPalette": {
+      "blockStateRegistrySize": 32366,
+      "defaultBlockStateId": 0,
+      "biomeRegistrySize": 66,
+      "defaultBiomeStateId": 40,
+      "blockPaletteBits": 15,
+      "biomePaletteBits": 7
+    }
+  },
+  "protocolFixture": {
+    "familyCredentialsUsed": false,
+    "familyServerUsed": false,
+    "liveWorldUsed": false,
+    "listenerAddress": "127.0.0.1",
+    "zenithPort": 25566,
+    "upstreamPort": 25567,
+    "serviceReachedPlay": true,
+    "unknownIdentityRejected": true,
+    "parentPreemptedService": true,
+    "serviceSocketRevokedBeforeParentAdmission": true,
+    "parentExitedCleanly": true,
+    "serviceReentryAfterParentExit": true,
+    "stableTelemetryHandbackVerified": false
+  },
   "offlineAcceptance": {
     "resourceMeasurementRuntimeSha256": "CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2",
     "upstreamAutoConnect": false,
@@ -72,10 +110,10 @@
     "listenerAfterStop": false
   },
   "activationGates": {
-    "parentPreemptionCoreHook": "isolated-built-hook-detected-live-preemption-pending",
-    "accountLogin": "not-authorized",
-    "proxyListener": "not-authorized",
-    "familyServerConnection": "not-authorized",
-    "liveWorldMutation": "not-authorized"
+    "parentPreemptionCoreHook": "loopback-two-controller-protocol-verified",
+    "accountLogin": "family-live-pending-secure-injection",
+    "proxyListener": "family-live-pending-loopback-only",
+    "familyServerConnection": "pending-verified-snapshot",
+    "liveWorldMutation": "pending-verified-snapshot"
   }
 }

@@ -2,7 +2,9 @@
 
 ## Current result
 
-ZenithProxy `3.5.8+26.2.0` is built from the exact source commit `550257ac720c06e4902c8d5dcbc7869b898ea7bd` and staged under Mastermind's private local data root. A separately staged candidate applies the minimal controller-admission patch in `minecraft/zenith-core-patches/0001-controller-admission-preemption-hook.patch`. The Mastermind plugin loads against both runtimes and remains disabled. No account, upstream Minecraft server, proxy listener, firewall rule, Family Server, or live world was touched.
+ZenithProxy `3.5.8+26.2.0` is built from the exact source commit `550257ac720c06e4902c8d5dcbc7869b898ea7bd` and staged under Mastermind's private local data root. A separately staged candidate applies the minimal controller-admission patch in `minecraft/zenith-core-patches/0001-controller-admission-preemption-hook.patch`. The Mastermind plugin loads against both runtimes and remains disabled in the primary staging directories. No account, firewall rule, Family Server, or live world has been touched by Zenith staging.
+
+A disposable loopback-only protocol fixture now provides stronger evidence without using family data or credentials. It ran an empty offline Minecraft 26.2 server on `127.0.0.1:25567`, the patched Zenith candidate on `127.0.0.1:25566`, and the observation-only headless controller. The service identity reached play, an unknown identity was rejected, the allowlisted parent atomically preempted and revoked the service, the parent disconnected cleanly, and the service subsequently re-entered. Both primary staging configurations remain disabled with blank controller identities.
 
 The machine-readable hashes and acceptance measurements are recorded in `minecraft/zenith-staging/manifest.v1.json`. Binary JARs, generated configuration, logs, identities, and credentials stay outside Git.
 
@@ -19,8 +21,12 @@ The machine-readable hashes and acceptance measurements are recorded in `minecra
 - The boot used no upstream auto-connect, no listener, no LAN broadcast, no UPnP, no updater, no login browser, no Discord, and no database.
 - Fifteen idle samples observed about 162.8 MB working set, 216.3 MB private memory, 0.015% normalized CPU, and no TCP connection.
 - After shutdown there was no staging Java process and no listener on the reserved staging port.
+- The headless controller accepts one bounded launch envelope on standard input, permits only IPv4 loopback, keeps tokens out of command-line arguments and logs, exposes no game actions, and disconnects after a bounded hold.
+- The pinned MCProtocolLib palette contract was verified against Zenith 3.5.8: 32,366 block states, air ID 0, 66 biomes, plains ID 40, and 15/7 global palette widths.
+- Six headless-controller tests pass. Its shaded JAR is 29,479,224 bytes with SHA-256 `E1C397C69A4B1C6545E459F80CD464063F1D86F256A2CD3F42853B27B6DB3581`.
+- The protocol fixture verified `MASTERMIND_CONTROLLER`, fail-closed unknown identity rejection, authenticated `HUMAN_PARENT` preemption, immediate service socket revocation, clean parent exit, and later service re-entry.
 
-This proves artifact identity, disabled startup, and idle resource behavior. It does not prove live gameplay safety or audit all external Zenith code.
+This proves artifact identity, disabled startup, idle resource behavior, and the local two-controller admission path. It does not prove live gameplay safety, stable telemetry-gated native handback, Microsoft account injection, or audit all external Zenith code.
 
 ## Parent-preemption hook candidate
 
@@ -39,14 +45,14 @@ Stock Zenith accepts a controller only when `currentPlayer.compareAndSet(null, c
 
 The isolated patch candidate implements this sequence with a synchronous, deny-by-default admission event, an old-session packet-revocation flag, and an atomic exact-session replacement. The plugin discovers the hook without requiring stock Zenith to contain the new class; it refuses to enable parent takeover when the hook is absent. This candidate compiles, its tests pass as recorded above, and the plugin detected it during the offline simulation.
 
-This is still not live takeover evidence. Authentication, packet-race behavior under two real controllers, disconnect ordering, recovery hold, and handback require controlled live acceptance. Until those checks pass, `parentTakeoverEnabled`, enhanced control, and native fallback remain disabled.
+The loopback fixture is live protocol evidence for authentication ordering, service revocation, atomic replacement, disconnect ordering, and fail-closed identity rejection. It is not family-account or family-server evidence. Paired-telemetry recovery hold and native handback remain unimplemented at runtime. Until those checks and controlled family staging pass, the primary `parentTakeoverEnabled`, enhanced control, and native fallback flags remain disabled.
 
 ## Live activation gates
 
 Live activation is a separate, explicitly approved change. Before it begins:
 
 1. Review the minimal Zenith admission patch and its AGPL/source-distribution obligations.
-2. Add a two-controller integration fixture for revocation, atomic replacement, disconnect ordering, and failed compare-and-set races; then re-run all upstream, plugin, lease, protocol, and process-leak tests and update hashes.
+2. Preserve the passing two-controller protocol fixture evidence and re-run all upstream, plugin, lease, protocol, and process-leak tests after any core or plugin change.
 3. Bind the private controller entrance to loopback or a specifically approved private-LAN address. Never use `0.0.0.0`, UPnP, a public firewall rule, or Cloudflare.
 4. Configure exact parent and service Minecraft UUIDs in Mastermind's private data root, never in Git or logs.
 5. Keep account credentials in the existing encrypted credential system; never put tokens on a command line or in the staging manifest.
