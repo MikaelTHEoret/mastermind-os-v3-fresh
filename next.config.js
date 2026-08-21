@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone',
   // Ensure proper module resolution
   webpack: (config, { isServer }) => {
     // Fix for Node.js modules in browser
@@ -13,19 +14,6 @@ const nextConfig = {
       };
     }
     return config;
-  },
-  // Allow localhost API calls in development
-  async headers() {
-    return [
-      {
-        source: '/api/:path*',
-        headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization' },
-        ],
-      },
-    ];
   },
 }
 

@@ -6,10 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "dev:local": "node scripts/run-local-control.mjs",
+    "start:local": "node scripts/run-local-control.mjs --production",
+    "node:host:install": "node scripts/install-windows-node-host.mjs",
+    "memory:identity:plan": "node scripts/family-identity-bootstrap.mjs",
+    "memory:migrate": "node scripts/apply-memory-migrations.mjs",
+    "minecraft:adopt-legacy-update-terminal": "node scripts/adopt-legacy-update-terminal.mjs",
+    "memory:operator:pin": "node scripts/memory-operator-pin.mjs",
+    "context:mcp": "node services/mastermind-context-gateway/src/mcp-server.mjs",
+    "context:test": "node --test services/mastermind-context-gateway/test/*.test.mjs",
+    "minecraft:agent": "node -e \"console.error('Use npm run dev:local so the authenticated supervisor owns safe Minecraft shutdown.'); process.exit(1)\"",
+    "minecraft:test": "node --test services/minecraft-control-plane/test/*.test.mjs",
+    "local-control:test": "node --test scripts/test/*.test.mjs",
     "lint": "next lint",
-    "mcp:setup": "node scripts/mcp/setup-mcp.js",
-    "mcp:server": "cd scripts/mcp && npm install && node mastermind-mcp-server.js",
-    "mcp:test": "cd scripts/mcp && timeout 10s node mastermind-mcp-server.js || echo 'MCP server test completed'"
+    "mcp:setup": "node scripts/setup-mastermind-context-mcp.mjs",
+    "mcp:server": "npm run context:mcp",
+    "mcp:test": "npm run context:test"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.5.12",
@@ -26,6 +38,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "sass": "^1.81.0",
+    "semver": "^7.8.1",
     "tailwind-merge": "^2.2.0",
     "three": "^0.184.0",
     "ws": "^8.17.1"
