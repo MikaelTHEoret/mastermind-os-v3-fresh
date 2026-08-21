@@ -53,7 +53,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Native Zenith is the fallback driver; an authenticated headless Mastermind controller is the enhanced driver and uses the same controller entrance as the parent's real client.
 - Stock Zenith accepts only one controller. Upstream inspection proved its public plugin event occurs too late to enforce replacement, so a minimal core hook is required for seamless parent preemption.
 - The isolated four-file patch candidate adds a synchronous deny-by-default admission event, revokes old-controller packet input before atomic replacement, and preserves the new lease during old-session disconnect cleanup. The plugin detected the hook during an account-free/listener-free fake-identity simulation.
-- The plugin's admission policy permits only an authenticated parent to replace the exact service controller. The isolated live protocol fixture verified parent replacement, immediate service revocation, disconnect ordering, unknown-identity rejection, and later service re-entry. Stable paired-telemetry handback remains required before activation.
+- The plugin's admission policy permits only an authenticated parent to replace the exact service controller. Both the isolated protocol fixture and a Family-account live test verified parent replacement and immediate service revocation. The parent confirmed physical look/movement control through the proxy. Stable paired-telemetry handback remains required before unattended activation.
 - The previous rendered Fabric bridge remains available for regression/reference work but is no longer the intended production body.
 
 ## Offline Zenith staging evidence
@@ -72,7 +72,8 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Loopback protocol fixture: service reached play, unknown identity failed closed, authorized parent preempted and revoked the service, parent exited cleanly, and the service re-entered. No family account, Family Server, or live world was used.
 - Secure Family live candidate: combined Zenith JAR 61,678,737 bytes, SHA-256 `C11FF1A6B69DF5AD99C95203605AB5389D21BE8CCB919130CF8AC279A3F20A17`; secure bootstrap JAR 9,227 bytes, SHA-256 `53D611DA8C8796184D05741DEE21160FBD4C23E0E35194502C8861DAF313F433`.
 - Family live acceptance: verified offline managed-instance copy, clean managed restart, DPAPI-backed session injection, `The_AlChemist___` upstream login, loopback listener, no plaintext auth cache or fallback device flow, exact stop, and successful hardened relaunch.
-- The final live candidate uses `-Xms64M -Xmx512M`; five-minute resource evidence is recorded in the manifest. Family parent takeover and stable telemetry handback remain pending.
+- Family parent acceptance: an observation-only service controller authenticated, the allowlisted `MISS_LENKA` account preempted it, the service socket was revoked before parent admission, and the parent confirmed physical look/movement control. Parent disconnect was clean; because telemetry-gated automatic handback is not implemented, the exact stop/relaunch fallback restored the known safe native state.
+- The final live candidate uses `-Xms64M -Xmx512M`; five-minute resource evidence is recorded in the manifest. Stable telemetry-gated handback remains pending and all built-in action automation remains disabled.
 - Evidence manifest: `minecraft/zenith-staging/manifest.v1.json`; operator procedure: `docs/MINECRAFT_ZENITH_STAGING_RUNBOOK.md`.
 
 ## Verified build artifacts

@@ -8,6 +8,8 @@ On 2026-08-21 the Family Server was stopped cleanly and its entire managed insta
 
 The secure candidate refreshed the existing CurrentUser-DPAPI Microsoft account, passed only the current short-lived Minecraft session through the bounded MFC1 standard-input frame, and authenticated `The_AlChemist___` to the Family Server. The refresh token never entered Zenith, no credential was placed in process arguments or environment variables, no `mc_auth_cache.json` was written, and a failed injection cannot fall back to Zenith's device-login flow. The proxy controller entrance binds only to `127.0.0.1:25568`; UPnP, Discord, database, auto-updating, LAN broadcast, and all built-in movement/action automation remain off. The exact-process stop launcher was live-verified, followed by a successful hardened relaunch.
 
+The Family-account parent test then authenticated an observation-only service controller through that private entrance. The allowlisted `MISS_LENKA` account atomically preempted it, Zenith revoked the service socket before publishing the parent lease, and the lease entered `HUMAN_PARENT`. The parent confirmed look and movement control through the embodied account. On normal parent disconnect no automatic handback was claimed: the current runtime remains fail-closed because paired-telemetry handback is not implemented. The verified exact stop/relaunch procedure restored the known safe native-fallback state with action automation still disabled.
+
 A disposable loopback-only protocol fixture now provides stronger evidence without using family data or credentials. It ran an empty offline Minecraft 26.2 server on `127.0.0.1:25567`, the patched Zenith candidate on `127.0.0.1:25566`, and the observation-only headless controller. The service identity reached play, an unknown identity was rejected, the allowlisted parent atomically preempted and revoked the service, the parent disconnected cleanly, and the service subsequently re-entered. Both primary staging configurations remain disabled with blank controller identities.
 
 The machine-readable hashes and acceptance measurements are recorded in `minecraft/zenith-staging/manifest.v1.json`. Binary JARs, generated configuration, logs, identities, and credentials stay outside Git.
@@ -30,7 +32,7 @@ The machine-readable hashes and acceptance measurements are recorded in `minecra
 - Six headless-controller tests pass. Its shaded JAR is 29,479,224 bytes with SHA-256 `E1C397C69A4B1C6545E459F80CD464063F1D86F256A2CD3F42853B27B6DB3581`.
 - The protocol fixture verified `MASTERMIND_CONTROLLER`, fail-closed unknown identity rejection, authenticated `HUMAN_PARENT` preemption, immediate service socket revocation, clean parent exit, and later service re-entry.
 
-This proves artifact identity, secure Microsoft account injection, loopback-only Family Server connection, exact stop/relaunch, idle resource behavior, and the local two-controller admission path. It does not prove family-account parent takeover, live gameplay actions, stable telemetry-gated native handback, or audit all external Zenith code.
+This proves artifact identity, secure Microsoft account injection, loopback-only Family Server connection, exact stop/relaunch, idle resource behavior, the two-controller admission path, Family-account parent takeover, and manual parent movement. It does not prove automatic stable telemetry-gated native handback, autonomous gameplay actions, or audit all external Zenith code.
 
 ## Secure Family live acceptance
 
@@ -42,6 +44,8 @@ This proves artifact identity, secure Microsoft account injection, loopback-only
 - Live logs verify injected-session acceptance, authenticated upstream connection, plugin loading, and no fallback flow. Family Server logs verify the exact companion UUID joined from localhost.
 - The stop launcher rejects arguments, verifies the state hashes, Java executable, staging command line, exact PID, and listener release. It stopped the hardened candidate with no leaked listener or process, after which the candidate relaunched successfully.
 - The final runtime uses `-Xms64M -Xmx512M`. The formal five-minute final idle sample is recorded in the staging manifest.
+- The observation-only live controller launcher accepts no arguments, reuses the DPAPI-backed account refresh, verifies the exact controller JAR and account UUID, transports the short-lived token only in a bounded standard-input envelope, and exposes no game actions.
+- Live Family-account evidence verifies `MASTERMIND_CONTROLLER`, authenticated parent preemption, immediate service revocation, `HUMAN_PARENT`, and parent-confirmed movement. Parent disconnect was clean, but the safe restart fallback was required because automatic paired-telemetry handback remains unimplemented.
 
 ## Parent-preemption hook candidate
 
@@ -60,7 +64,7 @@ Stock Zenith accepts a controller only when `currentPlayer.compareAndSet(null, c
 
 The isolated patch candidate implements this sequence with a synchronous, deny-by-default admission event, an old-session packet-revocation flag, and an atomic exact-session replacement. The plugin discovers the hook without requiring stock Zenith to contain the new class; it refuses to enable parent takeover when the hook is absent. This candidate compiles, its tests pass as recorded above, and the plugin detected it during the offline simulation.
 
-The loopback fixture is live protocol evidence for authentication ordering, service revocation, atomic replacement, disconnect ordering, and fail-closed identity rejection. Paired-telemetry recovery hold and stable native handback remain unimplemented at runtime. The separate secure Family candidate has native fallback, enhanced-controller admission, and parent takeover policy enabled, but no family parent controller has connected yet and no gameplay action surface is enabled. The disabled primary baselines remain the rollback artifacts.
+The loopback fixture is live protocol evidence for authentication ordering, service revocation, atomic replacement, disconnect ordering, and fail-closed identity rejection. The Family-account test additionally proves real parent authentication and manual embodiment. Paired-telemetry recovery hold and stable native handback remain unimplemented at runtime, so the test used the exact stop/relaunch fallback after parent disconnect. No autonomous gameplay action surface is enabled. The disabled primary baselines remain the rollback artifacts.
 
 ## Live activation gates
 
@@ -73,7 +77,7 @@ The first loopback-only Family activation is complete. Before gameplay or unatte
 5. Keep account credentials in the existing encrypted credential system; never put tokens on a command line, environment variable, log, or staging manifest.
 6. Preserve the verified stopped snapshot before installing `family-core` or changing live-world artifacts.
 7. Keep all behavior flags off and enable only one tested bounded lane at a time.
-8. Live-test family parent takeover, service rejection while the parent owns the lease, stable handback, kill switch, and gameplay safe stop before any unattended behavior.
+8. Family parent takeover and service revocation are live-verified. Implement and live-test stable paired-telemetry handback, the kill switch, and gameplay safe stop before any unattended behavior.
 
 ## Stop and rollback
 
