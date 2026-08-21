@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "status": "protocol-fixture-verified-live-family-pending",
-  "verifiedAt": "2026-08-21T16:34:00.000Z",
+  "status": "family-loopback-secure-body-live-parent-handback-pending",
+  "verifiedAt": "2026-08-21T17:40:00.000Z",
   "zenith": {
     "release": "3.5.8+26.2.0",
     "minecraftVersion": "26.2.0",
@@ -37,6 +37,42 @@
     },
     "fullSuiteExit": "gradle-result-socket-reset-after-all-result-files-were-written",
     "targetedHookTestExit": "success"
+  },
+  "secureSessionPatch": {
+    "patchFile": "minecraft/zenith-core-patches/0002-secure-session-injection.patch",
+    "patchBytes": 6109,
+    "patchSha256": "19FB42E12441C838D7585817F67A4CE6C5B951BDFB7FADFB7D619DB24DC935AC",
+    "baseCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "credentialSource": "current-user-dpapi-vault",
+    "credentialTransport": "bounded-mfc1-stdin-frame",
+    "refreshTokenSharedWithZenith": false,
+    "commandLineCredential": false,
+    "environmentCredential": false,
+    "plaintextAuthCache": false,
+    "normalAuthenticationFallbackAllowed": false
+  },
+  "combinedLiveCandidate": {
+    "runtimeFile": "ZenithProxy.jar",
+    "runtimeBytes": 61678737,
+    "runtimeSha256": "C11FF1A6B69DF5AD99C95203605AB5389D21BE8CCB919130CF8AC279A3F20A17",
+    "bootstrapFile": "mastermind-zenith-secure-bootstrap-0.1.0.jar",
+    "bootstrapBytes": 9227,
+    "bootstrapSha256": "53D611DA8C8796184D05741DEE21160FBD4C23E0E35194502C8861DAF313F433",
+    "bootstrapTests": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "freshPinnedCheckoutPatchValidation": true,
+    "focusedCombinedPatchTests": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "jvmInitialHeapMb": 64,
+    "jvmMaximumHeapMb": 512
   },
   "mastermindPlugin": {
     "version": "0.1.0",
@@ -109,11 +145,61 @@
     "leakedProcessAfterStop": false,
     "listenerAfterStop": false
   },
+  "familyLiveAcceptance": {
+    "managedInstanceSnapshot": {
+      "stoppedCopy": true,
+      "files": 180,
+      "bytes": 110315855,
+      "sourceAndCopyTreeDigestSha256": "EB6EE69B32FE7FB6E95F06D46285A074031689F54919D4DCA3BEE9BB0F206593"
+    },
+    "updateReceiptsAuthenticated": 9,
+    "updateManualRecoveryRequired": 0,
+    "backupManualRecoveryRequired": 0,
+    "worldManualRecoveryRequired": 0,
+    "familyServerReady": true,
+    "javaPort": 25565,
+    "bedrockUdpPort": 19132,
+    "zenithListenerAddress": "127.0.0.1",
+    "zenithListenerPort": 25568,
+    "companionUuidAuthenticated": true,
+    "upstreamConnectionVerified": true,
+    "fallbackDeviceFlowObserved": false,
+    "plaintextAuthCacheObserved": false,
+    "allBuiltinActionAutomationDisabled": true,
+    "exactStopVerified": true,
+    "listenerReleasedAfterStop": true,
+    "hardenedRelaunchVerified": true,
+    "fiveMinuteIdleSample": {
+      "samples": 60,
+      "sampleIntervalSeconds": 5,
+      "logicalProcessorNormalized": true,
+      "controlPlane": {
+        "averageCpuPercent": 0.006,
+        "averageWorkingSetMb": 84.3,
+        "peakWorkingSetMb": 84.3
+      },
+      "zenithBody": {
+        "averageCpuPercent": 0.106,
+        "averageWorkingSetMb": 235.4,
+        "peakWorkingSetMb": 245.2
+      },
+      "familyServer": {
+        "averageCpuPercent": 0.5,
+        "averageWorkingSetMb": 1437.4,
+        "peakWorkingSetMb": 1438.7
+      }
+    },
+    "familyParentPreemptionVerified": false,
+    "stableTelemetryHandbackVerified": false
+  },
   "activationGates": {
     "parentPreemptionCoreHook": "loopback-two-controller-protocol-verified",
-    "accountLogin": "family-live-pending-secure-injection",
-    "proxyListener": "family-live-pending-loopback-only",
-    "familyServerConnection": "pending-verified-snapshot",
-    "liveWorldMutation": "pending-verified-snapshot"
+    "accountLogin": "family-live-verified-secure-injection",
+    "proxyListener": "family-live-verified-loopback-only",
+    "familyServerConnection": "family-live-verified-after-stopped-snapshot",
+    "liveWorldMutation": "companion-login-only-no-action-automation",
+    "familyParentPreemption": "pending",
+    "stableTelemetryHandback": "pending",
+    "gameplayActions": "disabled"
   }
 }
