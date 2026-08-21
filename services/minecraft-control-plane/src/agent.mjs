@@ -40,6 +40,7 @@ import {
   MastermindMemoryApiConsumer,
   MastermindMemoryEventSyncController,
 } from './domain-events/memory-api-consumer.mjs';
+import { createFamilyCompanionSkeleton } from './brain/index.mjs';
 
 const MAX_BODY_BYTES = 32 * 1024;
 const SUPERVISOR_DRAIN_TIMEOUT_MS = 30_000;
@@ -747,6 +748,7 @@ export async function createControlPlane(options = {}) {
   if (config.memoryEventSyncEnabled === true && memoryEventPlayerId === null) {
     throw memoryIdentityRequiredError();
   }
+  const familyCompanionBrain = options.familyCompanionBrain ?? createFamilyCompanionSkeleton();
   const managedRoot = options.managedRoot ?? path.join(config.dataRoot, 'projects', 'family-server');
   const store = options.store ?? new InstanceStore(managedRoot);
   const logs = options.logs ?? new LogStore(managedRoot);
@@ -1713,6 +1715,12 @@ export async function createControlPlane(options = {}) {
             launchAvailable: true,
             targetInstanceId: trustedCompanionLaunchFactory.familyServerInstanceId,
           }),
+        });
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/brain/status' && url.search === '') {
+        return json(response, 200, {
+          ok: true,
+          brain: familyCompanionBrain.status(),
         });
       }
       if (request.method === 'POST' && url.pathname === '/v1/control/prepare-shutdown') {

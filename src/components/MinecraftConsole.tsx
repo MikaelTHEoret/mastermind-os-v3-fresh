@@ -227,6 +227,32 @@ type CompanionEnvelope = { ok?: boolean; companion?: CompanionStatus };
 type CompanionActionEnvelope = { ok?: boolean; action?: CompanionAction };
 type CompanionCancellationEnvelope = { ok?: boolean; cancellation?: { action?: CompanionAction; alreadyTerminal?: boolean; alreadyRequested?: boolean } };
 
+const FAMILY_BRAIN_FEATURE_NAMES = [
+  'computerChat', 'companionConversation', 'modelReasoning', 'profileCapture',
+  'physicalTaskPlanning', 'survivalAutomation', 'modRequestExecution',
+  'inGameApprovals', 'visionRecovery',
+] as const;
+type FamilyBrainFeatureName = typeof FAMILY_BRAIN_FEATURE_NAMES[number];
+type FamilyBrainFeatureState = 'planned' | 'stubbed' | 'implemented' | 'live-verified';
+type FamilyBrainStatus = {
+  schemaVersion: 1;
+  flags: Record<FamilyBrainFeatureName, boolean>;
+  states: Record<FamilyBrainFeatureName, FamilyBrainFeatureState>;
+};
+type FamilyBrainEnvelope = { ok?: boolean; brain?: unknown };
+
+const FAMILY_BRAIN_LABELS: Record<FamilyBrainFeatureName, string> = {
+  computerChat: 'Computer chat',
+  companionConversation: 'Companion conversation',
+  modelReasoning: 'Model reasoning',
+  profileCapture: 'Profile capture',
+  physicalTaskPlanning: 'Physical task planning',
+  survivalAutomation: 'Survival automation',
+  modRequestExecution: 'Mod request execution',
+  inGameApprovals: 'In-game approvals',
+  visionRecovery: 'Vision recovery',
+};
+
 type InstanceUpdateStatus = {
   state: 'current' | 'component-update-available' | 'minecraft-update-approval-required' | 'blocked-downgrade' | 'blocked-unknown-order';
   updateKind: 'current' | 'component' | 'upgrade' | 'legacy-migration' | 'downgrade' | 'unknown';
@@ -652,6 +678,28 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   return payload as T;
+}
+
+function familyBrainFromEnvelope(envelope: FamilyBrainEnvelope): FamilyBrainStatus {
+  if (envelope.ok !== true || !envelope.brain || typeof envelope.brain !== 'object' || Array.isArray(envelope.brain)) {
+    throw new Error('The local agent returned invalid companion foundation status.');
+  }
+  const brain = envelope.brain as Record<string, unknown>;
+  if (brain.schemaVersion !== 1 || !brain.flags || typeof brain.flags !== 'object' || Array.isArray(brain.flags)
+    || !brain.states || typeof brain.states !== 'object' || Array.isArray(brain.states)) {
+    throw new Error('The local agent returned invalid companion foundation status.');
+  }
+  const flags = brain.flags as Record<string, unknown>;
+  const states = brain.states as Record<string, unknown>;
+  const allowedStates = new Set<FamilyBrainFeatureState>(['planned', 'stubbed', 'implemented', 'live-verified']);
+  if (FAMILY_BRAIN_FEATURE_NAMES.some((feature) => (
+    typeof flags[feature] !== 'boolean' || !allowedStates.has(states[feature] as FamilyBrainFeatureState)
+  ))) throw new Error('The local agent returned invalid companion feature status.');
+  return {
+    schemaVersion: 1,
+    flags: Object.fromEntries(FAMILY_BRAIN_FEATURE_NAMES.map((feature) => [feature, flags[feature]])) as Record<FamilyBrainFeatureName, boolean>,
+    states: Object.fromEntries(FAMILY_BRAIN_FEATURE_NAMES.map((feature) => [feature, states[feature]])) as Record<FamilyBrainFeatureName, FamilyBrainFeatureState>,
+  };
 }
 
 function failureOf(error: unknown): ApiFailure {
@@ -5132,6 +5180,8 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
   const [companion, setCompanion] = useState<CompanionStatus | null>(null);
   const [companionMessage, setCompanionMessage] = useState('Companion status has not completed.');
   const [companionBusy, setCompanionBusy] = useState(false);
+  const [familyBrain, setFamilyBrain] = useState<FamilyBrainStatus | null>(null);
+  const [familyBrainMessage, setFamilyBrainMessage] = useState('Companion foundation status has not completed.');
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [refreshing, setRefreshing] = useState(true);
   const [busyInstance, setBusyInstance] = useState<string | null>(null);
@@ -5364,13 +5414,14 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
     const isCurrent = () => !signal?.aborted && generation === refreshGeneration.current;
     if (isCurrent()) setRefreshing(true);
     try {
-      const [overviewResult, instancesResult, catalogResult, accountResult, lanResult, companionResult] = await Promise.allSettled([
+      const [overviewResult, instancesResult, catalogResult, accountResult, lanResult, companionResult, brainResult] = await Promise.allSettled([
         api<Overview>('/api/minecraft/overview', { signal }),
         api<unknown>('/api/minecraft/instances', { signal }),
         api<CatalogEnvelope>('/api/minecraft/catalog', { signal }),
         api<AccountEnvelope>('/api/minecraft/account', { signal }),
         api<LanEnvelope>('/api/minecraft/lan', { signal }),
         api<CompanionEnvelope>('/api/minecraft/companion/status', { signal }),
+        api<FamilyBrainEnvelope>('/api/minecraft/brain/status', { signal }),
       ]);
       if (!isCurrent()) return;
       if (overviewResult.status === 'rejected') throw overviewResult.reason;
@@ -5433,6 +5484,22 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
         );
       }
 
+      if (brainResult.status === 'fulfilled') {
+        try {
+          setFamilyBrain(familyBrainFromEnvelope(brainResult.value));
+          setFamilyBrainMessage('');
+        } catch (error) {
+          setFamilyBrain(null);
+          setFamilyBrainMessage(error instanceof Error ? error.message : 'The companion foundation status was invalid.');
+        }
+      } else {
+        const brainFailure = failureOf(brainResult.reason);
+        setFamilyBrain(null);
+        setFamilyBrainMessage(brainFailure.status === 404
+          ? 'Restart the local command center to load the companion foundation status.'
+          : brainFailure.message);
+      }
+
       const fingerprint = nextInstances.map((instance) => `${instance.id}:${instance.minecraftVersion}`).sort().join('|');
       if (fingerprint !== updateFingerprint.current) {
         updateFingerprint.current = fingerprint;
@@ -5446,6 +5513,7 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
       setAccount(null);
       setLan(null);
       setCompanion(null);
+      setFamilyBrain(null);
       setFailure(failureOf(error));
     } finally {
       if (isCurrent()) setRefreshing(false);
@@ -6285,6 +6353,35 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
         <Metric label="FAILED" value={failed} color={failed > 0 ? C.red : C.dim} />
         <Metric label="BEDROCK STACK" value={stackResolved ? 'RESOLVED' : 'CHECKING'} color={stackResolved ? C.green : C.gold} />
       </div>
+
+      <section style={{ ...panel, borderColor: `${C.magenta}35` }}>
+        <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' }}>
+          <div style={{ color: C.magenta, fontFamily: mono, fontSize: 10, letterSpacing: 1.5 }}>FAMILY COMPANION · FOUNDATION</div>
+          <Badge color={familyBrain && Object.values(familyBrain.flags).some(Boolean) ? C.gold : C.dim}>
+            {familyBrain ? 'RUNTIME DISABLED' : 'STATUS UNAVAILABLE'}
+          </Badge>
+        </div>
+        <div style={{ color: C.muted, fontSize: 11, lineHeight: 1.55, marginTop: 7 }}>
+          Computer and The_AlChemist___ have separate typed boundaries. This foundation is visible for review, but it is not installed into the live server and cannot chat, profile players, plan tasks, automate survival, approve changes, or call a model.
+        </div>
+        {familyBrain ? (
+          <div style={{ display: 'grid', gap: 6, gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,190px),1fr))', marginTop: 10 }}>
+            {FAMILY_BRAIN_FEATURE_NAMES.map((feature) => {
+              const state = familyBrain.states[feature];
+              const activeFeature = familyBrain.flags[feature];
+              const stateColor = activeFeature ? C.gold : state === 'implemented' || state === 'live-verified' ? C.green : C.dim;
+              return (
+                <div key={feature} style={{ alignItems: 'center', background: 'rgba(0,0,0,0.2)', border: `1px solid ${stateColor}25`, borderRadius: 4, display: 'flex', gap: 7, justifyContent: 'space-between', padding: '7px 8px' }}>
+                  <span style={{ color: C.muted, fontSize: 10 }}>{FAMILY_BRAIN_LABELS[feature]}</span>
+                  <Badge color={stateColor}>{activeFeature ? 'ENABLED' : state.toUpperCase()}</Badge>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div role="status" style={{ color: C.gold, fontSize: 10, lineHeight: 1.5, marginTop: 8 }}>{familyBrainMessage}</div>
+        )}
+      </section>
 
       <section style={{ ...panel, borderColor: `${stackResolved ? C.green : C.gold}35` }}>
         <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8 }}>

@@ -90,6 +90,12 @@ const UPDATE_PUBLIC_ERROR_MESSAGES: Record<string, string> = {
   INVALID_STATE: 'The managed instance is not eligible for Family Server updates.',
 };
 const UNSAFE_SEARCH_TEXT = /[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/u;
+const FAMILY_BRAIN_FEATURES = Object.freeze([
+  'computerChat', 'companionConversation', 'modelReasoning', 'profileCapture',
+  'physicalTaskPlanning', 'survivalAutomation', 'modRequestExecution',
+  'inGameApprovals', 'visionRecovery',
+]);
+const FAMILY_BRAIN_STATES = new Set(['planned', 'stubbed', 'implemented', 'live-verified']);
 
 type RouteContext = { params: Promise<{ path: string[] }> };
 
@@ -98,6 +104,33 @@ function errorResponse(status: number, code: string, message: string) {
     { ok: false, code, message },
     { status, headers: { 'Cache-Control': 'no-store, max-age=0', 'Content-Security-Policy': "default-src 'none'" } },
   );
+}
+
+function publicBrainEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  if (envelope.ok !== true || !envelope.brain || typeof envelope.brain !== 'object' || Array.isArray(envelope.brain)) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid companion foundation status.');
+  }
+  const brain = envelope.brain as Record<string, unknown>;
+  if (Object.keys(brain).length !== 3 || brain.schemaVersion !== 1
+    || !brain.flags || typeof brain.flags !== 'object' || Array.isArray(brain.flags)
+    || !brain.states || typeof brain.states !== 'object' || Array.isArray(brain.states)) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid companion foundation status.');
+  }
+  const flags = brain.flags as Record<string, unknown>;
+  const states = brain.states as Record<string, unknown>;
+  if (Object.keys(flags).length !== FAMILY_BRAIN_FEATURES.length
+    || Object.keys(states).length !== FAMILY_BRAIN_FEATURES.length
+    || FAMILY_BRAIN_FEATURES.some((feature) => typeof flags[feature] !== 'boolean' || !FAMILY_BRAIN_STATES.has(String(states[feature])))) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid companion feature status.');
+  }
+  return {
+    ok: true,
+    brain: {
+      schemaVersion: 1,
+      flags: Object.fromEntries(FAMILY_BRAIN_FEATURES.map((feature) => [feature, flags[feature]])),
+      states: Object.fromEntries(FAMILY_BRAIN_FEATURES.map((feature) => [feature, states[feature]])),
+    },
+  };
 }
 
 async function rejectUnconsumedBody(
@@ -1079,6 +1112,9 @@ function mapTarget(method: string, segments: string[], searchParams: URLSearchPa
       return `/v1/companion/actions/${segments[2].toLowerCase()}/cancel`;
     }
   }
+  if (method === 'GET' && segments.length === 2 && segments[0] === 'brain' && segments[1] === 'status' && ![...searchParams].length) {
+    return '/v1/brain/status';
+  }
   if (
     method === 'GET' && segments.length === 5 && segments[0] === 'instances'
     && segments[1] === FAMILY_SERVER_ID && segments[2] === 'mods' && segments[3] === 'catalog' && segments[4] === 'search'
@@ -1697,6 +1733,8 @@ async function handle(request: NextRequest, context: RouteContext) {
       && path[0] === 'instances' && path[2] === 'update-status';
     const isUpdateAction = request.method === 'POST' && path.length === 3
       && path[0] === 'instances' && path[2] === 'update';
+    const isBrainStatus = request.method === 'GET' && path.length === 2
+      && path[0] === 'brain' && path[1] === 'status';
     const isRetiredVersionPurge = request.method === 'POST' && path.length === 4
       && path[0] === 'instances' && path[2] === 'retired-version' && path[3] === 'purge';
     if (process.platform === 'win32' && (isModPlanMutation || isModActionMutation)) {
@@ -1772,6 +1810,8 @@ async function handle(request: NextRequest, context: RouteContext) {
                 ? (envelope) => publicUpdateActionEnvelope(envelope, path[1])
                 : isRetiredVersionPurge
                   ? (envelope) => publicRetiredVersionPurgeEnvelope(envelope, path[1])
+                  : isBrainStatus
+                    ? publicBrainEnvelope
                   : undefined,
       );
     } catch (error) {
