@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mastermind.local/protocol/family-bridge/v2.schema.json",
+  "title": "Mastermind Family companion bridge v2 skeleton",
+  "description": "Contract inventory only. Version 2 is not advertised or negotiated until its individual capabilities are implemented.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "arguments"],
+  "properties": {
+    "kind": {
+      "enum": [
+        "direct.use", "direct.selectSlot", "direct.dropItem",
+        "inventory.inspect", "inventory.equip", "inventory.move", "inventory.give",
+        "craft.recipe", "container.transfer", "skill.sleep", "skill.eat",
+        "skill.combat", "skill.tendCrops", "skill.deliverItem", "skill.buildBounded"
+      ]
+    },
+    "arguments": { "type": "object" }
+  }
+}

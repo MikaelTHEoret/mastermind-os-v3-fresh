@@ -124,6 +124,7 @@ async function fixture(t, options = {}) {
     legacyMigration: { state: 'not-found', candidateCount: 0 }, processRecovery: [], updateRecovery: [],
     processes,
     updater: options.updater ?? {
+      async preflightRecoveryEvidence() { return { domain: 'update', instances: [] }; },
       async check() { return { state: 'current', requiresApproval: false }; },
       async update() { throw new Error('not used'); },
       async markReady() {},
