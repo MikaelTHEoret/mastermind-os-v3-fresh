@@ -148,6 +148,7 @@ export class ConversationIntake {
   constructor(options = {}) {
     this.router = options.router ?? new ConversationRouter();
     this.permissionPolicy = options.permissionPolicy ?? new PermissionPolicy();
+    this.flags = { ...FAMILY_COMPANION_FEATURE_FLAGS, ...(options.flags ?? {}) };
     this.received = 0;
     this.addressed = 0;
     this.ignored = 0;
@@ -156,19 +157,23 @@ export class ConversationIntake {
 
   ingest(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('A conversation intake value is required');
-    const allowed = new Set(['role', 'messageId', 'occurredAt', 'minecraftUuid', 'displayName', 'channel', 'text', 'directedAt', 'replyToMessageId']);
+    const allowed = new Set(['role', 'playerId', 'messageId', 'occurredAt', 'minecraftUuid', 'displayName', 'channel', 'text', 'directedAt', 'replyToMessageId']);
     if (Object.keys(value).some((key) => !allowed.has(key)) || !PLAYER_ROLES.includes(value.role)) {
       throw new TypeError('Conversation intake contains invalid identity or fields');
     }
-    const { role, ...candidate } = value;
+    const { role, playerId: _playerId, ...candidate } = value;
     const classification = this.router.classify(candidate);
     const authorization = classification.actor === 'COMPANION'
       ? this.permissionPolicy.authorize({ role, capability: 'conversation' })
       : null;
     const execution = classification.actor === 'COMPANION'
-      ? featureUnavailable('companionConversation')
+      ? this.flags.companionConversation
+        ? { ok: true, code: 'ACCEPTED_FOR_PROCESSING' }
+        : featureUnavailable('companionConversation')
       : classification.actor === 'COMPUTER'
-        ? featureUnavailable('computerChat')
+        ? this.flags.computerChat
+          ? { ok: true, code: 'ACCEPTED_FOR_PROCESSING' }
+          : featureUnavailable('computerChat')
         : null;
     this.received += 1;
     if (classification.actor === null) this.ignored += 1;
@@ -201,6 +206,13 @@ export class ConversationIntake {
       activeCompanionSessions: this.router.status().activeCompanionSessions,
       storesChatContent: false,
     };
+  }
+
+  markExecution(code, occurredAt = new Date().toISOString()) {
+    if (typeof code !== 'string' || !/^[A-Z][A-Z0-9_]{1,63}$/u.test(code)) throw new TypeError('Conversation execution code is invalid');
+    if (!this.last) return false;
+    this.last = { ...this.last, receivedAt: occurredAt, executionCode: code };
+    return true;
   }
 }
 

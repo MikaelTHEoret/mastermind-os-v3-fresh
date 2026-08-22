@@ -45,7 +45,7 @@ import {
   MastermindMemoryApiConsumer,
   MastermindMemoryEventSyncController,
 } from './domain-events/memory-api-consumer.mjs';
-import { createFamilyCompanionSkeleton } from './brain/index.mjs';
+import { createFamilyCompanionBrain, createFamilyCompanionSkeleton, loadCompanionEnvironment } from './brain/index.mjs';
 
 const MAX_BODY_BYTES = 32 * 1024;
 const SUPERVISOR_DRAIN_TIMEOUT_MS = 30_000;
@@ -781,7 +781,6 @@ export async function createControlPlane(options = {}) {
   if (config.memoryEventSyncEnabled === true && memoryEventPlayerId === null) {
     throw memoryIdentityRequiredError();
   }
-  const familyCompanionBrain = options.familyCompanionBrain ?? createFamilyCompanionSkeleton();
   const managedRoot = options.managedRoot ?? path.join(config.dataRoot, 'projects', 'family-server');
   const store = options.store ?? new InstanceStore(managedRoot);
   const logs = options.logs ?? new LogStore(managedRoot);
@@ -1083,6 +1082,16 @@ export async function createControlPlane(options = {}) {
   const companionSessions = options.companionSessions ?? new CompanionSessionManager({
     verifyHello: (payload, context) => companionLifecycle.verifyHello(payload, context),
   });
+  const companionEnvironment = options.companionEnvironment ?? {};
+  const familyCompanionBrain = options.familyCompanionBrain ?? createFamilyCompanionBrain({
+    environment: companionEnvironment,
+    disabledFactory: createFamilyCompanionSkeleton,
+    canSendChat: () => {
+      const status = companionSessions.status();
+      return status.state === 'ready' && status.killSwitch !== true && status.activeAction === null;
+    },
+    sendChat: (text) => companionSessions.dispatchAction({ kind: 'direct.say', args: { text } }, { timeoutMs: 15_000 }),
+  });
   const familyCoreSessions = options.familyCoreSessions ?? new FamilyCoreSessionManager({
     verifyHello: options.verifyFamilyCoreHello ?? (async (payload, context) => {
       const instance = await store.get(familyServerInstanceId);
@@ -1101,6 +1110,7 @@ export async function createControlPlane(options = {}) {
     ...(typeof options.onComputerRequest === 'function' ? { onComputerRequest: options.onComputerRequest } : {}),
     onChatReceived: options.onFamilyCoreChatReceived ?? ((event) => familyCompanionBrain.ingestChat({
       role: event.player.role,
+      playerId: event.player.playerId,
       messageId: event.messageId,
       occurredAt: event.occurredAt,
       minecraftUuid: event.player.minecraftUuid,
@@ -2580,7 +2590,11 @@ async function main() {
   if (process.env.MASTERMIND_LOCAL_CHILD_ROLE !== 'minecraft-control-agent') {
     throw new Error('Start the Minecraft control plane with `npm run dev:local`; standalone agent launch is disabled so the authenticated supervisor always owns shutdown and handoff.');
   }
-  const app = await createControlPlane();
+  const companionEnvironment = await loadCompanionEnvironment({
+    baseEnvironment: process.env,
+    workspace: process.cwd(),
+  });
+  const app = await createControlPlane({ companionEnvironment });
   await app.listen();
   console.log(`Mastermind Minecraft control plane listening on http://${app.config.host}:${app.config.port}`);
   let stopping = false;

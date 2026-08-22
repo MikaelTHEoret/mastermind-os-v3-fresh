@@ -223,10 +223,13 @@ function publicConversationStatusEnvelope(envelope: Record<string, unknown>): Re
     throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid conversation intake status.');
   }
   const status = envelope.conversation as Record<string, unknown>;
-  const keys = [
+  const baseKeys = [
     'schemaVersion', 'received', 'addressed', 'ignored', 'lastReceivedAt', 'lastActor',
     'lastReason', 'lastExecutionCode', 'activeCompanionSessions', 'storesChatContent',
   ];
+  const metricKeys = ['modelCalls', 'replies', 'failures', 'activeModelCalls', 'model'];
+  const hasMetrics = metricKeys.some((key) => Object.prototype.hasOwnProperty.call(status, key));
+  const keys = hasMetrics ? [...baseKeys, ...metricKeys] : baseKeys;
   const canonicalLastReceivedAt = typeof status.lastReceivedAt === 'string'
     && Number.isFinite(Date.parse(status.lastReceivedAt))
     && new Date(status.lastReceivedAt).toISOString() === status.lastReceivedAt;
@@ -238,10 +241,20 @@ function publicConversationStatusEnvelope(envelope: Record<string, unknown>): Re
     || Number(status.addressed) + Number(status.ignored) !== Number(status.received)
     || !Number.isInteger(status.activeCompanionSessions) || Number(status.activeCompanionSessions) < 0
     || status.storesChatContent !== false
+    || (hasMetrics && (
+      !metricKeys.every((key) => Object.prototype.hasOwnProperty.call(status, key))
+      || !Number.isInteger(status.modelCalls) || Number(status.modelCalls) < 0
+      || !Number.isInteger(status.replies) || Number(status.replies) < 0
+      || !Number.isInteger(status.failures) || Number(status.failures) < 0
+      || Number(status.replies) + Number(status.failures) > Number(status.addressed)
+      || !Number.isInteger(status.activeModelCalls) || Number(status.activeModelCalls) < 0 || Number(status.activeModelCalls) > 2
+      || (status.model !== null && (typeof status.model !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u.test(status.model)))
+    ))
     || (status.lastReceivedAt !== null && !canonicalLastReceivedAt)
     || (status.lastActor !== null && !['COMPUTER', 'COMPANION'].includes(String(status.lastActor)))
     || (status.lastReason !== null && !CONVERSATION_REASONS.has(String(status.lastReason)))
-    || (status.lastExecutionCode !== null && status.lastExecutionCode !== 'FEATURE_DISABLED')
+    || (status.lastExecutionCode !== null
+      && (typeof status.lastExecutionCode !== 'string' || !/^[A-Z][A-Z0-9_]{1,63}$/u.test(status.lastExecutionCode)))
     || (Number(status.received) === 0
       && [status.lastReceivedAt, status.lastActor, status.lastReason, status.lastExecutionCode].some((value) => value !== null))
     || (Number(status.received) > 0 && (status.lastReceivedAt === null || status.lastReason === null))

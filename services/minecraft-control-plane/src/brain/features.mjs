@@ -46,9 +46,13 @@ export function featureUnavailable(feature, state = FAMILY_COMPANION_FEATURE_STA
 }
 
 export function publicFeatureStatus() {
+  return featureStatus(FAMILY_COMPANION_FEATURE_FLAGS, FAMILY_COMPANION_FEATURE_STATES);
+}
+
+export function featureStatus(flags = FAMILY_COMPANION_FEATURE_FLAGS, states = FAMILY_COMPANION_FEATURE_STATES) {
   return {
     schemaVersion: 1,
-    flags: { ...FAMILY_COMPANION_FEATURE_FLAGS },
-    states: { ...FAMILY_COMPANION_FEATURE_STATES },
+    flags: { ...flags },
+    states: { ...states },
   };
 }
