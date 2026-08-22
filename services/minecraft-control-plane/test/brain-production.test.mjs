@@ -6,6 +6,7 @@ import {
   OpenAIResponsesProvider,
   companionFlagsFromEnvironment,
   createFamilyCompanionBrain,
+  isCompanionSelfMessage,
 } from '../src/brain/index.mjs';
 
 const PLAYER = '01919a62-8e84-7c6b-8eb0-4f79592f3abf';
@@ -88,6 +89,31 @@ test('conversation coordinator does not spend a model call when embodiment outpu
   assert.equal(result.execution.code, 'COMPANION_OUTPUT_UNAVAILABLE');
   assert.equal(modelCalls, 0);
   assert.equal(coordinator.status().storesChatContent, false);
+});
+
+test('companion self messages are ignored before routing or model use', async () => {
+  let modelCalls = 0;
+  let chatDispatches = 0;
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: true, modelReasoning: true },
+    provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
+    canSendChat: () => true,
+    sendChat: async () => { chatDispatches += 1; },
+  });
+
+  for (const self of [
+    chat({ minecraftUuid: '996a56dd-fb3c-4f90-9158-1a608652ec77', displayName: 'RenamedCompanion' }),
+    chat({ minecraftUuid: PLAYER, displayName: 'THE_ALCHEMIST___' }),
+  ]) {
+    const result = await coordinator.ingest(self);
+    assert.equal(result.reason, 'companion-self-message');
+    assert.equal(result.execution.code, 'IGNORED_COMPANION_SELF_MESSAGE');
+  }
+
+  assert.equal(modelCalls, 0);
+  assert.equal(chatDispatches, 0);
+  assert.equal(coordinator.status().received, 0);
+  assert.equal(isCompanionSelfMessage(chat()), false);
 });
 
 test('conversation coordinator dispatches a real-account chat action and opens bounded attention', async () => {

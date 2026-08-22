@@ -9,6 +9,8 @@ import { ConversationIntake, ConversationRouter, PermissionPolicy, createFamilyC
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SAFE_MODEL = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
 const DEFAULT_MODEL = 'gpt-5-mini';
+const COMPANION_MINECRAFT_UUID = '996a56dd-fb3c-4f90-9158-1a608652ec77';
+const COMPANION_DISPLAY_NAME = 'the_alchemist___';
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/responses';
 const MAX_REPLY_CHARS = 220;
 const PRIVATE_ENV_KEYS = Object.freeze([
@@ -35,6 +37,13 @@ function boundedReply(value) {
     throw Object.assign(new Error('Model reply violated the Minecraft chat boundary'), { code: 'MODEL_OUTPUT_INVALID' });
   }
   return text;
+}
+
+export function isCompanionSelfMessage(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const minecraftUuid = typeof value.minecraftUuid === 'string' ? value.minecraftUuid.toLowerCase() : '';
+  const displayName = typeof value.displayName === 'string' ? value.displayName.toLowerCase() : '';
+  return minecraftUuid === COMPANION_MINECRAFT_UUID || displayName === COMPANION_DISPLAY_NAME;
 }
 
 function outputText(response) {
@@ -255,6 +264,15 @@ export class CompanionConversationCoordinator {
   }
 
   async ingest(value) {
+    if (isCompanionSelfMessage(value)) {
+      return {
+        ok: true,
+        actor: null,
+        reason: 'companion-self-message',
+        authorization: null,
+        execution: { ok: true, code: 'IGNORED_COMPANION_SELF_MESSAGE' },
+      };
+    }
     const intake = this.intake.ingest(value);
     if (intake.actor !== 'COMPANION' || intake.authorization?.allowed !== true) return intake;
     if (!this.flags.companionConversation || !this.flags.modelReasoning) return intake;
