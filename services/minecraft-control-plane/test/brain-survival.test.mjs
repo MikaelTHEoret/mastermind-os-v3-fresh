@@ -21,6 +21,10 @@ function controller(options = {}) {
     sessionStatus: () => ({
       state: 'ready', killSwitch: false, activeAction: null, latestSnapshot: current, ...(options.status ?? {}),
     }),
+    cancelAction: async (actionId, reason) => {
+      calls.push(['cancel', actionId, reason]);
+      return { alreadyTerminal: false };
+    },
     dispatchAction: async (action, dispatchOptions) => {
       calls.push([action, dispatchOptions]);
       return { actionId: '55555555-5555-4555-8555-555555555555', kind: action.kind, status: 'dispatched' };
@@ -75,8 +79,8 @@ test('kill switch, active work, disabled mode, and cooldown prevent duplicate ac
   const occupied = controller({
     snapshot: snapshot({ health: 4 }), status: { activeAction: { actionId: '66666666-6666-4666-8666-666666666666' } },
   });
-  assert.equal((await occupied.value.tick()).code, 'SURVIVAL_ACTION_DEFERRED');
-  assert.equal(occupied.calls.length, 0);
+  assert.equal((await occupied.value.tick()).code, 'SURVIVAL_PREEMPTION_REQUESTED');
+  assert.deepEqual(occupied.calls, [['cancel', '66666666-6666-4666-8666-666666666666', 'survival-emergency']]);
 
   const times = [100_000, 100_100];
   const active = controller({ snapshot: snapshot({ health: 4 }), now: () => times.shift() });

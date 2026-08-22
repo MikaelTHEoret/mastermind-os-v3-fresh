@@ -21,10 +21,11 @@ export class DeterministicSurvivalController {
   constructor(options = {}) {
     this.mode = options.mode ?? 'disabled';
     this.dispatchAction = options.dispatchAction;
+    this.cancelAction = options.cancelAction;
     this.sessionStatus = options.sessionStatus;
     this.now = options.now ?? Date.now;
     this.cooldownMs = options.cooldownMs ?? 30_000;
-    if (!SUPPORTED_MODES.has(this.mode) || typeof this.dispatchAction !== 'function'
+    if (!SUPPORTED_MODES.has(this.mode) || typeof this.dispatchAction !== 'function' || typeof this.cancelAction !== 'function'
       || typeof this.sessionStatus !== 'function' || typeof this.now !== 'function'
       || !Number.isInteger(this.cooldownMs) || this.cooldownMs < 1_000 || this.cooldownMs > 300_000) {
       throw new TypeError('The deterministic survival controller configuration is invalid');
@@ -34,6 +35,8 @@ export class DeterministicSurvivalController {
     this.lastDispatchAt = null;
     this.dispatches = 0;
     this.failures = 0;
+    this.preemptions = 0;
+    this.ticking = false;
     this.last = null;
   }
 
@@ -65,18 +68,43 @@ export class DeterministicSurvivalController {
   }
 
   async tick() {
+    if (this.ticking) return Object.freeze({ ok: true, code: 'SURVIVAL_TICK_IN_PROGRESS' });
+    this.ticking = true;
+    try {
+      return await this.#tick();
+    } finally {
+      this.ticking = false;
+    }
+  }
+
+  async #tick() {
     if (this.mode === 'disabled') return Object.freeze({ ok: false, code: 'SURVIVAL_DISABLED' });
     const status = this.sessionStatus();
     if (status?.state !== 'ready' || status.killSwitch === true || !validSnapshot(status.latestSnapshot)) {
       return Object.freeze({ ok: false, code: 'SURVIVAL_NOT_READY' });
     }
     this.observe(status.latestSnapshot);
-    if (status.activeAction) return Object.freeze({ ok: true, code: 'SURVIVAL_ACTION_DEFERRED' });
     const intent = this.selectIntent();
     if (intent.kind === 'none') return Object.freeze({ ok: true, code: 'SURVIVAL_STABLE' });
     if (!intent.action) {
       this.last = { kind: intent.kind, code: 'SURVIVAL_CAPABILITY_UNAVAILABLE' };
       return Object.freeze({ ok: false, code: 'SURVIVAL_CAPABILITY_UNAVAILABLE', intent: intent.kind });
+    }
+    if (status.activeAction) {
+      if (intent.kind !== 'emergency.escape' && intent.kind !== 'recovery.respawn') {
+        return Object.freeze({ ok: true, code: 'SURVIVAL_ACTION_DEFERRED' });
+      }
+      try {
+        await this.cancelAction(status.activeAction.actionId, 'survival-emergency');
+        this.preemptions += 1;
+        this.last = { kind: intent.kind, code: 'SURVIVAL_PREEMPTION_REQUESTED', actionId: status.activeAction.actionId };
+        return Object.freeze({ ok: true, code: 'SURVIVAL_PREEMPTION_REQUESTED', intent: intent.kind });
+      } catch (error) {
+        this.failures += 1;
+        const code = typeof error?.code === 'string' ? error.code : 'SURVIVAL_PREEMPTION_FAILED';
+        this.last = { kind: intent.kind, code };
+        return Object.freeze({ ok: false, code, intent: intent.kind });
+      }
     }
     const at = this.now();
     if (this.lastDispatchAt !== null && at - this.lastDispatchAt < this.cooldownMs) {
@@ -103,6 +131,7 @@ export class DeterministicSurvivalController {
       mode: this.mode,
       hasObservation: this.latest !== null,
       dispatches: this.dispatches,
+      preemptions: this.preemptions,
       failures: this.failures,
       last: this.last ? { ...this.last } : null,
     });

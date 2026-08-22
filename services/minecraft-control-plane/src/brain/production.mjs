@@ -5,6 +5,7 @@ import path from 'node:path';
 import { validateReasoningRequest, validateReasoningResult } from './contracts.mjs';
 import { featureStatus } from './features.mjs';
 import { ConversationIntake, ConversationRouter, PermissionPolicy, createFamilyCompanionSkeleton } from './skeleton.mjs';
+import { DeterministicSurvivalController } from './survival.mjs';
 import { CompanionPhysicalTaskSupervisor } from './tasks.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -20,6 +21,7 @@ const PRIVATE_ENV_KEYS = Object.freeze([
   'MASTERMIND_MINECRAFT_MODEL_REASONING_ENABLED',
   'MASTERMIND_MINECRAFT_OPENAI_MODEL',
   'MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED',
+  'MASTERMIND_MINECRAFT_SURVIVAL_AUTOMATION_ENABLED',
 ]);
 
 const COMPANION_INSTRUCTIONS = `You are The_AlChemist___, a Minecraft player and companion.
@@ -361,13 +363,14 @@ export function companionFlagsFromEnvironment(environment = process.env) {
   const requestedReasoning = environment.MASTERMIND_MINECRAFT_MODEL_REASONING_ENABLED === 'true';
   const hasCredential = typeof environment.OPENAI_API_KEY === 'string' && environment.OPENAI_API_KEY.length >= 20;
   const requestedPhysicalTasks = environment.MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED === 'true';
+  const requestedSurvival = environment.MASTERMIND_MINECRAFT_SURVIVAL_AUTOMATION_ENABLED === 'true';
   return {
     computerChat: false,
     companionConversation: requestedConversation && requestedReasoning && hasCredential,
     modelReasoning: requestedConversation && requestedReasoning && hasCredential,
     profileCapture: false,
     physicalTaskPlanning: requestedPhysicalTasks,
-    survivalAutomation: false,
+    survivalAutomation: requestedSurvival,
     modRequestExecution: false,
     inGameApprovals: false,
     visionRecovery: false,
@@ -396,6 +399,14 @@ export function createFamilyCompanionBrain(options = {}) {
       sendChat: options.sendChat,
     }))
     : null;
+  const survivalController = flags.survivalAutomation
+    ? (options.survivalController ?? new DeterministicSurvivalController({
+      mode: 'stay_alive',
+      dispatchAction: options.dispatchAction,
+      cancelAction: options.cancelAction,
+      sessionStatus: options.sessionStatus,
+    }))
+    : null;
   const coordinator = new CompanionConversationCoordinator({
     flags,
     provider,
@@ -405,7 +416,7 @@ export function createFamilyCompanionBrain(options = {}) {
   });
   const states = {
     computerChat: 'stubbed', companionConversation: 'implemented', modelReasoning: 'implemented', profileCapture: 'stubbed',
-    physicalTaskPlanning: 'implemented', survivalAutomation: 'stubbed', modRequestExecution: 'stubbed', inGameApprovals: 'planned',
+    physicalTaskPlanning: 'implemented', survivalAutomation: 'implemented', modRequestExecution: 'stubbed', inGameApprovals: 'planned',
     visionRecovery: 'planned', zenithBody: 'stubbed', enhancedHeadlessController: 'stubbed', hybridTelemetry: 'stubbed',
   };
   return {
@@ -414,5 +425,7 @@ export function createFamilyCompanionBrain(options = {}) {
     status: () => featureStatus(flags, states),
     conversationCoordinator: coordinator,
     taskSupervisor,
+    tickSurvival: () => survivalController?.tick() ?? Promise.resolve(Object.freeze({ ok: false, code: 'SURVIVAL_DISABLED' })),
+    survivalStatus: () => survivalController?.status() ?? Object.freeze({ mode: 'disabled' }),
   };
 }

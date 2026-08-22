@@ -45,6 +45,9 @@ test('production feature activation is explicit and credential-gated', () => {
   assert.equal(companionFlagsFromEnvironment({
     MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED: 'true',
   }).physicalTaskPlanning, true);
+  assert.equal(companionFlagsFromEnvironment({
+    MASTERMIND_MINECRAFT_SURVIVAL_AUTOMATION_ENABLED: 'true',
+  }).survivalAutomation, true);
 });
 
 test('OpenAI provider sends a non-stored structured request and validates the bounded reply', async () => {

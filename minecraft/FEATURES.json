@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-22T16:43:06.430-04:00",
+  "updatedAt": "2026-08-22T17:11:47.513-04:00",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -27,7 +27,7 @@
     "companion.conversation": "live-verified",
     "brain.modelReasoning": "live-verified",
     "brain.taskPlanning": "implemented",
-    "brain.survival": "stubbed",
+    "brain.survival": "implemented",
     "profiles.capture": "stubbed",
     "profiles.parentCodexReuse": "stubbed",
     "computer.modRequests": "stubbed",
