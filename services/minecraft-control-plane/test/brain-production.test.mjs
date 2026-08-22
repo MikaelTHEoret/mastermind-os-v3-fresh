@@ -74,6 +74,10 @@ test('OpenAI provider sends a non-stored structured request and validates the bo
   assert.equal(body.store, false);
   assert.equal(body.text.format.type, 'json_schema');
   assert.equal(body.tools, undefined);
+  assert.match(body.instructions, /relaxed, genuine friend/u);
+  assert.match(body.instructions, /silent behavior constraints/u);
+  assert.match(body.instructions, /without advertising them/u);
+  assert.doesNotMatch(body.instructions, /embodied Minecraft family companion/u);
   assert.match(captured.init.headers.authorization, /^Bearer sk-test-/u);
 });
 
