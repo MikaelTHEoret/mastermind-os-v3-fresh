@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-22T13:11:33.794Z",
+  "updatedAt": "2026-08-22T13:48:18.875Z",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -23,7 +23,7 @@
     "familyCore.chatCapture": "live-verified",
     "computer.deterministicCommands": "live-verified",
     "computer.chat": "stubbed",
-    "companion.conversationRouting": "implemented",
+    "companion.conversationRouting": "live-verified",
     "companion.conversation": "stubbed",
     "brain.modelReasoning": "stubbed",
     "brain.taskPlanning": "stubbed",
