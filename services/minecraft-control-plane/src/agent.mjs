@@ -31,6 +31,7 @@ import { CompanionLifecycleManager } from './companion/lifecycle-manager.mjs';
 import { FamilyBridgeProtocolError, validateFamilyBridgeAction } from './companion/protocol.mjs';
 import { CompanionSessionManager } from './companion/session-manager.mjs';
 import { FamilyCoreBridgeServer } from './family-core/bridge-server.mjs';
+import { FamilyCoreCredentialManager } from './family-core/credential-manager.mjs';
 import { FamilyCoreSessionManager } from './family-core/session-manager.mjs';
 import { FamilyClientProvisioner } from './companion/client-provisioner.mjs';
 import { DpapiMinecraftAccountVault } from './companion/dpapi-vault.mjs';
@@ -60,6 +61,7 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
 const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.3.0.jar', import.meta.url));
+const FAMILY_CORE_BRIDGE_SHA256 = '94d226ed5a576fc556643d913b8d2d9e8293e458c25aee37c1d220cc910bf526';
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -97,6 +99,7 @@ const GLOBAL_RECOVERY_MESSAGES = new Map([
   ['UPDATE_RECOVERY_REQUIRED', 'An interrupted server update requires verified recovery before local mutations can continue.'],
 ]);
 const SAFE_LIFECYCLE_MESSAGES = new Map([
+  ['INSTANCE_NOT_FOUND', 'Instance was not found.'],
   ['MOD_INTEGRITY_FAILED', 'Managed mod integrity verification blocked the server lifecycle action.'],
   ['UPDATE_APPROVAL_REQUIRED', 'An approved Minecraft version migration is required before the server can start.'],
   ['LAUNCH_TRUST_UNAVAILABLE', 'The authenticated launch boundary is unavailable on this system.'],
@@ -780,6 +783,9 @@ export async function createControlPlane(options = {}) {
   const logs = options.logs ?? new LogStore(managedRoot);
   await store.initialize();
   const launchKeyPin = await (options.launchIntegrityKeyAcquirer ?? acquireLaunchIntegrityKey)(managedRoot, { createIfMissing: true });
+  const pinnedLaunchIntegrityKey = Buffer.isBuffer(launchKeyPin?.key) && launchKeyPin.key.length === 32
+    ? Buffer.from(launchKeyPin.key)
+    : null;
   await launchKeyPin.release();
   // Discovery/import is deliberately deferred until every authenticated recovery
   // namespace has been admitted and reconciled. Importing earlier could publish a
@@ -965,6 +971,31 @@ export async function createControlPlane(options = {}) {
   const supervisorId = options.supervisorId ?? process.env.MASTERMIND_LOCAL_SUPERVISOR_ID;
   const familyServerInstanceId = options.familyServerInstanceId ?? 'family-server';
   if (!validateInstanceId(familyServerInstanceId)) throw new TypeError('The trusted Family Server instance id is invalid');
+  const familyCoreCredentials = options.familyCoreCredentials ?? new FamilyCoreCredentialManager(managedRoot, {
+    ...(pinnedLaunchIntegrityKey ? { integrityKey: pinnedLaunchIntegrityKey } : {}),
+  });
+  if (typeof familyCoreCredentials.initialize !== 'function' || typeof familyCoreCredentials.reconcile !== 'function'
+    || typeof familyCoreCredentials.prepareLaunch !== 'function' || typeof familyCoreCredentials.authenticate !== 'function'
+    || typeof familyCoreCredentials.verifyHello !== 'function' || typeof familyCoreCredentials.status !== 'function') {
+    throw new TypeError('The Family Core credential manager is invalid');
+  }
+  await familyCoreCredentials.initialize();
+  const credentialInstance = await store.get(familyServerInstanceId);
+  if (credentialInstance) {
+    const active = typeof processes.isActive === 'function'
+      ? await processes.isActive(familyServerInstanceId)
+      : false;
+    await familyCoreCredentials.reconcile(credentialInstance, { active });
+  }
+  if (typeof processes.setRuntimeCredentialProvider === 'function') {
+    processes.setRuntimeCredentialProvider(async (instance) => {
+      if (instance?.id !== familyServerInstanceId) return null;
+      const core = await firstPartyCore.status(familyServerInstanceId);
+      if (core?.state !== 'installed' || core.artifact?.version !== '0.3.0'
+        || core.artifact?.sha256 !== FAMILY_CORE_BRIDGE_SHA256) return null;
+      return familyCoreCredentials.prepareLaunch(instance, { computerCommandEnabled: false });
+    });
+  }
   const modrinthSeed = process.env.APPDATA ? path.join(process.env.APPDATA, 'ModrinthApp', 'meta') : null;
   const seedCacheRoots = [];
   if (modrinthSeed) {
@@ -1036,10 +1067,12 @@ export async function createControlPlane(options = {}) {
     verifyHello: (payload, context) => companionLifecycle.verifyHello(payload, context),
   });
   const familyCoreSessions = options.familyCoreSessions ?? new FamilyCoreSessionManager({
-    verifyHello: options.verifyFamilyCoreHello ?? (async (payload) => {
+    verifyHello: options.verifyFamilyCoreHello ?? (async (payload, context) => {
       const instance = await store.get(familyServerInstanceId);
       return instance !== null
+        && familyCoreCredentials.verifyHello(payload, context)
         && payload.serverId === familyServerInstanceId
+        && payload.modVersion === '0.3.0'
         && payload.minecraftVersion === instance.minecraftVersion
         && (
           payload.commandEnabled === false && payload.capabilities.length === 0
@@ -1887,7 +1920,10 @@ export async function createControlPlane(options = {}) {
       if (request.method === 'GET' && url.pathname === '/v1/family-core/status' && url.search === '') {
         return json(response, 200, {
           ok: true,
-          familyCore: familyCoreSessions.status(),
+          familyCore: {
+            session: familyCoreSessions.status(),
+            credentials: familyCoreCredentials.status(),
+          },
         });
       }
       if (request.method === 'POST' && url.pathname === '/v1/control/prepare-shutdown') {
@@ -2365,9 +2401,7 @@ export async function createControlPlane(options = {}) {
   const familyCoreBridge = options.familyCoreBridge ?? new FamilyCoreBridgeServer({
     httpServer: server,
     sessionManager: familyCoreSessions,
-    // Production remains fail-closed until the managed launch path provisions
-    // a short-lived token digest and matching private server configuration.
-    authenticate: options.authenticateFamilyCore ?? (async () => null),
+    authenticate: options.authenticateFamilyCore ?? ((credentials) => familyCoreCredentials.authenticate(credentials)),
   });
   if (typeof familyCoreBridge.start !== 'function' || typeof familyCoreBridge.close !== 'function') {
     throw new TypeError('The Family Core bridge must expose start() and close()');
@@ -2447,6 +2481,7 @@ export async function createControlPlane(options = {}) {
     companionLifecycle,
     companionSessions,
     familyCoreSessions,
+    familyCoreCredentials,
     domainEventOutbox,
     companionDomainEvents,
     memoryEventConsumer,
@@ -2464,8 +2499,8 @@ export async function createControlPlane(options = {}) {
     async close() {
       if (backupTimer) clearInterval(backupTimer);
       if (backupRunInFlight) await backupRunInFlight;
-      await familyCoreBridge.close();
       await companionBridge.close();
+      await familyCoreBridge.close();
       await companionDomainEvents?.close();
       if (memoryEventSync) {
         try { await memoryEventSync.finalDrain(); }

@@ -681,6 +681,98 @@ test('Start consumes only the verified command and holds its launch lease throug
   assert.equal(releaseCalls, 1);
 });
 
+test('runtime credentials are provisioned after verification, checked immediately before spawn, and removed on exit', async (t) => {
+  const id = 'runtime-credential-order';
+  const value = await capabilityFixture(t, id);
+  const events = [];
+  const manager = new ProcessManager(value.store, { async append() {} }, process.execPath, undefined, {
+    verifyInstall: async () => {
+      events.push('install-verified');
+      return {
+        command: { executable: process.execPath, args: value.args, cwd: value.directory },
+        lease: {
+          async assertHeld() { events.push('launch-held'); },
+          async release() { events.push('launch-released'); },
+        },
+      };
+    },
+    runtimeCredentialProvider: async (instance) => {
+      assert.equal(instance.id, id);
+      events.push('credential-provisioned');
+      return {
+        generation: 'd'.repeat(64),
+        async assertHeld() { events.push('credential-held'); },
+        async release() { events.push('credential-removed'); },
+      };
+    },
+    inspectProcessState: async ({ pid }) => ({
+      process: Number.isInteger(pid) ? processSnapshot(pid, value.directory, process.execPath, value.args) : null,
+      tcp: { known: true, occupied: false, owner: null },
+      udp: { known: true, occupied: false, owner: null },
+    }),
+  });
+
+  await manager.start(id);
+  assert.deepEqual(events.slice(0, 4), [
+    'install-verified', 'credential-provisioned', 'launch-held', 'credential-held',
+  ]);
+  assert.equal(events.includes('credential-removed'), false);
+  await manager.stop(id, 2_000);
+  assert.deepEqual(events.slice(-2), ['credential-removed', 'launch-released']);
+});
+
+test('runtime credential substitution prevents spawn and releases both launch boundaries', async (t) => {
+  const id = 'runtime-credential-substitution';
+  const value = await capabilityFixture(t, id);
+  let credentialReleases = 0;
+  let launchReleases = 0;
+  const manager = new ProcessManager(value.store, { async append() {} }, process.execPath, undefined, {
+    verifyInstall: async () => ({
+      command: { executable: process.execPath, args: value.args, cwd: value.directory },
+      lease: {
+        async assertHeld() {},
+        async release() { launchReleases += 1; },
+      },
+    }),
+    runtimeCredentialProvider: async () => ({
+      generation: 'e'.repeat(64),
+      async assertHeld() { throw new Error('injected credential substitution'); },
+      async release() { credentialReleases += 1; },
+    }),
+  });
+
+  await assert.rejects(() => manager.start(id), /credential substitution/);
+  assert.equal(credentialReleases, 1);
+  assert.equal(launchReleases, 1);
+  assert.equal(manager.children.has(id), false);
+  assert.equal((await value.store.get(id)).status, 'failed');
+});
+
+test('a malformed runtime credential lease is cleaned up before launch', async (t) => {
+  const id = 'runtime-credential-malformed';
+  const value = await capabilityFixture(t, id);
+  let credentialReleases = 0;
+  let launchReleases = 0;
+  const manager = new ProcessManager(value.store, { async append() {} }, process.execPath, undefined, {
+    verifyInstall: async () => ({
+      command: { executable: process.execPath, args: value.args, cwd: value.directory },
+      lease: {
+        async assertHeld() {},
+        async release() { launchReleases += 1; },
+      },
+    }),
+    runtimeCredentialProvider: async () => ({
+      generation: 'not-a-generation',
+      async release() { credentialReleases += 1; },
+    }),
+  });
+
+  await assert.rejects(() => manager.start(id), /invalid lease/);
+  assert.equal(credentialReleases, 1);
+  assert.equal(launchReleases, 1);
+  assert.equal(manager.children.has(id), false);
+});
+
 test('readiness acknowledgement borrows the held launch directory guards without releasing the lease', async (t) => {
   const id = 'readiness-guard-context';
   const value = await capabilityFixture(t, id);

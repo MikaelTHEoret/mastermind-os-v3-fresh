@@ -77,7 +77,7 @@ async function fixture(t, extra = {}) {
       } : null,
       tcp: { known: true, occupied: false, owner: null },
     }),
-    launchIntegrityKeyAcquirer: async () => ({ async release() {} }),
+    launchIntegrityKeyAcquirer: async () => ({ key: Buffer.alloc(32, 0x31), async release() {} }),
     worlds,
     ...preparedExtra,
   });
@@ -159,6 +159,20 @@ test('requires the management token and rejects browser-direct calls', async (t)
   assert.equal(missing.status, 401);
   const browser = await fetch(`${baseUrl}/v1/instances`, { headers: { Authorization: `Bearer ${token}`, Origin: 'http://evil.invalid' } });
   assert.equal(browser.status, 403);
+});
+
+test('exposes only sanitized Family Core session and launch-credential status', async (t) => {
+  const { baseUrl } = await fixture(t);
+  const response = await fetch(`${baseUrl}/v1/family-core/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.familyCore.session.state, 'disconnected');
+  assert.deepEqual(body.familyCore.credentials, {
+    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false,
+  });
+  assert.doesNotMatch(JSON.stringify(body), /server\.token|tokenSha256|tokenFile|configFile/i);
 });
 
 test('memory identity configuration is canonical and required only for opt-in synchronization', () => {
@@ -1056,7 +1070,7 @@ test('automatically imports one legacy Family Server into the isolated project i
   const app = await createControlPlane({
     config: { host: '127.0.0.1', port: 43100, token, dataRoot, javaExecutable: process.execPath },
     isLegacyActive: async () => false,
-    launchIntegrityKeyAcquirer: async () => ({ async release() {} }),
+    launchIntegrityKeyAcquirer: async () => ({ key: Buffer.alloc(32, 0x31), async release() {} }),
   });
   const address = await app.listen(0);
   t.after(async () => { await app.close(); await fs.rm(dataRoot, { recursive: true, force: true }); });

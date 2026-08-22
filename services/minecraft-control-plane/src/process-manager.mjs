@@ -100,6 +100,15 @@ function normalizeLaunchCapability(value, instance) {
   return { command: { executable: command.executable, args: [...command.args], cwd: command.cwd }, lease: value.lease };
 }
 
+function normalizeRuntimeCredentialLease(value) {
+  if (value == null) return null;
+  if (!value || typeof value !== 'object' || typeof value.assertHeld !== 'function' || typeof value.release !== 'function'
+    || typeof value.generation !== 'string' || !/^[a-f0-9]{64}$/.test(value.generation)) {
+    throw new Error('Runtime credential provider returned an invalid lease');
+  }
+  return value;
+}
+
 async function releaseLaunchLease(lease) {
   if (!lease) return;
   await lease.release();
@@ -221,6 +230,10 @@ export class ProcessManager {
     if (this.firstPartyCoreLaunchBindingProvider !== null && typeof this.firstPartyCoreLaunchBindingProvider !== 'function') {
       throw new TypeError('firstPartyCoreLaunchBindingProvider must be a function');
     }
+    this.runtimeCredentialProvider = hooks.runtimeCredentialProvider ?? null;
+    if (this.runtimeCredentialProvider !== null && typeof this.runtimeCredentialProvider !== 'function') {
+      throw new TypeError('runtimeCredentialProvider must be a function');
+    }
     this.inspectProcessState = typeof hooks.inspectProcessState === 'function' ? hooks.inspectProcessState : inspectManagedProcessState;
     this.portReleasePollMs = Number.isInteger(hooks.portReleasePollMs) && hooks.portReleasePollMs >= 5
       ? hooks.portReleasePollMs
@@ -256,6 +269,15 @@ export class ProcessManager {
       throw new Error('The first-party core launch binding provider is already configured');
     }
     this.firstPartyCoreLaunchBindingProvider = provider;
+    return true;
+  }
+
+  setRuntimeCredentialProvider(provider) {
+    if (typeof provider !== 'function') throw new TypeError('runtimeCredentialProvider must be a function');
+    if (this.runtimeCredentialProvider && this.runtimeCredentialProvider !== provider) {
+      throw new Error('The runtime credential provider is already configured');
+    }
+    this.runtimeCredentialProvider = provider;
     return true;
   }
 
@@ -343,16 +365,33 @@ export class ProcessManager {
       throw new Error('Complete launch verification did not return a one-shot capability');
     }
 
-    const javaExecutable = capability ? null : preferredJavaExecutable(instance, this.javaExecutable);
+    let runtimeCredentialLease = null;
+    let provisionedRuntimeCredential = null;
+    try {
+      provisionedRuntimeCredential = typeof this.runtimeCredentialProvider === 'function'
+        ? await this.runtimeCredentialProvider(instance)
+        : null;
+      runtimeCredentialLease = normalizeRuntimeCredentialLease(
+        provisionedRuntimeCredential,
+      );
+    } catch (error) {
+      await provisionedRuntimeCredential?.release?.().catch(() => undefined);
+      await releaseLaunchLease(capability?.lease ?? verification?.lease).catch(() => undefined);
+      await modLaunchBinding?.release?.().catch(() => undefined);
+      await firstPartyCoreLaunchBinding?.release?.().catch(() => undefined);
+      throw error;
+    }
     const lease = capability?.lease ?? null;
     let command;
     let child;
     try {
+      const javaExecutable = capability ? null : preferredJavaExecutable(instance, this.javaExecutable);
       this.#assertNotDraining();
       command = capability?.command ?? this.commandFactory(instance, javaExecutable);
       await this.store.update(id, { status: 'starting', lastError: null, pid: null, managedProcess: null });
       this.#assertNotDraining();
       await lease?.assertHeld();
+      await runtimeCredentialLease?.assertHeld();
       child = spawn(command.executable, command.args, {
         cwd: command.cwd ?? instance.directory,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -363,6 +402,7 @@ export class ProcessManager {
         env: managedChildEnvironment(),
       });
     } catch (error) {
+      await runtimeCredentialLease?.release?.().catch(() => undefined);
       await releaseLaunchLease(lease).catch(() => undefined);
       await this.store.update(id, {
         status: 'failed', pid: null, managedProcess: null, lastError: error.message,
@@ -376,7 +416,7 @@ export class ProcessManager {
     let finishExit;
     const handledExit = new Promise((resolve) => { finishExit = resolve; });
     const readiness = { java: false, geyser: false, reported: false };
-    this.children.set(id, { child, handledExit, readiness, lease });
+    this.children.set(id, { child, handledExit, readiness, lease, runtimeCredentialLease });
     lines(child.stdout, (line) => {
       this.logStore.append(id, 'stdout', line).catch(() => undefined);
       this.#observeReadiness(id, line, readiness);
@@ -394,6 +434,7 @@ export class ProcessManager {
           lastError: code === 0 || signal === 'SIGTERM' ? null : `Process exited with code ${code ?? 'unknown'}`,
         });
       } finally {
+        await runtimeCredentialLease?.release?.().catch((error) => this.logStore.append(id, 'system', `Runtime credential cleanup failed: ${error.message}`).catch(() => undefined));
         await releaseLaunchLease(lease).catch((error) => this.logStore.append(id, 'system', `Launch lease release failed: ${error.message}`).catch(() => undefined));
         finishExit();
       }
@@ -408,6 +449,7 @@ export class ProcessManager {
     const started = await spawnResult;
     if (!started.ok) {
       this.children.delete(id);
+      await runtimeCredentialLease?.release?.().catch(() => undefined);
       await releaseLaunchLease(lease).catch(() => undefined);
       await this.store.update(id, { status: 'failed', pid: null, managedProcess: null, lastError: started.error.message });
       throw started.error;

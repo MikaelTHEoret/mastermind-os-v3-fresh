@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import http from 'node:http';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { WebSocket } from 'ws';
 
 import {
   FAMILY_CORE_SUBPROTOCOL,
   FamilyCoreBridgeServer,
+  FamilyCoreCredentialManager,
   FamilyCoreSessionManager,
   createFamilyCoreMessage,
   createSha256FamilyCoreAuthenticator,
@@ -105,6 +109,59 @@ test('Family Core bridge authenticates a loopback server and enforces hello firs
   assert.equal(manager.status().state, 'ready');
   assert.equal(manager.status().server.commandEnabled, false);
   socket.close();
+});
+
+test('isolated launch credential authenticates only its exact generated server hello', async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mastermind-family-core-socket-stage-'));
+  const managedRoot = path.join(root, 'managed');
+  const directory = path.join(root, 'server');
+  await fs.mkdir(directory, { recursive: true });
+  const sessionId = '44444444-4444-4444-8444-444444444444';
+  const serverInstanceId = '55555555-5555-4555-8555-555555555555';
+  const uuids = [sessionId, serverInstanceId];
+  const credentials = new FamilyCoreCredentialManager(managedRoot, {
+    integrityKey: Buffer.alloc(32, 0x73),
+    randomBytes: () => Buffer.alloc(48, 0x41),
+    randomUUID: () => uuids.shift(),
+  });
+  await credentials.initialize();
+  const lease = await credentials.prepareLaunch({ id: 'family-server', directory });
+  const token = (await fs.readFile(path.join(managedRoot, 'state', 'family-core-bridge', 'server.token'), 'ascii')).trim();
+  const manager = new FamilyCoreSessionManager({
+    verifyHello: (payload, context) => credentials.verifyHello(payload, context),
+  });
+  const server = http.createServer((_request, response) => response.writeHead(404).end());
+  const bridge = new FamilyCoreBridgeServer({
+    httpServer: server,
+    sessionManager: manager,
+    authenticate: (input) => credentials.authenticate(input),
+  });
+  bridge.start();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(async () => {
+    await bridge.close();
+    await new Promise((resolve) => server.close(resolve));
+    await lease.release();
+    await fs.rm(root, { recursive: true, force: true });
+  });
+
+  const socket = connect(server.address().port, token);
+  await waitFor(socket, 'open');
+  socket.send(JSON.stringify(serverMessage(sessionId, 1, 'server.hello', {
+    serverId: 'family-server',
+    instanceId: serverInstanceId,
+    modVersion: '0.3.0',
+    minecraftVersion: '26.2',
+    capabilities: [],
+    commandEnabled: false,
+  })));
+  await new Promise((resolve) => manager.once('ready', resolve));
+  assert.equal(manager.status().state, 'ready');
+  socket.close();
+  await waitFor(socket, 'close');
 });
 
 test('Family Core bridge rejects invalid bearer credentials and browser origins', async (t) => {
