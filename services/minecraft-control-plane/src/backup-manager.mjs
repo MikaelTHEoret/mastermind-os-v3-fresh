@@ -579,6 +579,23 @@ export class FamilyServerBackupManager {
         if (error?.code === 'ENOENT') continue;
         throw schedulerStageError(error, 'policy-read');
       }
+      // A running managed child holds the continuous launch-integrity lease.
+      // Automatic backups are stopped-state operations, so use only the
+      // bounded regular-file policy read needed to report deferral. The next
+      // stopped tick reopens the complete guarded boundary before mutation.
+      if (instance.status !== 'stopped' || instance.pid !== null || instance.managedProcess != null) {
+        let runningState;
+        try { runningState = await this.#readPolicyState(instance.id, { storageReady: true }); }
+        catch (error) { throw schedulerStageError(error, 'policy-read'); }
+        if (runningState.policy.enabled) {
+          results.push({
+            instanceId: instance.id,
+            action: 'deferred-running',
+            code: 'BACKUP_SERVER_NOT_QUIESCENT',
+          });
+        }
+        continue;
+      }
       let state;
       try {
         state = await this.#withFilesystemSafety(async () => {

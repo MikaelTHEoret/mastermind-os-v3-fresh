@@ -1904,8 +1904,14 @@ test('automatic policy is fixed, creates only while quiescent, and reports runni
   assert.deepEqual(saved.policy, { enabled: true, intervalHours: 6, retentionCount: 3 });
   value.state.active = true;
   await value.store.update(value.id, { status: 'running', pid: 123 });
+  let runningFilesystemSafetyRuns = 0;
+  value.manager.runFilesystemSafetyOperation = async (operation) => {
+    runningFilesystemSafetyRuns += 1;
+    return operation();
+  };
   const deferred = await value.manager.runDueBackups();
   assert.equal(deferred[0].action, 'deferred-running');
+  assert.equal(runningFilesystemSafetyRuns, 0, 'running deferral must not contend with the continuous launch lease');
   const status = await value.manager.list({ instanceId: value.id });
   assert.equal(status.status.state, 'deferred-running');
   assert.equal(status.backups.length, 0);
