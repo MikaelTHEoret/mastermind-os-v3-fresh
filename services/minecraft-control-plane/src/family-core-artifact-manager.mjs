@@ -147,6 +147,7 @@ export class FamilyCoreArtifactManager {
     this.validateGraph = options.validateGraph ?? validateFabricCandidateGraph;
     this.now = options.now ?? (() => new Date().toISOString());
     this.randomUUID = options.randomUUID ?? crypto.randomUUID;
+    this.integrityKey = null;
     this.initialized = false;
   }
 
@@ -155,7 +156,10 @@ export class FamilyCoreArtifactManager {
     await fs.mkdir(this.manifestRoot, { recursive: true, mode: 0o700 });
     await fs.mkdir(this.transactionRoot, { recursive: true, mode: 0o700 });
     const key = await this.acquireIntegrityKey(this.managedRoot, { createIfMissing: true });
-    await key.release();
+    try {
+      await key.assertHeld();
+      this.integrityKey = Buffer.from(key.key);
+    } finally { await key.release(); }
     this.initialized = true;
     await this.#recoverTransactions();
     if (!await this.store.get(FAMILY_ID)) {
@@ -183,7 +187,10 @@ export class FamilyCoreArtifactManager {
     } finally { await lease.release(); }
   }
 
-  async #readManifest(instanceId = FAMILY_ID) {
+  async #readManifestWithKey(instanceId, key) {
+    if (!Buffer.isBuffer(key) || key.length !== 32) {
+      throw coreError('FAMILY_CORE_STATE_UNAVAILABLE', 503, 'The pinned Family Core integrity key is unavailable.');
+    }
     const file = this.#manifestFile(instanceId);
     let bytes;
     try { bytes = await fs.readFile(file); }
@@ -198,13 +205,19 @@ export class FamilyCoreArtifactManager {
     if (!exactKeys(wrapper, ['schemaVersion', 'manifest', 'mac']) || wrapper.schemaVersion !== 2 || !SHA256.test(wrapper.mac ?? '')) {
       throw coreError('FAMILY_CORE_STATE_INVALID', 409, 'The Family Core manifest wrapper is invalid.');
     }
-    return this.#withKey(async (key) => {
-      const expected = crypto.createHmac('sha256', key).update(canonical(wrapper.manifest)).digest('hex');
-      if (!crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(wrapper.mac, 'hex'))) {
-        throw coreError('FAMILY_CORE_STATE_INVALID', 409, 'The Family Core manifest authentication failed.');
-      }
-      return validateManifest(wrapper.manifest, instanceId);
-    });
+    const expected = crypto.createHmac('sha256', key).update(canonical(wrapper.manifest)).digest('hex');
+    if (!crypto.timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(wrapper.mac, 'hex'))) {
+      throw coreError('FAMILY_CORE_STATE_INVALID', 409, 'The Family Core manifest authentication failed.');
+    }
+    return validateManifest(wrapper.manifest, instanceId);
+  }
+
+  async #readManifest(instanceId = FAMILY_ID) {
+    // Reads authenticate against the process-pinned key. This remains usable
+    // while a running Minecraft child holds the continuous launch lease;
+    // reacquiring that same Windows key-file guard would self-lock. Mutating
+    // writes continue to require #withKey and therefore a fresh guarded lease.
+    return this.#readManifestWithKey(instanceId, this.integrityKey);
   }
 
   async #writeManifest(manifest) {

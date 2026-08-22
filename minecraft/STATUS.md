@@ -26,8 +26,8 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 
 ## In progress
 
-- Hybrid body foundation: promote the isolated live-verified signed handback candidate through the managed Family Server snapshot/rollback gate, then add gameplay skills one bounded lane at a time.
-- A schema-v2 authenticated first-party artifact registry, verified-snapshot gate, atomic install/rollback boundary, exact launch binding, and bounded status endpoint are now implemented for `family-core`. They are covered by focused manager, backup, verifier, mod, process, and control-plane tests but have not been activated against the live Family Server. Third-party mod mutations remain deliberately blocked while this staged core lane is active until combined dependency-graph validation is added.
+- Hybrid body foundation: the disabled-by-default `family-core` skeleton is now managed and live-verified; next, enable the authenticated server chat bridge in a controlled slice, then add gameplay skills one bounded lane at a time.
+- The schema-v2 authenticated first-party artifact registry, verified-snapshot gate, atomic install/rollback boundary, exact launch binding, and bounded status endpoint are active for `family-core`. Generation `7be277353969147d6c84766f377b88dc7114d75197528ee067d0c7ec95e013a3` is bound to verified backup `bkp-5a7caf2cbb379b10e9e5fe7e2c37a384`; Fabric live-loaded the pinned 18,481-byte JAR while all eight runtime feature flags remained disabled. Repeated status reads under the continuous Windows launch lease completed without helper growth. Third-party mod mutations remain deliberately blocked until combined dependency-graph validation is added.
 - The exact pinned Zenith runtime, three minimal core patches, secure credential bootstrap, Mastermind plugin, and server-signed telemetry mod are privately staged. Parent takeover and automatic handback are live-verified in an isolated copy of the Family world with all movement/action automation off; the candidate is not yet a managed command-center service.
 
 ## M3F foundation completed
@@ -35,10 +35,10 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Canonical dual-character requirements, role matrix, resource limits, profile boundaries, release gates, and four-state feature manifest.
 - Strict brain domain contracts, disabled adapters, provider-neutral model-broker boundary, deterministic fakes, prompt placeholders, and focused tests.
 - Authenticated and sequenced `family-core` protocol v1 with strict JSON parsing, bounded payloads, allowlisted administration operations, replay protection, schema, and tests.
-- Separate server-only Fabric `family-core` for Minecraft 26.2 / Java 25. Its default remains disabled; the opt-in local handback attestation lane is implemented, authenticated, bounded, isolated-live-verified, and not installed into the managed Family Server.
+- Separate server-only Fabric `family-core` for Minecraft 26.2 / Java 25. The pinned 0.2.0 artifact is installed through the managed first-party lane and live-verified in the Family Server; its server bridge, Computer command, chat capture, identity events, administration, shutdown, companion telemetry, and companion events remain disabled.
 - Companion bridge v2 observation/action inventory and runtime validators. Negotiation remains v1 and no v2 capability is advertised.
 - Authenticated dashboard status placeholder and a loopback-only reasoning route that validates requests and returns `FEATURE_DISABLED`.
-- Nothing from this foundation is installed into the live server or added to its artifact lock.
+- Only the disabled `family-core` foundation JAR is installed into the live server through its authenticated artifact lock; model, profile, chat, administration, survival, and gameplay behavior remain off.
 
 ## Remaining M2 acceptance
 
@@ -54,7 +54,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Native Zenith is the fallback driver; an authenticated headless Mastermind controller is the enhanced driver and uses the same controller entrance as the parent's real client.
 - Stock Zenith accepts only one controller. Upstream inspection proved its public plugin event occurs too late to enforce replacement, so a minimal core hook is required for seamless parent preemption.
 - The isolated admission patch adds a synchronous deny-by-default event, revokes old-controller packet input before atomic replacement, and preserves the new lease during old-session disconnect cleanup. A third minimal hook gates every native bot tick; stock behavior remains unchanged when the plugin is absent, while Mastermind denies ticks outside `ZENITH_FALLBACK`.
-- The plugin's admission policy permits only an authenticated parent to replace the exact service controller. The Family-account isolated acceptance verified parent replacement, immediate service revocation, user-confirmed physical control, recovery hold on disconnect, and automatic fallback only after fresh matching server-signed telemetry remained stable. Managed promotion and gameplay safe-stop acceptance remain required before unattended activation.
+- The plugin's admission policy permits only an authenticated parent to replace the exact service controller. The Family-account isolated acceptance verified parent replacement, immediate service revocation, user-confirmed physical control, recovery hold on disconnect, and automatic fallback only after fresh matching server-signed telemetry remained stable. Managed core promotion is complete; gameplay safe-stop acceptance remains required before unattended activation.
 - The previous rendered Fabric bridge remains available for regression/reference work but is no longer the intended production body.
 
 ## Offline Zenith staging evidence

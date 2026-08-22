@@ -39,6 +39,7 @@ async function fixture(t) {
   const store = { async get(id) { return id === instance.id ? structuredClone(instance) : null; } };
   let quiescenceChecks = 0;
   let locks = 0;
+  let integrityKeyAcquisitions = 0;
   const managerOptions = {
     withInstanceLock: async (id, operation) => {
       assert.equal(id, instance.id); locks += 1;
@@ -51,7 +52,10 @@ async function fixture(t) {
       assert.equal(id, instance.id); assert.equal(backupId, BACKUP_ID); assert.equal(locks, 1);
       return { backupId, integrity: 'verified' };
     },
-    acquireIntegrityKey: async () => ({ key, assertHeld: async () => true, release: async () => undefined }),
+    acquireIntegrityKey: async () => {
+      integrityKeyAcquisitions += 1;
+      return { key, assertHeld: async () => true, release: async () => undefined };
+    },
     inspectArtifact: async (file) => path.basename(file) === 'family-core.jar'
       ? [{ ids: ['mastermind-family-core'], version: '0.2.0', depends: {}, breaks: {}, conflicts: {} }]
       : [{ ids: [path.basename(file, '.jar')], version: '1.0.0', depends: {}, breaks: {}, conflicts: {} }],
@@ -72,7 +76,11 @@ async function fixture(t) {
   const candidate = path.join(buildRoot, 'family-core.jar');
   const bytes = Buffer.concat([Buffer.from('PK\u0003\u0004'), Buffer.alloc(60, 3)]);
   await fs.writeFile(candidate, bytes);
-  return { manager, managedRoot, mods, candidate, bytes, key, makeManager, getQuiescenceChecks: () => quiescenceChecks };
+  return {
+    manager, managedRoot, mods, candidate, bytes, key, makeManager,
+    getQuiescenceChecks: () => quiescenceChecks,
+    getIntegrityKeyAcquisitions: () => integrityKeyAcquisitions,
+  };
 }
 
 test('promotes a pinned Family Core artifact and exposes a schema-v2 launch binding', async (t) => {
@@ -87,15 +95,20 @@ test('promotes a pinned Family Core artifact and exposes a schema-v2 launch bind
   assert.equal(result.action, 'promoted');
   assert.equal(value.getQuiescenceChecks(), 1);
   assert.deepEqual(await fs.readFile(path.join(value.mods, 'mastermind-family-core.jar')), value.bytes);
+  const acquisitionsBeforeStatus = value.getIntegrityKeyAcquisitions();
   const status = await value.manager.status();
+  assert.equal(value.getIntegrityKeyAcquisitions(), acquisitionsBeforeStatus);
   assert.equal(status.state, 'installed');
   assert.equal(status.artifact.sha256, sha256(value.bytes));
   assert.equal(status.rollbackAvailable, false);
+  const acquisitionsBeforeBinding = value.getIntegrityKeyAcquisitions();
   const capability = await value.manager.acquireLaunchBindingWithinInstanceLock();
+  assert.equal(value.getIntegrityKeyAcquisitions(), acquisitionsBeforeBinding);
   assert.equal(capability.binding.schemaVersion, 2);
   assert.equal(capability.binding.artifacts.length, 1);
   assert.equal(capability.binding.artifacts[0].fileName, 'mastermind-family-core.jar');
   await capability.assertHeld();
+  assert.equal(value.getIntegrityKeyAcquisitions(), acquisitionsBeforeBinding);
   await capability.release();
   await assert.rejects(() => capability.assertHeld(), { code: 'FAMILY_CORE_STATE_UNAVAILABLE' });
 });

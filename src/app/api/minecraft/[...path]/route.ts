@@ -18,6 +18,7 @@ const BACKUP_OPERATION_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 const MAX_BODY_BYTES = 32 * 1024;
 const MAX_ADMIN_BODY_BYTES = 2 * 1024;
 const MAX_MOD_BODY_BYTES = 2 * 1024;
+const MAX_FIRST_PARTY_CORE_BODY_BYTES = 2 * 1024;
 const MAX_WORLD_BODY_BYTES = 2 * 1024;
 const MAX_UPSTREAM_RESPONSE_BYTES = 512 * 1024;
 const MAX_LOG_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -43,6 +44,12 @@ const WORLD_PLAN_ID = /^worldplan-[a-f0-9]{64}$/;
 const WORLD_TRANSACTION_REF = /^worldtx-[a-f0-9]{64}$/;
 const WORLD_REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
+const FAMILY_CORE_PUBLIC_ERROR_CODES = new Set([
+  'FAMILY_CORE_ARTIFACT_INVALID', 'FAMILY_CORE_BACKUP_REQUIRED', 'FAMILY_CORE_CONFIRMATION_REQUIRED',
+  'FAMILY_CORE_INSTANCE_INVALID', 'FAMILY_CORE_INTEGRITY_FAILED', 'FAMILY_CORE_OPERATION_FAILED',
+  'FAMILY_CORE_RECOVERY_REQUIRED', 'FAMILY_CORE_STATE_CHANGED', 'FAMILY_CORE_STATE_INVALID',
+  'FAMILY_CORE_STATE_UNAVAILABLE', 'FAMILY_CORE_UNMANAGED', 'BACKUP_SERVER_NOT_QUIESCENT',
+]);
 const WORLD_CONFIRMATIONS = new Set(['CREATE NEW WORLD', 'CLONE WORLD', 'RENAME WORLD', 'ARCHIVE WORLD', 'SWITCH ACTIVE WORLD']);
 const WORLD_OPERATIONS = new Set(['create', 'clone', 'rename', 'archive', 'switch']);
 const WORLD_OPERATION_BY_CONFIRMATION: Record<string, string> = {
@@ -251,6 +258,57 @@ function publicFirstPartyCoreEnvelope(envelope: Record<string, unknown>): Record
       generation: status.generation.toLowerCase(),
       artifact,
       rollbackAvailable: status.rollbackAvailable,
+    },
+  };
+}
+
+function publicFirstPartyCoreOperationEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  if (envelope.ok === false) {
+    const code = typeof envelope.code === 'string' && FAMILY_CORE_PUBLIC_ERROR_CODES.has(envelope.code)
+      ? envelope.code
+      : 'FAMILY_CORE_OPERATION_FAILED';
+    return { ok: false, code, message: 'The Family Core operation could not be completed safely.' };
+  }
+  if (envelope.ok !== true || envelope.instanceId !== FAMILY_SERVER_ID
+    || !envelope.operation || typeof envelope.operation !== 'object' || Array.isArray(envelope.operation)) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned an invalid first-party core operation.');
+  }
+  const operation = envelope.operation as Record<string, unknown>;
+  if (Object.keys(operation).length !== 2
+    || !['promoted', 'already-installed', 'rolled-back', 'disabled'].includes(String(operation.action))
+    || !operation.manifest || typeof operation.manifest !== 'object' || Array.isArray(operation.manifest)) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned an invalid first-party core operation.');
+  }
+  const manifest = operation.manifest as Record<string, unknown>;
+  const keys = ['schemaVersion', 'instanceId', 'generation', 'active', 'previous', 'updatedAt'];
+  if (Object.keys(manifest).length !== keys.length || Object.keys(manifest).some((key) => !keys.includes(key))
+    || manifest.schemaVersion !== 2 || manifest.instanceId !== FAMILY_SERVER_ID
+    || typeof manifest.generation !== 'string' || !SHA256.test(manifest.generation)
+    || typeof manifest.updatedAt !== 'string' || !Number.isFinite(Date.parse(manifest.updatedAt))) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned an invalid first-party core manifest.');
+  }
+  const active = manifest.active;
+  if (active !== null && (typeof active !== 'object' || Array.isArray(active))) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned an invalid first-party core manifest.');
+  }
+  const publicStatus = publicFirstPartyCoreEnvelope({
+    ok: true,
+    instanceId: FAMILY_SERVER_ID,
+    firstPartyCore: {
+      state: active === null ? 'disabled' : 'installed',
+      generation: manifest.generation,
+      artifact: active === null ? null : Object.fromEntries(
+        Object.entries(active as Record<string, unknown>).filter(([key]) => key !== 'registryRelativePath'),
+      ),
+      rollbackAvailable: manifest.previous !== null,
+    },
+  });
+  return {
+    ok: true,
+    instanceId: FAMILY_SERVER_ID,
+    operation: {
+      action: operation.action,
+      firstPartyCore: publicStatus.firstPartyCore,
     },
   };
 }
@@ -1281,9 +1339,13 @@ function mapTarget(method: string, segments: string[], searchParams: URLSearchPa
         return `/v1/instances/${FAMILY_SERVER_ID}/mods/operations/${segments[4].toLowerCase()}`;
       }
     }
-    if (segments[1] === FAMILY_SERVER_ID && segments[2] === 'first-party-core'
-      && method === 'GET' && segments.length === 3) {
-      return `/v1/instances/${FAMILY_SERVER_ID}/first-party-core`;
+    if (segments[1] === FAMILY_SERVER_ID && segments[2] === 'first-party-core') {
+      if (method === 'GET' && segments.length === 3) {
+        return `/v1/instances/${FAMILY_SERVER_ID}/first-party-core`;
+      }
+      if (method === 'POST' && segments.length === 4 && ['promote', 'rollback'].includes(segments[3])) {
+        return `/v1/instances/${FAMILY_SERVER_ID}/first-party-core/${segments[3]}`;
+      }
     }
     if (segments[1] === FAMILY_SERVER_ID && segments[2] === 'worlds') {
       if (method === 'GET' && segments.length === 3) {
@@ -1487,6 +1549,41 @@ async function sanitizedUpdateBody(request: NextRequest): Promise<string> {
     || approval.minecraftVersionChange !== true
   ) throw new MinecraftAccessError(400, 'INVALID_UPDATE_APPROVAL', 'Minecraft version approval is invalid.');
   return JSON.stringify({ approval: { planId: approval.planId.toLowerCase(), minecraftVersionChange: true } });
+}
+
+async function sanitizedFirstPartyCoreBody(request: NextRequest, action: string): Promise<string> {
+  const value = await readBoundedJsonBody(request, 'The first-party core request', MAX_FIRST_PARTY_CORE_BODY_BYTES);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new MinecraftAccessError(400, 'FAMILY_CORE_ARTIFACT_INVALID', 'The first-party core request is invalid.');
+  }
+  const record = value as Record<string, unknown>;
+  if (action === 'promote') {
+    const keys = ['expectedSha256', 'expectedSize', 'backupId', 'confirmation'];
+    if (Object.keys(record).length !== keys.length || Object.keys(record).some((key) => !keys.includes(key))
+      || typeof record.expectedSha256 !== 'string' || !SHA256.test(record.expectedSha256)
+      || !Number.isInteger(record.expectedSize) || Number(record.expectedSize) < 22 || Number(record.expectedSize) > 16 * 1024 * 1024
+      || typeof record.backupId !== 'string' || !BACKUP_ID.test(record.backupId)
+      || record.confirmation !== 'PROMOTE FIRST-PARTY FAMILY CORE') {
+      throw new MinecraftAccessError(400, 'FAMILY_CORE_ARTIFACT_INVALID', 'Promotion requires the pinned Family Core artifact, verified backup, and exact confirmation.');
+    }
+    return JSON.stringify({
+      expectedSha256: record.expectedSha256,
+      expectedSize: record.expectedSize,
+      backupId: record.backupId,
+      confirmation: record.confirmation,
+    });
+  }
+  const keys = ['expectedGeneration', 'confirmation'];
+  if (action !== 'rollback' || Object.keys(record).length !== keys.length
+    || Object.keys(record).some((key) => !keys.includes(key))
+    || typeof record.expectedGeneration !== 'string' || !SHA256.test(record.expectedGeneration)
+    || record.confirmation !== 'ROLL BACK FIRST-PARTY FAMILY CORE') {
+    throw new MinecraftAccessError(400, 'FAMILY_CORE_STATE_CHANGED', 'Rollback requires the current generation and exact confirmation.');
+  }
+  return JSON.stringify({
+    expectedGeneration: record.expectedGeneration,
+    confirmation: record.confirmation,
+  });
 }
 
 async function sanitizedBackupPolicyBody(request: NextRequest): Promise<string> {
@@ -1832,6 +1929,9 @@ async function handle(request: NextRequest, context: RouteContext) {
           ? await sanitizedWorldPlanBody(request)
         : request.method === 'POST' && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID && path[2] === 'worlds' && path[3] === 'actions'
           ? await sanitizedWorldActionBody(request)
+        : request.method === 'POST' && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID
+          && path[2] === 'first-party-core' && ['promote', 'rollback'].includes(path[3] ?? '')
+          ? await sanitizedFirstPartyCoreBody(request, path[3])
         : request.method === 'POST' && path[0] === 'companion' && path[1] === 'actions' && path.length === 2
           ? await sanitizedCompanionActionBody(request)
         : undefined;
@@ -1859,6 +1959,9 @@ async function handle(request: NextRequest, context: RouteContext) {
       && path[0] === 'instances' && path[2] === 'update-status';
     const isFirstPartyCoreStatus = request.method === 'GET' && path.length === 3
       && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID && path[2] === 'first-party-core';
+    const isFirstPartyCoreMutation = request.method === 'POST' && path.length === 4
+      && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID && path[2] === 'first-party-core'
+      && ['promote', 'rollback'].includes(path[3] ?? '');
     const isUpdateAction = request.method === 'POST' && path.length === 3
       && path[0] === 'instances' && path[2] === 'update';
     const isBrainStatus = request.method === 'GET' && path.length === 2
@@ -1895,6 +1998,8 @@ async function handle(request: NextRequest, context: RouteContext) {
         ? MOD_PLAN_TIMEOUT_MS
       : isWorldRequest
         ? MOD_PLAN_TIMEOUT_MS
+      : isFirstPartyCoreMutation
+        ? 60 * 60 * 1000
       : path[0] === 'provision'
       ? 10 * 60 * 1000
       : path[0] === 'client' && path[1] === 'provision'
@@ -1948,6 +2053,8 @@ async function handle(request: NextRequest, context: RouteContext) {
               ? (envelope) => publicUpdateStatusEnvelope(envelope, path[1])
               : isFirstPartyCoreStatus
                 ? publicFirstPartyCoreEnvelope
+              : isFirstPartyCoreMutation
+                ? publicFirstPartyCoreOperationEnvelope
               : isUpdateAction
                 ? (envelope) => publicUpdateActionEnvelope(envelope, path[1])
                 : isRetiredVersionPurge
@@ -1957,6 +2064,13 @@ async function handle(request: NextRequest, context: RouteContext) {
                   : undefined,
       );
     } catch (error) {
+      if (isFirstPartyCoreMutation) {
+        return errorResponse(
+          504,
+          'FAMILY_CORE_OPERATION_COMPLETION_UNKNOWN',
+          'The Family Core request may have reached the local agent. Do not retry it; refresh first-party core status and reconcile the exact generation.',
+        );
+      }
       if (isRetiredVersionPurge) {
         return errorResponse(
           504,
