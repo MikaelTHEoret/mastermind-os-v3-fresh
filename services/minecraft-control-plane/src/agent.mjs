@@ -1096,9 +1096,12 @@ export async function createControlPlane(options = {}) {
     sessionStatus: () => companionSessions.status(),
   });
   if (typeof familyCompanionBrain.tickSurvival === 'function') {
-    companionSessions.on('snapshot', () => {
-      Promise.resolve(familyCompanionBrain.tickSurvival()).catch(() => {});
-    });
+    const queueSurvivalTick = () => {
+      Promise.resolve().then(() => familyCompanionBrain.tickSurvival()).catch(() => {});
+    };
+    companionSessions.on('ready', queueSurvivalTick);
+    companionSessions.on('heartbeat', queueSurvivalTick);
+    companionSessions.on('snapshot', queueSurvivalTick);
   }
   const familyCoreSessions = options.familyCoreSessions ?? new FamilyCoreSessionManager({
     verifyHello: options.verifyFamilyCoreHello ?? (async (payload, context) => {

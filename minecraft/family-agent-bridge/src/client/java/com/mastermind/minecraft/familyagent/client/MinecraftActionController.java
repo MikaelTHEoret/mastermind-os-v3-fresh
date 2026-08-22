@@ -161,7 +161,7 @@ final class MinecraftActionController {
     private record NavigationAction(ActionCommand command, NavigationProvider provider) implements RunningAction {
         @Override
         public void tick(long nowNanos) {
-            // Navigation completion is delivered by the provider callback.
+            provider.tick();
         }
 
         @Override

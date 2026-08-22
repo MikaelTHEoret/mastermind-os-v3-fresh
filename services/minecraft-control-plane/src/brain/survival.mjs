@@ -38,6 +38,7 @@ export class DeterministicSurvivalController {
     this.preemptions = 0;
     this.ticking = false;
     this.last = null;
+    this.lastTick = null;
   }
 
   observe(snapshot) {
@@ -68,10 +69,16 @@ export class DeterministicSurvivalController {
   }
 
   async tick() {
-    if (this.ticking) return Object.freeze({ ok: true, code: 'SURVIVAL_TICK_IN_PROGRESS' });
+    if (this.ticking) {
+      const result = Object.freeze({ ok: true, code: 'SURVIVAL_TICK_IN_PROGRESS' });
+      this.lastTick = result;
+      return result;
+    }
     this.ticking = true;
     try {
-      return await this.#tick();
+      const result = await this.#tick();
+      this.lastTick = structuredClone(result);
+      return result;
     } finally {
       this.ticking = false;
     }
@@ -134,6 +141,7 @@ export class DeterministicSurvivalController {
       preemptions: this.preemptions,
       failures: this.failures,
       last: this.last ? { ...this.last } : null,
+      lastTick: this.lastTick ? structuredClone(this.lastTick) : null,
     });
   }
 }

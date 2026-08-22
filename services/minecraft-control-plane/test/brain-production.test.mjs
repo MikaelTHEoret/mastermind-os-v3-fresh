@@ -219,3 +219,38 @@ test('production brain falls back to the all-disabled skeleton unless both gates
   const disabled = createFamilyCompanionBrain({ environment: {}, sendChat: () => {} });
   assert.ok(Object.values(disabled.status().flags).every((value) => value === false));
 });
+
+test('deterministic survival remains available without conversation, a model, or a provider credential', async () => {
+  const calls = [];
+  const brain = createFamilyCompanionBrain({
+    environment: {},
+    flags: {
+      companionConversation: false,
+      modelReasoning: false,
+      physicalTaskPlanning: false,
+      survivalAutomation: true,
+    },
+    canSendChat: () => false,
+    sendChat: async () => { throw new Error('chat must not run'); },
+    dispatchAction: async (action, options) => {
+      calls.push([action, options]);
+      return { actionId: '77777777-7777-4777-8777-777777777777', kind: action.kind, status: 'dispatched' };
+    },
+    cancelAction: async () => { throw new Error('cancel must not run'); },
+    sessionStatus: () => ({
+      state: 'ready',
+      killSwitch: false,
+      activeAction: null,
+      latestSnapshot: {
+        phase: 'in-world',
+        serverAlias: 'family-server',
+        player: { health: 0, maxHealth: 20, hunger: 17 },
+      },
+    }),
+  });
+
+  const result = await brain.tickSurvival();
+  assert.equal(result.code, 'SURVIVAL_ACTION_DISPATCHED');
+  assert.equal(brain.status().flags.survivalAutomation, true);
+  assert.deepEqual(calls, [[{ kind: 'direct.respawn', args: {} }, { timeoutMs: 15_000 }]]);
+});

@@ -47,6 +47,11 @@ public final class BaritoneNavigationProviderBootstrap implements NavigationProv
     }
 
     @Override
+    public void tick() {
+        delegate.tick();
+    }
+
+    @Override
     public void cancel(String reason) {
         delegate.cancel(reason);
     }
@@ -84,4 +89,3 @@ public final class BaritoneNavigationProviderBootstrap implements NavigationProv
         return paths.getFirst();
     }
 }
-

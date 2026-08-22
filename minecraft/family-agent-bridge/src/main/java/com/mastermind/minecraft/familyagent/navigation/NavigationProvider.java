@@ -20,6 +20,9 @@ public interface NavigationProvider {
 
     void start(ActionCommand command, Completion completion);
 
+    default void tick() {
+        // Providers without a foreground task do not require periodic work.
+    }
+
     void cancel(String reason);
 }
-

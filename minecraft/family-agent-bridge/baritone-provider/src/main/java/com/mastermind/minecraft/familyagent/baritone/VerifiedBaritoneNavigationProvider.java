@@ -42,6 +42,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         "skill.returnToKnownSafePoint"
     );
     private static final int ESCAPE_DISTANCE = 12;
+    private static final long EXPLORE_STALL_NANOS = 5_000_000_000L;
 
     private static final class Active {
         private final ActionCommand command;
@@ -53,6 +54,8 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         private final BlockOptionalMetaLookup gatherFilter;
         private final int gatherTargetCount;
         private final Runnable restoreSettings;
+        private BlockPos lastProgressPosition;
+        private long lastProgressNanos;
 
         private Active(ActionCommand command, Completion completion, Mode mode, JsonObject goal,
                        BlockPos origin, int radius, BlockOptionalMetaLookup gatherFilter,
@@ -66,6 +69,8 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             this.gatherFilter = gatherFilter;
             this.gatherTargetCount = gatherTargetCount;
             this.restoreSettings = restoreSettings;
+            this.lastProgressPosition = origin;
+            this.lastProgressNanos = System.nanoTime();
         }
     }
 
@@ -170,6 +175,11 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             return;
         }
 
+        tick();
+    }
+
+    @Override
+    public void tick() {
         final Active current;
         synchronized (lock) {
             current = active;
@@ -343,6 +353,27 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             succeed(current, "radius-reached");
         } else if (!baritone.getExploreProcess().isActive()) {
             fail(current, "explore-stopped", "Baritone stopped before reaching the requested exploration radius");
+        } else if (exploreStalled(current, position)) {
+            fail(current, "explore-stalled", "Baritone could not make progress inside the requested exploration radius");
+        }
+    }
+
+    private boolean exploreStalled(Active current, BlockPos position) {
+        var now = System.nanoTime();
+        var pathing = baritone.getPathingBehavior();
+        synchronized (lock) {
+            if (active != current) {
+                return false;
+            }
+            if (current.lastProgressPosition == null
+                || current.lastProgressPosition.distSqr(position) >= 4.0
+                || pathing.isPathing()
+                || pathing.getInProgress().isPresent()) {
+                current.lastProgressPosition = position;
+                current.lastProgressNanos = now;
+                return false;
+            }
+            return now - current.lastProgressNanos >= EXPLORE_STALL_NANOS;
         }
     }
 

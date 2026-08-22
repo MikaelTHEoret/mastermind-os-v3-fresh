@@ -1558,6 +1558,7 @@ function sanitizedCompanionAction(input: unknown): Record<string, unknown> {
       exactKeys(args, ['forward', 'strafe', 'durationMs', 'sprint', 'sneak'], `${kind} arguments`);
       if (!boundedNumber(args.forward, -1, 1) || !boundedNumber(args.strafe, -1, 1) || !boundedNumber(args.durationMs, 50, 5_000, true) || typeof args.sprint !== 'boolean' || typeof args.sneak !== 'boolean' || (args.sprint && args.sneak)) break;
       return { kind, args: { forward: args.forward, strafe: args.strafe, durationMs: args.durationMs, sprint: args.sprint, sneak: args.sneak } };
+    case 'direct.respawn':
     case 'direct.jump':
     case 'direct.attack':
     case 'skill.escapeDanger':

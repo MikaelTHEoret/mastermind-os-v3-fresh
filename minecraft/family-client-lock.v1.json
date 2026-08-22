@@ -53,7 +53,7 @@
     "profile": {
       "url": "https://meta.fabricmc.net/v2/versions/loader/26.2/0.19.3/profile/json",
       "size": 2778,
-      "sha256": "8189efac192ffd1f4ecd9cdfe7445eb03eb8c3e6b2c17ccb4093820edd0e850d",
+      "sha256": "0b4e9f4ceebd9102dd54c858b0fc1cf059fabb81b948b9b5657ddd6b7d1224e3",
       "id": "fabric-loader-0.19.3-26.2",
       "inheritsFrom": "26.2",
       "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient"
@@ -136,16 +136,16 @@
         "version": "0.1.0",
         "fileName": "family-agent-bridge-0.1.0.jar",
         "source": "family-agent-bridge/build/libs/family-agent-bridge-0.1.0.jar",
-        "size": 91600,
-        "sha256": "78bf942996a91cc621294d3fe3d081731ee0fc2039e43668567f87467048f69b"
+        "size": 91696,
+        "sha256": "9aee10a8f01ea69b579d3690b1ac8eac28ffb8fedd4e2f53d713a4a55a6a0b9b"
       },
       {
         "id": "mastermind-family-agent-baritone-provider",
         "version": "0.1.0",
         "fileName": "family-agent-baritone-provider-0.1.0.jar",
         "source": "family-agent-bridge/baritone-provider/build/libs/family-agent-baritone-provider-0.1.0.jar",
-        "size": 21932,
-        "sha256": "3116baf8bfd88e5e68c162eb293e65ca005a7131ca10c8c10b2153d2e25636ee"
+        "size": 22503,
+        "sha256": "1c3697ebc45aa55b4a6155120dda7b201ee7661cd2b13cbd4f5b2c36b4bbb031"
       },
       {
         "id": "baritone",

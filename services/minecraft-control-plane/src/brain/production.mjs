@@ -383,14 +383,18 @@ export function companionFlagsFromEnvironment(environment = process.env) {
 export function createFamilyCompanionBrain(options = {}) {
   const environment = options.environment ?? process.env;
   const flags = options.flags ?? companionFlagsFromEnvironment(environment);
-  if (!flags.companionConversation || !flags.modelReasoning) {
+  const conversationEnabled = flags.companionConversation === true && flags.modelReasoning === true;
+  const deterministicEnabled = flags.physicalTaskPlanning === true || flags.survivalAutomation === true;
+  if (!conversationEnabled && !deterministicEnabled) {
     return (options.disabledFactory ?? createFamilyCompanionSkeleton)();
   }
-  const provider = options.provider ?? new OpenAIResponsesProvider({
-    apiKey: environment.OPENAI_API_KEY,
-    model: environment.MASTERMIND_MINECRAFT_OPENAI_MODEL || DEFAULT_MODEL,
-    fetcher: options.fetcher,
-  });
+  const provider = options.provider ?? (conversationEnabled
+    ? new OpenAIResponsesProvider({
+      apiKey: environment.OPENAI_API_KEY,
+      model: environment.MASTERMIND_MINECRAFT_OPENAI_MODEL || DEFAULT_MODEL,
+      fetcher: options.fetcher,
+    })
+    : { async reason() { throw Object.assign(new Error('Model reasoning is disabled'), { code: 'MODEL_REASONING_DISABLED' }); } });
   const taskSupervisor = flags.physicalTaskPlanning
     ? (options.taskSupervisor ?? new CompanionPhysicalTaskSupervisor({
       dispatchAction: options.dispatchAction,

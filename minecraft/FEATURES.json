@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-22T17:11:47.513-04:00",
+  "updatedAt": "2026-08-22T18:43:38.413-04:00",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -12,8 +12,8 @@
     "companion.navigate": "implemented",
     "companion.follow": "implemented",
     "companion.gather": "implemented",
-    "companion.cancel": "implemented",
-    "companion.safeStop": "implemented",
+    "companion.cancel": "live-verified",
+    "companion.safeStop": "live-verified",
     "companion.zenithBody": "stubbed",
     "companion.manualTakeover": "stubbed",
     "companion.hybridTelemetry": "stubbed",
@@ -27,7 +27,7 @@
     "companion.conversation": "live-verified",
     "brain.modelReasoning": "live-verified",
     "brain.taskPlanning": "implemented",
-    "brain.survival": "implemented",
+    "brain.survival": "live-verified",
     "profiles.capture": "stubbed",
     "profiles.parentCodexReuse": "stubbed",
     "computer.modRequests": "stubbed",

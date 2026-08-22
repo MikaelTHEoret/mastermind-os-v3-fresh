@@ -94,4 +94,5 @@ test('invalid or stale-shaped observations fail closed', async () => {
   assert.equal(value.observe({ phase: 'disconnected' }).code, 'SURVIVAL_OBSERVATION_UNAVAILABLE');
   setSnapshot({ phase: 'disconnected' });
   assert.equal((await value.tick()).code, 'SURVIVAL_NOT_READY');
+  assert.equal(value.status().lastTick.code, 'SURVIVAL_NOT_READY');
 });
