@@ -3,11 +3,11 @@ package com.mastermind.minecraft.familyagent.client;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.mastermind.minecraft.familyagent.action.ActionRegistry;
+import com.mastermind.minecraft.familyagent.config.FamilyServerAddressPolicy;
 import com.mastermind.minecraft.familyagent.navigation.NavigationProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Locale;
 import java.util.UUID;
 
 final class MinecraftSnapshotCollector {
@@ -62,13 +62,7 @@ final class MinecraftSnapshotCollector {
         if (server == null) {
             return false;
         }
-        var address = server.ip.toLowerCase(Locale.ROOT);
-        var suffix = ":" + familyServerPort;
-        if (address.equals("127.0.0.1" + suffix) || address.equals("localhost" + suffix) || address.equals("[::1]" + suffix)) {
-            return true;
-        }
-        return familyServerPort == 25_565
-            && (address.equals("127.0.0.1") || address.equals("localhost") || address.equals("[::1]"));
+        return FamilyServerAddressPolicy.isTrusted(server.ip, familyServerPort);
     }
 
     private static void addPlayer(JsonObject payload, Minecraft minecraft) {
