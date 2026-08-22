@@ -579,21 +579,23 @@ export class FamilyServerBackupManager {
         if (error?.code === 'ENOENT') continue;
         throw schedulerStageError(error, 'policy-read');
       }
+      // A persisted disabled policy is also a zero-work state. Read only its
+      // bounded regular file before deciding whether the complete native
+      // filesystem-safety boundary is needed. Enabled stopped policies are
+      // re-read inside that boundary before any inventory work or mutation.
+      let preflightState;
+      try { preflightState = await this.#readPolicyState(instance.id, { storageReady: true }); }
+      catch (error) { throw schedulerStageError(error, 'policy-read'); }
+      if (!preflightState.policy.enabled) continue;
       // A running managed child holds the continuous launch-integrity lease.
-      // Automatic backups are stopped-state operations, so use only the
-      // bounded regular-file policy read needed to report deferral. The next
-      // stopped tick reopens the complete guarded boundary before mutation.
+      // Automatic backups are stopped-state operations, so the bounded read
+      // above is sufficient to report deferral without contending for it.
       if (instance.status !== 'stopped' || instance.pid !== null || instance.managedProcess != null) {
-        let runningState;
-        try { runningState = await this.#readPolicyState(instance.id, { storageReady: true }); }
-        catch (error) { throw schedulerStageError(error, 'policy-read'); }
-        if (runningState.policy.enabled) {
-          results.push({
-            instanceId: instance.id,
-            action: 'deferred-running',
-            code: 'BACKUP_SERVER_NOT_QUIESCENT',
-          });
-        }
+        results.push({
+          instanceId: instance.id,
+          action: 'deferred-running',
+          code: 'BACKUP_SERVER_NOT_QUIESCENT',
+        });
         continue;
       }
       let state;

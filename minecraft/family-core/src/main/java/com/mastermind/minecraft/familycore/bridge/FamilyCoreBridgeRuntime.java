@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listener, AutoCloseable {
     private final MinecraftServer server;
@@ -20,9 +21,10 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
     private final Logger logger;
     private final boolean computerCommandEnabled;
     private final FamilyCoreWebSocket transport;
+    private final FamilyCoreHeartbeatLoop heartbeatLoop;
+    private final AtomicInteger playerCount = new AtomicInteger();
     private final Map<UUID, UUID> pendingComputerRequests = new ConcurrentHashMap<>();
     private final long startedAtNanos = System.nanoTime();
-    private long ticks;
 
     public FamilyCoreBridgeRuntime(MinecraftServer server, ServerBridgeConfig config, boolean computerCommandEnabled, Logger logger) {
         this.server = server;
@@ -30,20 +32,19 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
         this.logger = logger;
         this.computerCommandEnabled = computerCommandEnabled;
         this.transport = new FamilyCoreWebSocket(config, this);
+        this.heartbeatLoop = new FamilyCoreHeartbeatLoop(config.heartbeatTicks(), () -> transport.heartbeat(
+            Math.max(0, (System.nanoTime() - startedAtNanos) / 1_000_000L),
+            playerCount.get()
+        ));
     }
 
     public void start() {
         transport.start();
+        heartbeatLoop.start();
     }
 
     public void tick() {
-        ticks++;
-        if (ticks % config.heartbeatTicks() == 0) {
-            transport.heartbeat(
-                Math.max(0, (System.nanoTime() - startedAtNanos) / 1_000_000L),
-                server.getPlayerList().getPlayerCount()
-            );
-        }
+        playerCount.set(server.getPlayerList().getPlayerCount());
     }
 
     public boolean requestComputer(ServerPlayer player, String text) {
@@ -123,6 +124,7 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
 
     @Override
     public void close() {
+        heartbeatLoop.close();
         transport.close();
         pendingComputerRequests.clear();
     }

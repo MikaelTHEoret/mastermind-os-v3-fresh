@@ -1925,7 +1925,7 @@ test('automatic policy is fixed, creates only while quiescent, and reports runni
   assert.deepEqual(await value.manager.runDueBackups(), []);
 });
 
-test('disabled automatic policy skips backup inventory verification', async (t) => {
+test('disabled automatic policy skips filesystem safety and backup inventory verification', async (t) => {
   let inventoryVerifications = 0;
   let schedulerFilesystemProofs = 0;
   let observeScheduler = false;
@@ -1943,6 +1943,24 @@ test('disabled automatic policy skips backup inventory verification', async (t) 
   assert.deepEqual(await value.manager.runDueBackups(), []);
   assert.equal(inventoryVerifications, 0, 'a disabled policy must not touch the backup inventory tree');
   assert.equal(schedulerFilesystemProofs, 0, 'a missing disabled policy must not open filesystem proof work');
+
+  await value.manager.setPolicy({
+    instanceId: value.id,
+    enabled: false,
+    intervalHours: 24,
+    retentionCount: 7,
+  });
+  let filesystemSafetyRuns = 0;
+  value.manager.runFilesystemSafetyOperation = async (operation) => {
+    filesystemSafetyRuns += 1;
+    return operation();
+  };
+  inventoryVerifications = 0;
+  schedulerFilesystemProofs = 0;
+  assert.deepEqual(await value.manager.runDueBackups(), []);
+  assert.equal(filesystemSafetyRuns, 0, 'a persisted disabled policy must not open the filesystem-safety broker');
+  assert.equal(inventoryVerifications, 0, 'a persisted disabled policy must not touch the backup inventory tree');
+  assert.equal(schedulerFilesystemProofs, 0, 'a persisted disabled policy must not open filesystem proof work');
 });
 
 test('scheduled backup rejects missing stack metadata before scanning or staging the world', async (t) => {
@@ -1986,6 +2004,12 @@ test('scheduler failures expose only a closed diagnostic stage and safe backup c
       if (failPolicyRead) throw Object.assign(new Error(`private policy path: ${directory}`), { code: 'EACCES' });
       return { assertHeld() {}, async release() {} };
     },
+  });
+  await policyRead.manager.setPolicy({
+    instanceId: policyRead.id,
+    enabled: true,
+    intervalHours: 6,
+    retentionCount: 3,
   });
   failPolicyRead = true;
   await assert.rejects(policyRead.manager.runDueBackups(), (error) => (

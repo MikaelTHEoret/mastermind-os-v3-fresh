@@ -60,8 +60,8 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 ]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
-const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.3.0.jar', import.meta.url));
-const FAMILY_CORE_BRIDGE_SHA256 = '94d226ed5a576fc556643d913b8d2d9e8293e458c25aee37c1d220cc910bf526';
+const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.3.1.jar', import.meta.url));
+const FAMILY_CORE_BRIDGE_SHA256 = 'f344ce2363be26cf24ee0e9dc9bdf1c105614343883721a5d75710b15b502e7b';
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -991,7 +991,7 @@ export async function createControlPlane(options = {}) {
     processes.setRuntimeCredentialProvider(async (instance) => {
       if (instance?.id !== familyServerInstanceId) return null;
       const core = await firstPartyCore.status(familyServerInstanceId);
-      if (core?.state !== 'installed' || core.artifact?.version !== '0.3.0'
+      if (core?.state !== 'installed' || core.artifact?.version !== '0.3.1'
         || core.artifact?.sha256 !== FAMILY_CORE_BRIDGE_SHA256) return null;
       return familyCoreCredentials.prepareLaunch(instance, { computerCommandEnabled: false });
     });
@@ -1072,7 +1072,7 @@ export async function createControlPlane(options = {}) {
       return instance !== null
         && familyCoreCredentials.verifyHello(payload, context)
         && payload.serverId === familyServerInstanceId
-        && payload.modVersion === '0.3.0'
+        && payload.modVersion === '0.3.1'
         && payload.minecraftVersion === instance.minecraftVersion
         && (
           payload.commandEnabled === false && payload.capabilities.length === 0
