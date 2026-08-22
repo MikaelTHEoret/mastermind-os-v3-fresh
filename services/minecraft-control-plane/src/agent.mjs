@@ -1088,9 +1088,12 @@ export async function createControlPlane(options = {}) {
     disabledFactory: createFamilyCompanionSkeleton,
     canSendChat: () => {
       const status = companionSessions.status();
-      return status.state === 'ready' && status.killSwitch !== true && status.activeAction === null;
+      return status.state === 'ready' && status.killSwitch !== true;
     },
     sendChat: (text) => companionSessions.dispatchAction({ kind: 'direct.say', args: { text } }, { timeoutMs: 15_000 }),
+    dispatchAction: (action, actionOptions) => companionSessions.dispatchAction(action, actionOptions),
+    cancelAction: (actionId, reason) => companionSessions.cancelAction(actionId, reason),
+    sessionStatus: () => companionSessions.status(),
   });
   const familyCoreSessions = options.familyCoreSessions ?? new FamilyCoreSessionManager({
     verifyHello: options.verifyFamilyCoreHello ?? (async (payload, context) => {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { validateReasoningRequest, validateReasoningResult } from './contracts.mjs';
 import { featureStatus } from './features.mjs';
 import { ConversationIntake, ConversationRouter, PermissionPolicy, createFamilyCompanionSkeleton } from './skeleton.mjs';
+import { CompanionPhysicalTaskSupervisor } from './tasks.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SAFE_MODEL = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
@@ -18,6 +19,7 @@ const PRIVATE_ENV_KEYS = Object.freeze([
   'MASTERMIND_MINECRAFT_COMPANION_CONVERSATION_ENABLED',
   'MASTERMIND_MINECRAFT_MODEL_REASONING_ENABLED',
   'MASTERMIND_MINECRAFT_OPENAI_MODEL',
+  'MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED',
 ]);
 
 const COMPANION_INSTRUCTIONS = `You are The_AlChemist___, a Minecraft player and companion.
@@ -258,6 +260,7 @@ export class CompanionConversationCoordinator {
     this.sendChat = options.sendChat;
     this.canSendChat = options.canSendChat ?? (() => true);
     this.governor = options.governor ?? new ModelCallGovernor();
+    this.taskSupervisor = options.taskSupervisor ?? null;
     if (!this.provider || typeof this.provider.reason !== 'function' || typeof this.sendChat !== 'function'
       || typeof this.canSendChat !== 'function') throw new TypeError('The companion conversation dependencies are invalid');
     this.modelCalls = 0;
@@ -278,6 +281,13 @@ export class CompanionConversationCoordinator {
     }
     const intake = this.intake.ingest(value);
     if (intake.actor !== 'COMPANION' || intake.authorization?.allowed !== true) return intake;
+    if (this.flags.physicalTaskPlanning && this.taskSupervisor) {
+      const task = await this.taskSupervisor.handle(value);
+      if (task.handled) {
+        this.intake.markExecution(task.code, value.occurredAt);
+        return { ...intake, execution: { ok: task.ok, code: task.code } };
+      }
+    }
     if (!this.flags.companionConversation || !this.flags.modelReasoning) return intake;
     if (!this.canSendChat()) {
       this.failures += 1;
@@ -301,7 +311,7 @@ export class CompanionConversationCoordinator {
           player: { displayName: value.displayName, role: value.role },
           message: value.text,
           channel: value.channel,
-          capabilities: { conversation: true, physicalActions: false, persistentMemory: false },
+          capabilities: { conversation: true, physicalActions: this.flags.physicalTaskPlanning === true, persistentMemory: false },
         },
         authorizedTools: [],
         deadlineAt: new Date(Date.now() + 20_000).toISOString(),
@@ -350,12 +360,13 @@ export function companionFlagsFromEnvironment(environment = process.env) {
   const requestedConversation = environment.MASTERMIND_MINECRAFT_COMPANION_CONVERSATION_ENABLED === 'true';
   const requestedReasoning = environment.MASTERMIND_MINECRAFT_MODEL_REASONING_ENABLED === 'true';
   const hasCredential = typeof environment.OPENAI_API_KEY === 'string' && environment.OPENAI_API_KEY.length >= 20;
+  const requestedPhysicalTasks = environment.MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED === 'true';
   return {
     computerChat: false,
     companionConversation: requestedConversation && requestedReasoning && hasCredential,
     modelReasoning: requestedConversation && requestedReasoning && hasCredential,
     profileCapture: false,
-    physicalTaskPlanning: false,
+    physicalTaskPlanning: requestedPhysicalTasks,
     survivalAutomation: false,
     modRequestExecution: false,
     inGameApprovals: false,
@@ -377,15 +388,24 @@ export function createFamilyCompanionBrain(options = {}) {
     model: environment.MASTERMIND_MINECRAFT_OPENAI_MODEL || DEFAULT_MODEL,
     fetcher: options.fetcher,
   });
+  const taskSupervisor = flags.physicalTaskPlanning
+    ? (options.taskSupervisor ?? new CompanionPhysicalTaskSupervisor({
+      dispatchAction: options.dispatchAction,
+      cancelAction: options.cancelAction,
+      sessionStatus: options.sessionStatus,
+      sendChat: options.sendChat,
+    }))
+    : null;
   const coordinator = new CompanionConversationCoordinator({
     flags,
     provider,
     sendChat: options.sendChat,
     canSendChat: options.canSendChat,
+    taskSupervisor,
   });
   const states = {
     computerChat: 'stubbed', companionConversation: 'implemented', modelReasoning: 'implemented', profileCapture: 'stubbed',
-    physicalTaskPlanning: 'stubbed', survivalAutomation: 'stubbed', modRequestExecution: 'stubbed', inGameApprovals: 'planned',
+    physicalTaskPlanning: 'implemented', survivalAutomation: 'stubbed', modRequestExecution: 'stubbed', inGameApprovals: 'planned',
     visionRecovery: 'planned', zenithBody: 'stubbed', enhancedHeadlessController: 'stubbed', hybridTelemetry: 'stubbed',
   };
   return {
@@ -393,5 +413,6 @@ export function createFamilyCompanionBrain(options = {}) {
     conversationStatus: () => coordinator.status(),
     status: () => featureStatus(flags, states),
     conversationCoordinator: coordinator,
+    taskSupervisor,
   };
 }

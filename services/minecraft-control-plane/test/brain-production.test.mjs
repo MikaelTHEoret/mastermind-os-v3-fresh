@@ -42,6 +42,9 @@ test('production feature activation is explicit and credential-gated', () => {
   assert.equal(enabled.companionConversation, true);
   assert.equal(enabled.modelReasoning, true);
   assert.equal(enabled.physicalTaskPlanning, false);
+  assert.equal(companionFlagsFromEnvironment({
+    MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED: 'true',
+  }).physicalTaskPlanning, true);
 });
 
 test('OpenAI provider sends a non-stored structured request and validates the bounded reply', async () => {
@@ -143,6 +146,70 @@ test('conversation coordinator dispatches a real-account chat action and opens b
   assert.deepEqual(sent, ['Hi Mik! What should we build today?']);
   assert.equal(coordinator.status().replies, 1);
   assert.equal(coordinator.status().activeCompanionSessions, 1);
+});
+
+test('conversation coordinator handles deterministic physical tasks without a model call', async () => {
+  let modelCalls = 0;
+  const handled = [];
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
+    provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
+    taskSupervisor: {
+      async handle(value) {
+        handled.push(value.text);
+        return { handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED' };
+      },
+    },
+    canSendChat: () => true,
+    sendChat: async () => { throw new Error('task supervisor owns narration'); },
+  });
+  const result = await coordinator.ingest(chat({ text: 'Alchemist, follow me' }));
+  assert.equal(result.execution.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.equal(modelCalls, 0);
+  assert.deepEqual(handled, ['Alchemist, follow me']);
+});
+
+test('deterministic physical tasks remain available without conversation or a model provider', async () => {
+  let modelCalls = 0;
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: false, modelReasoning: false, physicalTaskPlanning: true },
+    provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
+    taskSupervisor: {
+      async handle() { return { handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED' }; },
+    },
+    canSendChat: () => true,
+    sendChat: async () => {},
+  });
+  const result = await coordinator.ingest(chat({ text: 'Alchemist, follow me' }));
+  assert.equal(result.execution.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.equal(modelCalls, 0);
+});
+
+test('production brain wires an enabled task request to the typed companion bridge without model use', async () => {
+  let modelCalls = 0;
+  const calls = [];
+  const brain = createFamilyCompanionBrain({
+    environment: { OPENAI_API_KEY: 'sk-test-abcdefghijklmnopqrstuvwxyz' },
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
+    provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
+    canSendChat: () => true,
+    sendChat: async (text) => calls.push(['say', text]),
+    dispatchAction: async (action, options) => {
+      calls.push(['dispatch', action, options]);
+      return { actionId: '33333333-3333-4333-8333-333333333333', kind: action.kind, status: 'dispatched' };
+    },
+    cancelAction: async () => { throw new Error('must not cancel'); },
+    sessionStatus: () => ({ activeAction: null }),
+  });
+  const result = await brain.ingestChat(chat({ text: 'Alchemist, follow me' }));
+  assert.equal(result.execution.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.equal(modelCalls, 0);
+  assert.equal(brain.status().flags.physicalTaskPlanning, true);
+  assert.equal(brain.status().states.physicalTaskPlanning, 'implemented');
+  assert.deepEqual(calls, [
+    ['dispatch', { kind: 'skill.followPlayer', args: { playerUuid: PLAYER, distance: 4 } }, { timeoutMs: 1_800_000 }],
+    ['say', "Okay, I'll follow you."],
+  ]);
 });
 
 test('production brain falls back to the all-disabled skeleton unless both gates are enabled', () => {
