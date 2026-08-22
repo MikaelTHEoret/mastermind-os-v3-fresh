@@ -33,6 +33,7 @@ import { CompanionSessionManager } from './companion/session-manager.mjs';
 import { FamilyCoreBridgeServer } from './family-core/bridge-server.mjs';
 import { FamilyCoreCredentialManager } from './family-core/credential-manager.mjs';
 import { FamilyCoreSessionManager } from './family-core/session-manager.mjs';
+import { FamilyCoreIdentityRegistry } from './family-core/identity-registry.mjs';
 import { FamilyClientProvisioner } from './companion/client-provisioner.mjs';
 import { DpapiMinecraftAccountVault } from './companion/dpapi-vault.mjs';
 import { MicrosoftMinecraftAuth } from './companion/microsoft-auth.mjs';
@@ -60,9 +61,10 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 ]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
-const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.3.1.jar', import.meta.url));
-const FAMILY_CORE_BRIDGE_SHA256 = 'f344ce2363be26cf24ee0e9dc9bdf1c105614343883721a5d75710b15b502e7b';
+const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.4.0.jar', import.meta.url));
+const FAMILY_CORE_BRIDGE_SHA256 = '1a9babbce78c4105a71a9bb35c121cad4d567e988d2035f2cdbc1667324105f1';
 const FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED = true;
+const FAMILY_CORE_IDENTITY_EVENTS_ENABLED = true;
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -981,6 +983,15 @@ export async function createControlPlane(options = {}) {
     throw new TypeError('The Family Core credential manager is invalid');
   }
   await familyCoreCredentials.initialize();
+  const familyCoreIdentities = options.familyCoreIdentities ?? new FamilyCoreIdentityRegistry(managedRoot, {
+    integrityKey: pinnedLaunchIntegrityKey,
+  });
+  if (typeof familyCoreIdentities.initialize !== 'function' || typeof familyCoreIdentities.bind !== 'function'
+    || typeof familyCoreIdentities.resolvePlayer !== 'function'
+    || typeof familyCoreIdentities.status !== 'function') {
+    throw new TypeError('The Family Core identity registry is invalid');
+  }
+  await familyCoreIdentities.initialize();
   const credentialInstance = await store.get(familyServerInstanceId);
   if (credentialInstance) {
     const active = typeof processes.isActive === 'function'
@@ -992,10 +1003,11 @@ export async function createControlPlane(options = {}) {
     processes.setRuntimeCredentialProvider(async (instance) => {
       if (instance?.id !== familyServerInstanceId) return null;
       const core = await firstPartyCore.status(familyServerInstanceId);
-      if (core?.state !== 'installed' || core.artifact?.version !== '0.3.1'
+      if (core?.state !== 'installed' || core.artifact?.version !== '0.4.0'
         || core.artifact?.sha256 !== FAMILY_CORE_BRIDGE_SHA256) return null;
       return familyCoreCredentials.prepareLaunch(instance, {
         computerCommandEnabled: FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED,
+        identityEventsEnabled: FAMILY_CORE_IDENTITY_EVENTS_ENABLED,
       });
     });
   }
@@ -1075,15 +1087,18 @@ export async function createControlPlane(options = {}) {
       return instance !== null
         && familyCoreCredentials.verifyHello(payload, context)
         && payload.serverId === familyServerInstanceId
-        && payload.modVersion === '0.3.1'
+        && payload.modVersion === '0.4.0'
         && payload.minecraftVersion === instance.minecraftVersion
         && (
-          payload.commandEnabled === false && payload.capabilities.length === 0
+          payload.commandEnabled === false && payload.capabilities.length === 1
+            && payload.capabilities[0] === 'identity.events'
           || payload.commandEnabled === true
-            && payload.capabilities.length === 1
+            && payload.capabilities.length === 2
             && payload.capabilities[0] === 'computer.request'
+            && payload.capabilities[1] === 'identity.events'
         );
     }),
+    resolvePlayer: (player) => familyCoreIdentities.resolvePlayer(player),
     ...(typeof options.onComputerRequest === 'function' ? { onComputerRequest: options.onComputerRequest } : {}),
   });
   if (!companionLifecycle) {
@@ -1926,7 +1941,34 @@ export async function createControlPlane(options = {}) {
           familyCore: {
             session: familyCoreSessions.status(),
             credentials: familyCoreCredentials.status(),
+            identities: familyCoreIdentities.status(),
           },
+        });
+      }
+      if (request.method === 'POST' && url.pathname === '/v1/family-core/identities/parent' && url.search === '') {
+        const input = await readJsonBody(request);
+        const keys = ['playerId', 'minecraftUuid', 'displayName', 'confirmation'];
+        if (!input || typeof input !== 'object' || Array.isArray(input)
+          || Object.keys(input).length !== keys.length || Object.keys(input).some((key) => !keys.includes(key))
+          || !UUID_PATTERN.test(input.playerId ?? '') || !UUID_PATTERN.test(input.minecraftUuid ?? '')
+          || typeof input.displayName !== 'string' || !/^[A-Za-z0-9_]{1,16}$/.test(input.displayName)
+          || input.confirmation !== 'BIND FAMILY CORE PARENT') {
+          return json(response, 400, {
+            ok: false,
+            code: 'FAMILY_CORE_IDENTITY_INVALID',
+            message: 'Parent identity binding requires exact UUID evidence and confirmation.',
+          });
+        }
+        const result = await familyCoreIdentities.bind({
+          playerId: input.playerId.toLowerCase(),
+          minecraftUuid: input.minecraftUuid.toLowerCase(),
+          registeredDisplayName: input.displayName,
+          role: 'parent',
+        });
+        return json(response, result.created ? 201 : 200, {
+          ok: true,
+          created: result.created,
+          identities: familyCoreIdentities.status(),
         });
       }
       if (request.method === 'POST' && url.pathname === '/v1/control/prepare-shutdown') {
@@ -2485,6 +2527,7 @@ export async function createControlPlane(options = {}) {
     companionSessions,
     familyCoreSessions,
     familyCoreCredentials,
+    familyCoreIdentities,
     domainEventOutbox,
     companionDomainEvents,
     memoryEventConsumer,

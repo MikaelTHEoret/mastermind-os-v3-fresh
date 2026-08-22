@@ -1226,6 +1226,33 @@ function publicWorldError(envelope: Record<string, unknown>): Record<string, unk
   return { ok: false, code: publicCode, message };
 }
 
+function publicFamilyCoreIdentityEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  if (envelope.ok !== true) {
+    return {
+      ok: false,
+      code: 'FAMILY_CORE_IDENTITY_BINDING_FAILED',
+      message: 'The local parent identity binding was not accepted.',
+    };
+  }
+  if (Object.keys(envelope).sort().join('\0') !== ['created', 'identities', 'ok'].sort().join('\0')
+    || typeof envelope.created !== 'boolean' || !envelope.identities
+    || typeof envelope.identities !== 'object' || Array.isArray(envelope.identities)) {
+    throw new MinecraftAccessError(502, 'INVALID_FAMILY_CORE_IDENTITY_RESPONSE', 'The local identity response was invalid.');
+  }
+  const identities = envelope.identities as Record<string, unknown>;
+  const roles = identities.roles;
+  if (Object.keys(identities).sort().join('\0') !== ['state', 'bindingCount', 'roles'].sort().join('\0')
+    || identities.state !== 'ready' || identities.bindingCount !== 1
+    || !roles || typeof roles !== 'object' || Array.isArray(roles)
+    || Object.keys(roles).sort().join('\0') !== ['parent', 'child', 'service'].sort().join('\0')
+    || (roles as Record<string, unknown>).parent !== 1
+    || (roles as Record<string, unknown>).child !== 0
+    || (roles as Record<string, unknown>).service !== 0) {
+    throw new MinecraftAccessError(502, 'INVALID_FAMILY_CORE_IDENTITY_RESPONSE', 'The local identity response was invalid.');
+  }
+  return { ok: true, created: envelope.created, identities: { state: 'ready', bindingCount: 1, roles: { parent: 1, child: 0, service: 0 } } };
+}
+
 function sanitizeWorldEnvelope(
   envelope: Record<string, unknown>,
   kind: 'inventory' | 'plan' | 'operation',
@@ -1294,6 +1321,10 @@ function mapTarget(method: string, segments: string[], searchParams: URLSearchPa
   }
   if (method === 'GET' && segments.length === 2 && segments[0] === 'brain' && segments[1] === 'status' && ![...searchParams].length) {
     return '/v1/brain/status';
+  }
+  if (method === 'POST' && segments.length === 3 && segments[0] === 'family-core'
+    && segments[1] === 'identities' && segments[2] === 'parent' && ![...searchParams].length) {
+    return '/v1/family-core/identities/parent';
   }
   if (
     method === 'GET' && segments.length === 5 && segments[0] === 'instances'
@@ -1582,6 +1613,28 @@ async function sanitizedFirstPartyCoreBody(request: NextRequest, action: string)
   }
   return JSON.stringify({
     expectedGeneration: record.expectedGeneration,
+    confirmation: record.confirmation,
+  });
+}
+
+async function sanitizedFamilyCoreParentIdentityBody(request: NextRequest): Promise<string> {
+  const value = await readBoundedJsonBody(request, 'The parent identity request', MAX_FIRST_PARTY_CORE_BODY_BYTES);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new MinecraftAccessError(400, 'FAMILY_CORE_IDENTITY_INVALID', 'The parent identity request is invalid.');
+  }
+  const record = value as Record<string, unknown>;
+  const keys = ['playerId', 'minecraftUuid', 'displayName', 'confirmation'];
+  if (Object.keys(record).length !== keys.length || Object.keys(record).some((key) => !keys.includes(key))
+    || typeof record.playerId !== 'string' || !ACTION_ID.test(record.playerId)
+    || typeof record.minecraftUuid !== 'string' || !ACTION_ID.test(record.minecraftUuid)
+    || typeof record.displayName !== 'string' || !JAVA_PROFILE_NAME.test(record.displayName)
+    || record.confirmation !== 'BIND FAMILY CORE PARENT') {
+    throw new MinecraftAccessError(400, 'FAMILY_CORE_IDENTITY_INVALID', 'Parent identity binding requires exact UUID evidence and confirmation.');
+  }
+  return JSON.stringify({
+    playerId: record.playerId.toLowerCase(),
+    minecraftUuid: record.minecraftUuid.toLowerCase(),
+    displayName: record.displayName,
     confirmation: record.confirmation,
   });
 }
@@ -1932,6 +1985,8 @@ async function handle(request: NextRequest, context: RouteContext) {
         : request.method === 'POST' && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID
           && path[2] === 'first-party-core' && ['promote', 'rollback'].includes(path[3] ?? '')
           ? await sanitizedFirstPartyCoreBody(request, path[3])
+        : request.method === 'POST' && path[0] === 'family-core' && path[1] === 'identities' && path[2] === 'parent'
+          ? await sanitizedFamilyCoreParentIdentityBody(request)
         : request.method === 'POST' && path[0] === 'companion' && path[1] === 'actions' && path.length === 2
           ? await sanitizedCompanionActionBody(request)
         : undefined;
@@ -1962,6 +2017,8 @@ async function handle(request: NextRequest, context: RouteContext) {
     const isFirstPartyCoreMutation = request.method === 'POST' && path.length === 4
       && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID && path[2] === 'first-party-core'
       && ['promote', 'rollback'].includes(path[3] ?? '');
+    const isFamilyCoreIdentityBinding = request.method === 'POST' && path.length === 3
+      && path[0] === 'family-core' && path[1] === 'identities' && path[2] === 'parent';
     const isUpdateAction = request.method === 'POST' && path.length === 3
       && path[0] === 'instances' && path[2] === 'update';
     const isBrainStatus = request.method === 'GET' && path.length === 2
@@ -2055,6 +2112,8 @@ async function handle(request: NextRequest, context: RouteContext) {
                 ? publicFirstPartyCoreEnvelope
               : isFirstPartyCoreMutation
                 ? publicFirstPartyCoreOperationEnvelope
+              : isFamilyCoreIdentityBinding
+                ? publicFamilyCoreIdentityEnvelope
               : isUpdateAction
                 ? (envelope) => publicUpdateActionEnvelope(envelope, path[1])
                 : isRetiredVersionPurge

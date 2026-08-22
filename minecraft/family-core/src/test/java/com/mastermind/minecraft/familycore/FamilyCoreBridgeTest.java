@@ -26,8 +26,25 @@ final class FamilyCoreBridgeTest {
         FamilyCoreRuntimeConfig config = FamilyCoreRuntimeConfig.fromProperties(new Properties());
         assertFalse(config.serverBridge().enabled());
         assertFalse(config.computerCommandEnabled());
+        assertFalse(config.identityEventsEnabled());
         assertFalse(FamilyCoreFeatures.flags(config).get("serverBridge"));
         assertFalse(FamilyCoreFeatures.flags(config).get("computerCommand"));
+    }
+
+    @Test
+    void identityEventsRequireTheAuthenticatedBridgeAndActivateIndependently() throws Exception {
+        Properties unsafe = new Properties();
+        unsafe.setProperty("identityEvents.enabled", "true");
+        assertThrows(IllegalArgumentException.class, () -> FamilyCoreRuntimeConfig.fromProperties(unsafe));
+
+        Path token = temporaryDirectory.resolve("family-core-identity.token");
+        Files.writeString(token, "abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123456789");
+        Properties properties = bridgeProperties(token);
+        properties.setProperty("identityEvents.enabled", "true");
+        FamilyCoreRuntimeConfig config = FamilyCoreRuntimeConfig.fromProperties(properties);
+        assertTrue(config.identityEventsEnabled());
+        assertTrue(FamilyCoreFeatures.flags(config).get("identityEvents"));
+        assertFalse(config.computerCommandEnabled());
     }
 
     @Test

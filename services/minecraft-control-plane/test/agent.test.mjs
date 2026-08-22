@@ -170,9 +170,40 @@ test('exposes only sanitized Family Core session and launch-credential status', 
   const body = await response.json();
   assert.equal(body.familyCore.session.state, 'disconnected');
   assert.deepEqual(body.familyCore.credentials, {
-    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false,
+    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false, identityEventsEnabled: false,
+  });
+  assert.deepEqual(body.familyCore.identities, {
+    state: 'empty', bindingCount: 0, roles: { parent: 0, child: 0, service: 0 },
   });
   assert.doesNotMatch(JSON.stringify(body), /server\.token|tokenSha256|tokenFile|configFile/i);
+});
+
+test('binds one confirmed parent identity without returning UUID evidence', async (t) => {
+  const { baseUrl } = await fixture(t);
+  const input = {
+    playerId: 'ba0e9c2a-2f83-4833-8047-2ef3371f4fbd',
+    minecraftUuid: '1ace17da-0910-403b-9dd3-06fbb3baa249',
+    displayName: 'MISS_LENKA',
+    confirmation: 'BIND FAMILY CORE PARENT',
+  };
+  const bind = () => fetch(`${baseUrl}/v1/family-core/identities/parent`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const first = await bind();
+  assert.equal(first.status, 201);
+  const firstBody = await first.json();
+  assert.deepEqual(firstBody, {
+    ok: true,
+    created: true,
+    identities: { state: 'ready', bindingCount: 1, roles: { parent: 1, child: 0, service: 0 } },
+  });
+  assert.doesNotMatch(JSON.stringify(firstBody), /MISS_LENKA|1ace17da|ba0e9c2a/i);
+
+  const repeated = await bind();
+  assert.equal(repeated.status, 200);
+  assert.equal((await repeated.json()).created, false);
 });
 
 test('memory identity configuration is canonical and required only for opt-in synchronization', () => {

@@ -51,7 +51,7 @@ async function fixture(t) {
 test('provisions a bounded per-launch token without exposing it through config, manifest, or status', async (t) => {
   const setup = await fixture(t);
   assert.deepEqual(await setup.manager.initialize(), {
-    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false,
+    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false, identityEventsEnabled: false,
   });
   assert.equal(setup.integrityReleases, 1);
 
@@ -68,6 +68,7 @@ test('provisions a bounded per-launch token without exposing it through config, 
   assert.equal(JSON.stringify(status).includes(token), false);
   assert.match(config, /serverBridge\.enabled=true/);
   assert.match(config, /computerCommand\.enabled=false/);
+  assert.match(config, /identityEvents\.enabled=false/);
   assert.match(config, /companionTelemetry\.enabled=false/);
   assert.match(config, new RegExp(`serverBridge\\.tokenFile=${setup.tokenFile.replaceAll('\\', '\\\\').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
 
@@ -76,10 +77,12 @@ test('provisions a bounded per-launch token without exposing it through config, 
   assert.equal(setup.manager.verifyHello({
     instanceId: SERVER_INSTANCE_ID,
     commandEnabled: false,
+    capabilities: [],
   }, { sessionId: SESSION_ID }), true);
   assert.equal(setup.manager.verifyHello({
     instanceId: '33333333-3333-4333-8333-333333333333',
     commandEnabled: false,
+    capabilities: [],
   }, { sessionId: SESSION_ID }), false);
 
   await lease.assertHeld();
@@ -114,18 +117,22 @@ test('retains an authenticated credential only for the exact active server and r
 test('binds deterministic Computer command activation into the launch credential and hello', async (t) => {
   const setup = await fixture(t);
   await setup.manager.initialize();
-  const lease = await setup.manager.prepareLaunch(setup.instance, { computerCommandEnabled: true });
+  const lease = await setup.manager.prepareLaunch(setup.instance, { computerCommandEnabled: true, identityEventsEnabled: true });
   const config = await fs.readFile(setup.configFile, 'utf8');
 
   assert.match(config, /computerCommand\.enabled=true/);
+  assert.match(config, /identityEvents\.enabled=true/);
   assert.equal(setup.manager.status().computerCommandEnabled, true);
+  assert.equal(setup.manager.status().identityEventsEnabled, true);
   assert.equal(setup.manager.verifyHello({
     instanceId: SERVER_INSTANCE_ID,
     commandEnabled: true,
+    capabilities: ['computer.request', 'identity.events'],
   }, { sessionId: SESSION_ID }), true);
   assert.equal(setup.manager.verifyHello({
     instanceId: SERVER_INSTANCE_ID,
     commandEnabled: false,
+    capabilities: ['computer.request', 'identity.events'],
   }, { sessionId: SESSION_ID }), false);
 
   await lease.release();

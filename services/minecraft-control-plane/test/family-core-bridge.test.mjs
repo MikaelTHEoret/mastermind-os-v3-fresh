@@ -40,6 +40,7 @@ async function fixture(t, options = {}) {
     now: options.now,
     helloTimeoutMs: options.helloTimeoutMs,
     heartbeatTimeoutMs: options.heartbeatTimeoutMs,
+    resolvePlayer: options.resolvePlayer,
   });
   const server = http.createServer((request, response) => {
     response.writeHead(404).end();
@@ -220,7 +221,7 @@ test('unimplemented Computer requests receive explicit private and status reject
     });
   });
   socket.send(JSON.stringify(serverMessage(sessionId, 2, 'computer.requested', {
-    player: { minecraftUuid: playerId, displayName: 'Kid_Player', role: 'child', identityBound: true },
+    player: { minecraftUuid: playerId, displayName: 'Kid_Player', role: 'guest', identityBound: false },
     text: 'Can you build something?',
   }, { messageId: requestId })));
   await complete;
@@ -230,6 +231,48 @@ test('unimplemented Computer requests receive explicit private and status reject
   assert.equal(frames[0].payload.message, 'Computer reasoning is not enabled yet.');
   assert.equal(frames[1].payload.text, '[Computer] Help and status are available. Other requests are not enabled yet.');
   socket.close();
+});
+
+test('identity events discard server role claims and resolve the authenticated UUID centrally', async (t) => {
+  const parentId = crypto.randomUUID();
+  const minecraftUuid = crypto.randomUUID();
+  const { manager, sessionId, port } = await fixture(t, {
+    resolvePlayer: (player) => ({ ...player, playerId: parentId, role: 'parent', identityBound: true }),
+  });
+  const socket = connect(port);
+  await waitFor(socket, 'open');
+  const ready = waitFor(manager, 'ready');
+  socket.send(JSON.stringify(serverMessage(sessionId, 1, 'server.hello', helloPayload({
+    capabilities: ['identity.events'],
+  }))));
+  await ready;
+  const event = waitFor(manager, 'identity-event');
+  socket.send(JSON.stringify(serverMessage(sessionId, 2, 'player.joined', {
+    player: { minecraftUuid, displayName: 'MISS_LENKA', role: 'guest', identityBound: false },
+  })));
+  const [joined] = await event;
+  assert.equal(joined.type, 'player.joined');
+  assert.deepEqual(joined.player, {
+    minecraftUuid, displayName: 'MISS_LENKA', playerId: parentId, role: 'parent', identityBound: true,
+  });
+  assert.equal(manager.status().identities.present, 1);
+  assert.equal(manager.status().identities.roles.parent, 1);
+  socket.close();
+});
+
+test('identity events reject any role asserted by the server mod', async (t) => {
+  const { manager, sessionId, port } = await fixture(t);
+  const socket = connect(port);
+  await waitFor(socket, 'open');
+  const ready = waitFor(manager, 'ready');
+  socket.send(JSON.stringify(serverMessage(sessionId, 1, 'server.hello', helloPayload({ capabilities: ['identity.events'] }))));
+  await ready;
+  const closed = waitFor(socket, 'close');
+  socket.send(JSON.stringify(serverMessage(sessionId, 2, 'player.joined', {
+    player: { minecraftUuid: crypto.randomUUID(), displayName: 'Impostor', role: 'parent', identityBound: true },
+  })));
+  const [code] = await closed;
+  assert.equal(code, 4409);
 });
 
 test('liveness closes a ready Family Core session that stops heartbeating', async (t) => {

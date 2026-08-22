@@ -65,7 +65,7 @@ async function writeExclusive(file, bytes) {
   }
 }
 
-function configText({ sessionId, serverInstanceId, tokenFile, computerCommandEnabled }) {
+function configText({ sessionId, serverInstanceId, tokenFile, computerCommandEnabled, identityEventsEnabled }) {
   const values = [
     ['serverBridge.enabled', 'true'],
     ['serverBridge.endpoint', ENDPOINT],
@@ -74,6 +74,7 @@ function configText({ sessionId, serverInstanceId, tokenFile, computerCommandEna
     ['serverBridge.tokenFile', tokenFile],
     ['serverBridge.heartbeatTicks', '100'],
     ['computerCommand.enabled', computerCommandEnabled ? 'true' : 'false'],
+    ['identityEvents.enabled', identityEventsEnabled ? 'true' : 'false'],
     ['companionTelemetry.enabled', 'false'],
   ];
   for (const [, value] of values) {
@@ -139,9 +140,10 @@ export class FamilyCoreCredentialManager {
     return { action: 'removed-stale' };
   }
 
-  async prepareLaunch(instance, { computerCommandEnabled = false } = {}) {
+  async prepareLaunch(instance, { computerCommandEnabled = false, identityEventsEnabled = false } = {}) {
     this.#requireInitialized();
     if (typeof computerCommandEnabled !== 'boolean') throw new TypeError('computerCommandEnabled must be boolean');
+    if (typeof identityEventsEnabled !== 'boolean') throw new TypeError('identityEventsEnabled must be boolean');
     const configFile = this.#configFile(instance);
     if (this.current !== null || await this.#exists(this.tokenFile) || await this.#exists(configFile)) {
       throw credentialError('FAMILY_CORE_CREDENTIAL_RECOVERY_REQUIRED', 'Family Core credentials already exist and were not replaced.');
@@ -158,6 +160,7 @@ export class FamilyCoreCredentialManager {
       serverInstanceId,
       tokenFile: this.tokenFile,
       computerCommandEnabled,
+      identityEventsEnabled,
     });
     const base = {
       schemaVersion: 1,
@@ -169,6 +172,7 @@ export class FamilyCoreCredentialManager {
       configFile,
       configSha256: digest(config),
       computerCommandEnabled,
+      identityEventsEnabled,
       createdAt: new Date(this.now()).toISOString(),
     };
     const credential = Object.freeze({ ...base, generation: digest(canonical(base)) });
@@ -225,7 +229,8 @@ export class FamilyCoreCredentialManager {
       && typeof sessionId === 'string'
       && sessionId.toLowerCase() === current.sessionId
       && payload?.instanceId === current.serverInstanceId
-      && payload?.commandEnabled === current.computerCommandEnabled;
+      && payload?.commandEnabled === current.computerCommandEnabled
+      && payload?.capabilities?.includes('identity.events') === current.identityEventsEnabled;
   }
 
   status() {
@@ -235,8 +240,9 @@ export class FamilyCoreCredentialManager {
         generation: this.current.generation,
         createdAt: this.current.createdAt,
         computerCommandEnabled: this.current.computerCommandEnabled,
+        identityEventsEnabled: this.current.identityEventsEnabled,
       }
-      : { state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false };
+      : { state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false, identityEventsEnabled: false };
   }
 
   #configFile(instance) {
@@ -275,12 +281,13 @@ export class FamilyCoreCredentialManager {
   #validateCredential(value) {
     const keys = [
       'schemaVersion', 'instanceId', 'sessionId', 'serverInstanceId', 'tokenSha256', 'tokenFile',
-      'configFile', 'configSha256', 'computerCommandEnabled', 'createdAt', 'generation',
+      'configFile', 'configSha256', 'computerCommandEnabled', 'identityEventsEnabled', 'createdAt', 'generation',
     ];
     if (!exactKeys(value, keys) || value.schemaVersion !== 1 || value.instanceId !== 'family-server'
       || !UUID.test(value.sessionId ?? '') || !UUID.test(value.serverInstanceId ?? '')
       || !SHA256.test(value.tokenSha256 ?? '') || !SHA256.test(value.configSha256 ?? '')
       || !SHA256.test(value.generation ?? '') || typeof value.computerCommandEnabled !== 'boolean'
+      || typeof value.identityEventsEnabled !== 'boolean'
       || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))
       || value.tokenFile !== this.tokenFile || typeof value.configFile !== 'string' || !path.isAbsolute(value.configFile)) {
       throw credentialError('FAMILY_CORE_CREDENTIAL_RECOVERY_REQUIRED', 'The Family Core credential manifest contains invalid state.');

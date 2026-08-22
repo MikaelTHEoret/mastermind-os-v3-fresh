@@ -7,6 +7,7 @@ import com.mastermind.minecraft.familycore.bridge.FamilyCoreBridgeRuntime;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,7 +23,7 @@ public final class FamilyCoreMod implements ModInitializer {
             if (config.serverBridge().enabled()) {
                 ServerLifecycleEvents.SERVER_STARTED.register(server -> {
                     FamilyCoreBridgeRuntime runtime = new FamilyCoreBridgeRuntime(
-                        server, config.serverBridge(), config.computerCommandEnabled(), LOGGER
+                        server, config.serverBridge(), config.computerCommandEnabled(), config.identityEventsEnabled(), LOGGER
                     );
                     serverBridge = runtime;
                     runtime.start();
@@ -37,6 +38,16 @@ public final class FamilyCoreMod implements ModInitializer {
                     if (runtime != null) runtime.close();
                 });
                 if (config.computerCommandEnabled()) ComputerCommand.register(() -> serverBridge);
+                if (config.identityEventsEnabled()) {
+                    ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+                        FamilyCoreBridgeRuntime runtime = serverBridge;
+                        if (runtime != null) runtime.playerJoined(handler.getPlayer());
+                    });
+                    ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+                        FamilyCoreBridgeRuntime runtime = serverBridge;
+                        if (runtime != null) runtime.playerLeft(handler.getPlayer());
+                    });
+                }
             }
             if (config.companionTelemetryEnabled()) {
                 CompanionAttestationService service = new CompanionAttestationService(config, LOGGER);

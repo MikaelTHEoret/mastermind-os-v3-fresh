@@ -17,7 +17,7 @@ public final class FamilyCoreFeatures {
         flags.put("serverBridge", config.serverBridge().enabled());
         flags.put("computerCommand", config.computerCommandEnabled());
         flags.put("chatCapture", false);
-        flags.put("identityEvents", false);
+        flags.put("identityEvents", config.identityEventsEnabled());
         flags.put("adminExecution", false);
         flags.put("serverShutdown", false);
         flags.put("companionTelemetry", false);

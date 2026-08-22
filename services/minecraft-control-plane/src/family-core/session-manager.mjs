@@ -7,6 +7,8 @@ import {
 } from './protocol.mjs';
 
 const MAX_MESSAGE_IDS = 1_024;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const ROLES = new Set(['parent', 'child', 'guest', 'service']);
 
 export class FamilyCoreSessionError extends Error {
   constructor(statusCode, code, message) {
@@ -36,6 +38,8 @@ export class FamilyCoreSessionManager extends EventEmitter {
     if (this.onComputerRequest !== null && typeof this.onComputerRequest !== 'function') {
       throw new TypeError('onComputerRequest must be a function when provided');
     }
+    this.resolvePlayer = options.resolvePlayer ?? ((player) => ({ ...player, playerId: null, role: 'guest', identityBound: false }));
+    if (typeof this.resolvePlayer !== 'function') throw new TypeError('resolvePlayer must be a function');
     this.now = options.now ?? (() => Date.now());
     this.helloTimeoutMs = options.helloTimeoutMs ?? 5_000;
     this.heartbeatTimeoutMs = options.heartbeatTimeoutMs ?? 15_000;
@@ -49,6 +53,7 @@ export class FamilyCoreSessionManager extends EventEmitter {
     this.currentSessionId = null;
     this.lastDisconnect = null;
     this.receiveQueue = Promise.resolve();
+    this.presentPlayers = new Map();
   }
 
   hasActiveConnection() {
@@ -134,14 +139,27 @@ export class FamilyCoreSessionManager extends EventEmitter {
       await this.#handleComputerRequest(message);
       return { accepted: true, type: message.type };
     }
+    if (message.type === 'player.joined' || message.type === 'player.left') {
+      await this.#handleIdentityEvent(message);
+      return { accepted: true, type: message.type };
+    }
     this.emit('message', clone(message));
     return { accepted: true, type: message.type };
   }
 
+  async #handleIdentityEvent(message) {
+    const player = await this.#resolveAuthoritativePlayer(message.payload.player);
+    if (message.type === 'player.joined') this.presentPlayers.set(player.minecraftUuid, clone(player));
+    else this.presentPlayers.delete(player.minecraftUuid);
+    this.emit('identity-event', { type: message.type, player: clone(player), messageId: message.messageId });
+  }
+
   async #handleComputerRequest(message) {
-    this.emit('computer-request', clone(message));
+    const player = await this.#resolveAuthoritativePlayer(message.payload.player);
+    const resolvedMessage = { ...message, payload: { ...message.payload, player } };
+    this.emit('computer-request', clone(resolvedMessage));
     if (this.onComputerRequest) {
-      await this.onComputerRequest(clone(message), {
+      await this.onComputerRequest(clone(resolvedMessage), {
         send: (type, payload, correlationId = message.messageId) => this.send(type, payload, correlationId),
       });
       return;
@@ -155,6 +173,24 @@ export class FamilyCoreSessionManager extends EventEmitter {
       minecraftUuid: message.payload.player.minecraftUuid,
       text: '[Computer] Help and status are available. Other requests are not enabled yet.',
     }, message.messageId);
+  }
+
+  async #resolveAuthoritativePlayer(asserted) {
+    if (asserted.role !== 'guest' || asserted.identityBound !== false) {
+      throw new FamilyCoreProtocolError('UNTRUSTED_IDENTITY_CLAIM', 'Family Core must not assign player roles', 4409);
+    }
+    const player = await this.resolvePlayer({
+      minecraftUuid: asserted.minecraftUuid,
+      displayName: asserted.displayName,
+    });
+    if (!player || typeof player !== 'object' || Array.isArray(player)
+      || !UUID.test(player.minecraftUuid ?? '') || player.minecraftUuid !== asserted.minecraftUuid
+      || player.displayName !== asserted.displayName || !ROLES.has(player.role)
+      || typeof player.identityBound !== 'boolean'
+      || (player.identityBound ? !UUID.test(player.playerId ?? '') || player.role === 'guest' : player.playerId !== null || player.role !== 'guest')) {
+      throw new FamilyCoreProtocolError('INVALID_IDENTITY_RESOLUTION', 'The player identity resolver returned invalid evidence', 4409);
+    }
+    return clone(player);
   }
 
   send(type, payload, correlationId = null) {
@@ -193,6 +229,7 @@ export class FamilyCoreSessionManager extends EventEmitter {
     if (!this.connection || this.connection.socket !== socket) return this.status();
     const previous = this.connection;
     this.connection = null;
+    this.presentPlayers.clear();
     this.lastDisconnect = {
       at: new Date(this.now()).toISOString(),
       code,
@@ -219,6 +256,13 @@ export class FamilyCoreSessionManager extends EventEmitter {
       connectedAt: connection ? new Date(connection.connectedAtMs).toISOString() : null,
       lastHeartbeatAt: connection?.lastHeartbeatMs == null ? null : new Date(connection.lastHeartbeatMs).toISOString(),
       server: connection?.server ?? null,
+      identities: {
+        present: this.presentPlayers.size,
+        bound: [...this.presentPlayers.values()].filter((player) => player.identityBound).length,
+        roles: Object.fromEntries(['parent', 'child', 'guest', 'service'].map((role) => [
+          role, [...this.presentPlayers.values()].filter((player) => player.role === role).length,
+        ])),
+      },
       lastDisconnect: this.lastDisconnect,
     });
   }

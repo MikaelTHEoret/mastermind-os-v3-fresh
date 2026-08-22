@@ -20,17 +20,20 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
     private final ServerBridgeConfig config;
     private final Logger logger;
     private final boolean computerCommandEnabled;
+    private final boolean identityEventsEnabled;
     private final FamilyCoreWebSocket transport;
     private final FamilyCoreHeartbeatLoop heartbeatLoop;
     private final AtomicInteger playerCount = new AtomicInteger();
     private final Map<UUID, UUID> pendingComputerRequests = new ConcurrentHashMap<>();
+    private final Set<UUID> announcedPlayers = ConcurrentHashMap.newKeySet();
     private final long startedAtNanos = System.nanoTime();
 
-    public FamilyCoreBridgeRuntime(MinecraftServer server, ServerBridgeConfig config, boolean computerCommandEnabled, Logger logger) {
+    public FamilyCoreBridgeRuntime(MinecraftServer server, ServerBridgeConfig config, boolean computerCommandEnabled, boolean identityEventsEnabled, Logger logger) {
         this.server = server;
         this.config = config;
         this.logger = logger;
         this.computerCommandEnabled = computerCommandEnabled;
+        this.identityEventsEnabled = identityEventsEnabled;
         this.transport = new FamilyCoreWebSocket(config, this);
         this.heartbeatLoop = new FamilyCoreHeartbeatLoop(config.heartbeatTicks(), () -> transport.heartbeat(
             Math.max(0, (System.nanoTime() - startedAtNanos) / 1_000_000L),
@@ -48,13 +51,8 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
     }
 
     public boolean requestComputer(ServerPlayer player, String text) {
-        JsonObject identity = new JsonObject();
-        identity.addProperty("minecraftUuid", player.getUUID().toString());
-        identity.addProperty("displayName", player.getGameProfile().name());
-        identity.addProperty("role", "guest");
-        identity.addProperty("identityBound", false);
         JsonObject payload = new JsonObject();
-        payload.add("player", identity);
+        payload.add("player", playerIdentity(player));
         payload.addProperty("text", text);
         UUID requestId = transport.send("computer.requested", payload, null);
         if (requestId == null) return false;
@@ -64,6 +62,20 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
 
     public String status() {
         return transport.status();
+    }
+
+    public void playerJoined(ServerPlayer player) {
+        if (!identityEventsEnabled || !transport.isReady() || !announcedPlayers.add(player.getUUID())) return;
+        JsonObject payload = new JsonObject();
+        payload.add("player", playerIdentity(player));
+        if (transport.send("player.joined", payload, null) == null) announcedPlayers.remove(player.getUUID());
+    }
+
+    public void playerLeft(ServerPlayer player) {
+        if (!identityEventsEnabled || !announcedPlayers.remove(player.getUUID()) || !transport.isReady()) return;
+        JsonObject payload = new JsonObject();
+        payload.add("player", playerIdentity(player));
+        transport.send("player.left", payload, null);
     }
 
     @Override
@@ -77,6 +89,7 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
             .orElseThrow().getMetadata().getVersion().getFriendlyString());
         JsonArray capabilities = new JsonArray();
         if (computerCommandEnabled) capabilities.add("computer.request");
+        if (identityEventsEnabled) capabilities.add("identity.events");
         payload.add("capabilities", capabilities);
         payload.addProperty("commandEnabled", computerCommandEnabled);
         return payload;
@@ -85,6 +98,8 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
     @Override
     public void onReady() {
         logger.info("Authenticated Family Core server bridge connected");
+        announcedPlayers.clear();
+        if (identityEventsEnabled) server.execute(() -> server.getPlayerList().getPlayers().forEach(this::playerJoined));
     }
 
     @Override
@@ -119,6 +134,7 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
 
     @Override
     public void onDisconnected(String reason) {
+        announcedPlayers.clear();
         logger.warn("Family Core server bridge disconnected ({})", reason);
     }
 
@@ -127,9 +143,19 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
         heartbeatLoop.close();
         transport.close();
         pendingComputerRequests.clear();
+        announcedPlayers.clear();
     }
 
     private static String computerText(String text) {
         return text.startsWith("[Computer]") ? text : "[Computer] " + text;
+    }
+
+    private static JsonObject playerIdentity(ServerPlayer player) {
+        JsonObject identity = new JsonObject();
+        identity.addProperty("minecraftUuid", player.getUUID().toString());
+        identity.addProperty("displayName", player.getGameProfile().name());
+        identity.addProperty("role", "guest");
+        identity.addProperty("identityBound", false);
+        return identity;
     }
 }
