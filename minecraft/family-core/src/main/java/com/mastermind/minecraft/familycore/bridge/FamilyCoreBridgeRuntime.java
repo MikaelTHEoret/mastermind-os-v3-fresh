@@ -3,6 +3,7 @@ package com.mastermind.minecraft.familycore.bridge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mastermind.minecraft.familycore.FamilyCoreMod;
+import com.mastermind.minecraft.familycore.protocol.FamilyCoreProtocol;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -21,6 +22,7 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
     private final Logger logger;
     private final boolean computerCommandEnabled;
     private final boolean identityEventsEnabled;
+    private final boolean chatCaptureEnabled;
     private final FamilyCoreWebSocket transport;
     private final FamilyCoreHeartbeatLoop heartbeatLoop;
     private final AtomicInteger playerCount = new AtomicInteger();
@@ -28,12 +30,13 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
     private final Set<UUID> announcedPlayers = ConcurrentHashMap.newKeySet();
     private final long startedAtNanos = System.nanoTime();
 
-    public FamilyCoreBridgeRuntime(MinecraftServer server, ServerBridgeConfig config, boolean computerCommandEnabled, boolean identityEventsEnabled, Logger logger) {
+    public FamilyCoreBridgeRuntime(MinecraftServer server, ServerBridgeConfig config, boolean computerCommandEnabled, boolean identityEventsEnabled, boolean chatCaptureEnabled, Logger logger) {
         this.server = server;
         this.config = config;
         this.logger = logger;
         this.computerCommandEnabled = computerCommandEnabled;
         this.identityEventsEnabled = identityEventsEnabled;
+        this.chatCaptureEnabled = chatCaptureEnabled;
         this.transport = new FamilyCoreWebSocket(config, this);
         this.heartbeatLoop = new FamilyCoreHeartbeatLoop(config.heartbeatTicks(), () -> transport.heartbeat(
             Math.max(0, (System.nanoTime() - startedAtNanos) / 1_000_000L),
@@ -78,6 +81,21 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
         transport.send("player.left", payload, null);
     }
 
+    public void chatReceived(ServerPlayer player, String text) {
+        if (!chatCaptureEnabled || !transport.isReady()) return;
+        String boundedText;
+        try {
+            boundedText = FamilyCoreProtocol.requireChatText(text);
+        } catch (IllegalArgumentException ignored) {
+            return;
+        }
+        JsonObject payload = new JsonObject();
+        payload.add("player", playerIdentity(player));
+        payload.addProperty("channel", "public");
+        payload.addProperty("text", boundedText);
+        transport.send("chat.received", payload, null);
+    }
+
     @Override
     public JsonObject helloPayload() {
         JsonObject payload = new JsonObject();
@@ -90,6 +108,7 @@ public final class FamilyCoreBridgeRuntime implements FamilyCoreWebSocket.Listen
         JsonArray capabilities = new JsonArray();
         if (computerCommandEnabled) capabilities.add("computer.request");
         if (identityEventsEnabled) capabilities.add("identity.events");
+        if (chatCaptureEnabled) capabilities.add("chat.capture");
         payload.add("capabilities", capabilities);
         payload.addProperty("commandEnabled", computerCommandEnabled);
         return payload;

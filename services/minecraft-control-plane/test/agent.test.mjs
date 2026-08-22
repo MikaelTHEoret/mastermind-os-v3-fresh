@@ -170,7 +170,7 @@ test('exposes only sanitized Family Core session and launch-credential status', 
   const body = await response.json();
   assert.equal(body.familyCore.session.state, 'disconnected');
   assert.deepEqual(body.familyCore.credentials, {
-    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false, identityEventsEnabled: false,
+    state: 'disabled', generation: null, createdAt: null, computerCommandEnabled: false, identityEventsEnabled: false, chatCaptureEnabled: false,
   });
   assert.deepEqual(body.familyCore.identities, {
     state: 'empty', bindingCount: 0, roles: { parent: 0, child: 0, service: 0 },

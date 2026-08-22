@@ -16,6 +16,7 @@ public record FamilyCoreRuntimeConfig(
     ServerBridgeConfig serverBridge,
     boolean computerCommandEnabled,
     boolean identityEventsEnabled,
+    boolean chatCaptureEnabled,
     boolean companionTelemetryEnabled,
     UUID companionUuid,
     Path attestationFile,
@@ -47,18 +48,22 @@ public record FamilyCoreRuntimeConfig(
         if (identityEventsEnabled && !serverBridge.enabled()) {
             throw new IllegalArgumentException("identityEvents requires serverBridge.enabled=true");
         }
+        boolean chatCaptureEnabled = Boolean.parseBoolean(properties.getProperty("chatCapture.enabled", "false"));
+        if (chatCaptureEnabled && !serverBridge.enabled()) {
+            throw new IllegalArgumentException("chatCapture requires serverBridge.enabled=true");
+        }
         boolean enabled = Boolean.parseBoolean(properties.getProperty("companionTelemetry.enabled", "false"));
-        if (!enabled) return new FamilyCoreRuntimeConfig(serverBridge, computerCommandEnabled, identityEventsEnabled, false, null, null, null, 5);
+        if (!enabled) return new FamilyCoreRuntimeConfig(serverBridge, computerCommandEnabled, identityEventsEnabled, chatCaptureEnabled, false, null, null, null, 5);
         UUID companionUuid = UUID.fromString(required(properties, "companionTelemetry.companionUuid"));
         Path attestationFile = absolutePath(required(properties, "companionTelemetry.attestationFile"), "attestationFile");
         Path keyFile = absolutePath(required(properties, "companionTelemetry.keyFile"), "keyFile");
         int intervalTicks = Integer.parseInt(properties.getProperty("companionTelemetry.intervalTicks", "5"));
         if (intervalTicks < 1 || intervalTicks > 100) throw new IllegalArgumentException("intervalTicks must be between 1 and 100");
-        return new FamilyCoreRuntimeConfig(serverBridge, computerCommandEnabled, identityEventsEnabled, true, companionUuid, attestationFile, keyFile, intervalTicks);
+        return new FamilyCoreRuntimeConfig(serverBridge, computerCommandEnabled, identityEventsEnabled, chatCaptureEnabled, true, companionUuid, attestationFile, keyFile, intervalTicks);
     }
 
     public static FamilyCoreRuntimeConfig disabled() {
-        return new FamilyCoreRuntimeConfig(ServerBridgeConfig.disabled(), false, false, false, null, null, null, 5);
+        return new FamilyCoreRuntimeConfig(ServerBridgeConfig.disabled(), false, false, false, false, null, null, null, 5);
     }
 
     private static String required(Properties properties, String key) {

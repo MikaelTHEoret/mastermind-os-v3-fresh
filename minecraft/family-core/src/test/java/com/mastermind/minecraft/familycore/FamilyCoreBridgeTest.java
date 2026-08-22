@@ -27,8 +27,26 @@ final class FamilyCoreBridgeTest {
         assertFalse(config.serverBridge().enabled());
         assertFalse(config.computerCommandEnabled());
         assertFalse(config.identityEventsEnabled());
+        assertFalse(config.chatCaptureEnabled());
         assertFalse(FamilyCoreFeatures.flags(config).get("serverBridge"));
         assertFalse(FamilyCoreFeatures.flags(config).get("computerCommand"));
+    }
+
+    @Test
+    void chatCaptureRequiresTheAuthenticatedBridgeAndRemainsIndependentOfReasoning() throws Exception {
+        Properties unsafe = new Properties();
+        unsafe.setProperty("chatCapture.enabled", "true");
+        assertThrows(IllegalArgumentException.class, () -> FamilyCoreRuntimeConfig.fromProperties(unsafe));
+
+        Path token = temporaryDirectory.resolve("family-core-chat.token");
+        Files.writeString(token, "abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNOPQRSTUVWXYZ-0123456789");
+        Properties properties = bridgeProperties(token);
+        properties.setProperty("chatCapture.enabled", "true");
+        FamilyCoreRuntimeConfig config = FamilyCoreRuntimeConfig.fromProperties(properties);
+        assertTrue(config.chatCaptureEnabled());
+        assertTrue(FamilyCoreFeatures.flags(config).get("chatCapture"));
+        assertFalse(config.computerCommandEnabled());
+        assertFalse(config.identityEventsEnabled());
     }
 
     @Test

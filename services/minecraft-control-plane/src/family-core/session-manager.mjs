@@ -38,6 +38,10 @@ export class FamilyCoreSessionManager extends EventEmitter {
     if (this.onComputerRequest !== null && typeof this.onComputerRequest !== 'function') {
       throw new TypeError('onComputerRequest must be a function when provided');
     }
+    this.onChatReceived = options.onChatReceived ?? null;
+    if (this.onChatReceived !== null && typeof this.onChatReceived !== 'function') {
+      throw new TypeError('onChatReceived must be a function when provided');
+    }
     this.resolvePlayer = options.resolvePlayer ?? ((player) => ({ ...player, playerId: null, role: 'guest', identityBound: false }));
     if (typeof this.resolvePlayer !== 'function') throw new TypeError('resolvePlayer must be a function');
     this.now = options.now ?? (() => Date.now());
@@ -136,11 +140,18 @@ export class FamilyCoreSessionManager extends EventEmitter {
       return { accepted: true, type: message.type };
     }
     if (message.type === 'computer.requested') {
+      this.#requireCapability('computer.request');
       await this.#handleComputerRequest(message);
       return { accepted: true, type: message.type };
     }
     if (message.type === 'player.joined' || message.type === 'player.left') {
+      this.#requireCapability('identity.events');
       await this.#handleIdentityEvent(message);
+      return { accepted: true, type: message.type };
+    }
+    if (message.type === 'chat.received') {
+      this.#requireCapability('chat.capture');
+      await this.#handleChatReceived(message);
       return { accepted: true, type: message.type };
     }
     this.emit('message', clone(message));
@@ -152,6 +163,20 @@ export class FamilyCoreSessionManager extends EventEmitter {
     if (message.type === 'player.joined') this.presentPlayers.set(player.minecraftUuid, clone(player));
     else this.presentPlayers.delete(player.minecraftUuid);
     this.emit('identity-event', { type: message.type, player: clone(player), messageId: message.messageId });
+  }
+
+  async #handleChatReceived(message) {
+    const player = await this.#resolveAuthoritativePlayer(message.payload.player);
+    const event = {
+      type: message.type,
+      player,
+      channel: message.payload.channel,
+      text: message.payload.text,
+      messageId: message.messageId,
+      ...(message.payload.replyToMessageId ? { replyToMessageId: message.payload.replyToMessageId } : {}),
+    };
+    this.emit('chat-received', clone(event));
+    if (this.onChatReceived) await this.onChatReceived(clone(event));
   }
 
   async #handleComputerRequest(message) {
@@ -272,5 +297,11 @@ export class FamilyCoreSessionManager extends EventEmitter {
       throw sessionError(409, 'FAMILY_CORE_NOT_READY', 'Family Core is not ready.');
     }
     return this.connection;
+  }
+
+  #requireCapability(capability) {
+    if (!this.connection?.server?.capabilities?.includes(capability)) {
+      throw new FamilyCoreProtocolError('CAPABILITY_NOT_ADVERTISED', 'Family Core used a capability it did not advertise', 4409);
+    }
   }
 }

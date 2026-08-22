@@ -20,6 +20,7 @@
     "familyCore.protocol": "live-verified",
     "familyCore.serverMod": "live-verified",
     "familyCore.identityEvents": "live-verified",
+    "familyCore.chatCapture": "implemented",
     "computer.deterministicCommands": "live-verified",
     "computer.chat": "stubbed",
     "companion.conversation": "stubbed",

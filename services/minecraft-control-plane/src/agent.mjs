@@ -61,10 +61,11 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 ]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
-const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.4.0.jar', import.meta.url));
-const FAMILY_CORE_BRIDGE_SHA256 = '1a9babbce78c4105a71a9bb35c121cad4d567e988d2035f2cdbc1667324105f1';
+const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.5.0.jar', import.meta.url));
+const FAMILY_CORE_BRIDGE_SHA256 = '9c3138dc8c7830b514a9714d4f1df329a220fa87ec06f53d6bc516a03b333ac8';
 const FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED = true;
 const FAMILY_CORE_IDENTITY_EVENTS_ENABLED = true;
+const FAMILY_CORE_CHAT_CAPTURE_ENABLED = true;
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -1003,11 +1004,12 @@ export async function createControlPlane(options = {}) {
     processes.setRuntimeCredentialProvider(async (instance) => {
       if (instance?.id !== familyServerInstanceId) return null;
       const core = await firstPartyCore.status(familyServerInstanceId);
-      if (core?.state !== 'installed' || core.artifact?.version !== '0.4.0'
+      if (core?.state !== 'installed' || core.artifact?.version !== '0.5.0'
         || core.artifact?.sha256 !== FAMILY_CORE_BRIDGE_SHA256) return null;
       return familyCoreCredentials.prepareLaunch(instance, {
         computerCommandEnabled: FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED,
         identityEventsEnabled: FAMILY_CORE_IDENTITY_EVENTS_ENABLED,
+        chatCaptureEnabled: FAMILY_CORE_CHAT_CAPTURE_ENABLED,
       });
     });
   }
@@ -1087,16 +1089,13 @@ export async function createControlPlane(options = {}) {
       return instance !== null
         && familyCoreCredentials.verifyHello(payload, context)
         && payload.serverId === familyServerInstanceId
-        && payload.modVersion === '0.4.0'
+        && payload.modVersion === '0.5.0'
         && payload.minecraftVersion === instance.minecraftVersion
-        && (
-          payload.commandEnabled === false && payload.capabilities.length === 1
-            && payload.capabilities[0] === 'identity.events'
-          || payload.commandEnabled === true
-            && payload.capabilities.length === 2
-            && payload.capabilities[0] === 'computer.request'
-            && payload.capabilities[1] === 'identity.events'
-        );
+        && JSON.stringify(payload.capabilities) === JSON.stringify([
+          ...(FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED ? ['computer.request'] : []),
+          ...(FAMILY_CORE_IDENTITY_EVENTS_ENABLED ? ['identity.events'] : []),
+          ...(FAMILY_CORE_CHAT_CAPTURE_ENABLED ? ['chat.capture'] : []),
+        ]);
     }),
     resolvePlayer: (player) => familyCoreIdentities.resolvePlayer(player),
     ...(typeof options.onComputerRequest === 'function' ? { onComputerRequest: options.onComputerRequest } : {}),

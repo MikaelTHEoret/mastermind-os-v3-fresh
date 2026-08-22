@@ -41,6 +41,7 @@ async function fixture(t, options = {}) {
     helloTimeoutMs: options.helloTimeoutMs,
     heartbeatTimeoutMs: options.heartbeatTimeoutMs,
     resolvePlayer: options.resolvePlayer,
+    onChatReceived: options.onChatReceived,
   });
   const server = http.createServer((request, response) => {
     response.writeHead(404).end();
@@ -270,6 +271,54 @@ test('identity events reject any role asserted by the server mod', async (t) => 
   const closed = waitFor(socket, 'close');
   socket.send(JSON.stringify(serverMessage(sessionId, 2, 'player.joined', {
     player: { minecraftUuid: crypto.randomUUID(), displayName: 'Impostor', role: 'parent', identityBound: true },
+  })));
+  const [code] = await closed;
+  assert.equal(code, 4409);
+});
+
+test('chat capture resolves the player centrally and emits no model or response action', async (t) => {
+  const parentId = crypto.randomUUID();
+  const minecraftUuid = crypto.randomUUID();
+  const captured = [];
+  const { manager, sessionId, port } = await fixture(t, {
+    resolvePlayer: (player) => ({ ...player, playerId: parentId, role: 'parent', identityBound: true }),
+    onChatReceived: (event) => { captured.push(event); },
+  });
+  const socket = connect(port);
+  await waitFor(socket, 'open');
+  const ready = waitFor(manager, 'ready');
+  socket.send(JSON.stringify(serverMessage(sessionId, 1, 'server.hello', helloPayload({
+    capabilities: ['chat.capture'],
+  }))));
+  await ready;
+  const received = waitFor(manager, 'chat-received');
+  socket.send(JSON.stringify(serverMessage(sessionId, 2, 'chat.received', {
+    player: { minecraftUuid, displayName: 'MISS_LENKA', role: 'guest', identityBound: false },
+    channel: 'public',
+    text: 'Hello Alchemist',
+  })));
+  const [event] = await received;
+  assert.equal(event.text, 'Hello Alchemist');
+  assert.equal(event.channel, 'public');
+  assert.equal(event.player.playerId, parentId);
+  assert.equal(event.player.role, 'parent');
+  assert.equal(captured.length, 1);
+  assert.equal(manager.status().identities.present, 0);
+  socket.close();
+});
+
+test('server messages fail closed when their capability was not advertised', async (t) => {
+  const { manager, sessionId, port } = await fixture(t);
+  const socket = connect(port);
+  await waitFor(socket, 'open');
+  const ready = waitFor(manager, 'ready');
+  socket.send(JSON.stringify(serverMessage(sessionId, 1, 'server.hello', helloPayload())));
+  await ready;
+  const closed = waitFor(socket, 'close');
+  socket.send(JSON.stringify(serverMessage(sessionId, 2, 'chat.received', {
+    player: { minecraftUuid: crypto.randomUUID(), displayName: 'Player', role: 'guest', identityBound: false },
+    channel: 'public',
+    text: 'This must be rejected',
   })));
   const [code] = await closed;
   assert.equal(code, 4409);

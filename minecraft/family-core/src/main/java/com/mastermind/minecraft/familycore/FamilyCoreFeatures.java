@@ -16,7 +16,7 @@ public final class FamilyCoreFeatures {
         Map<String, Boolean> flags = new LinkedHashMap<>();
         flags.put("serverBridge", config.serverBridge().enabled());
         flags.put("computerCommand", config.computerCommandEnabled());
-        flags.put("chatCapture", false);
+        flags.put("chatCapture", config.chatCaptureEnabled());
         flags.put("identityEvents", config.identityEventsEnabled());
         flags.put("adminExecution", false);
         flags.put("serverShutdown", false);

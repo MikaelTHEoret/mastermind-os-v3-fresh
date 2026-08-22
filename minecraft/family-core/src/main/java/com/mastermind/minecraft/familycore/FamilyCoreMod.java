@@ -7,6 +7,7 @@ import com.mastermind.minecraft.familycore.bridge.FamilyCoreBridgeRuntime;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,7 +24,7 @@ public final class FamilyCoreMod implements ModInitializer {
             if (config.serverBridge().enabled()) {
                 ServerLifecycleEvents.SERVER_STARTED.register(server -> {
                     FamilyCoreBridgeRuntime runtime = new FamilyCoreBridgeRuntime(
-                        server, config.serverBridge(), config.computerCommandEnabled(), config.identityEventsEnabled(), LOGGER
+                        server, config.serverBridge(), config.computerCommandEnabled(), config.identityEventsEnabled(), config.chatCaptureEnabled(), LOGGER
                     );
                     serverBridge = runtime;
                     runtime.start();
@@ -46,6 +47,12 @@ public final class FamilyCoreMod implements ModInitializer {
                     ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
                         FamilyCoreBridgeRuntime runtime = serverBridge;
                         if (runtime != null) runtime.playerLeft(handler.getPlayer());
+                    });
+                }
+                if (config.chatCaptureEnabled()) {
+                    ServerMessageEvents.CHAT_MESSAGE.register((message, sender, params) -> {
+                        FamilyCoreBridgeRuntime runtime = serverBridge;
+                        if (runtime != null) runtime.chatReceived(sender, message.signedContent());
                     });
                 }
             }
