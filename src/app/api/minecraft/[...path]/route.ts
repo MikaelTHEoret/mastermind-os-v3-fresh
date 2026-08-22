@@ -102,7 +102,8 @@ const UNSAFE_SEARCH_TEXT = /[\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-
 const FAMILY_BRAIN_FEATURES = Object.freeze([
   'computerChat', 'companionConversation', 'modelReasoning', 'profileCapture',
   'physicalTaskPlanning', 'survivalAutomation', 'modRequestExecution',
-  'inGameApprovals', 'visionRecovery',
+  'inGameApprovals', 'visionRecovery', 'zenithBody', 'enhancedHeadlessController',
+  'hybridTelemetry',
 ]);
 const FAMILY_BRAIN_STATES = new Set(['planned', 'stubbed', 'implemented', 'live-verified']);
 
