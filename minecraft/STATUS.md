@@ -26,7 +26,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 
 ## In progress
 
-- Hybrid body foundation: the disabled-by-default `family-core` skeleton is now managed and live-verified; next, enable the authenticated server chat bridge in a controlled slice, then add gameplay skills one bounded lane at a time.
+- Hybrid body foundation: the disabled-by-default `family-core` 0.2.0 skeleton is managed and live-verified. A separate 0.3.0 authenticated server-bridge candidate now compiles with loopback-only bearer authentication, mandatory hello, contiguous sequencing, liveness, deterministic `/computer help|status`, and explicit disabled handling for all other Computer requests. It is not installed or credentialed in the live server.
 - The schema-v2 authenticated first-party artifact registry, verified-snapshot gate, atomic install/rollback boundary, exact launch binding, and bounded status endpoint are active for `family-core`. Generation `7be277353969147d6c84766f377b88dc7114d75197528ee067d0c7ec95e013a3` is bound to verified backup `bkp-5a7caf2cbb379b10e9e5fe7e2c37a384`; Fabric live-loaded the pinned 18,481-byte JAR while all eight runtime feature flags remained disabled. Repeated status reads under the continuous Windows launch lease completed without helper growth. Third-party mod mutations remain deliberately blocked until combined dependency-graph validation is added.
 - The exact pinned Zenith runtime, three minimal core patches, secure credential bootstrap, Mastermind plugin, and server-signed telemetry mod are privately staged. Parent takeover and automatic handback are live-verified in an isolated copy of the Family world with all movement/action automation off; the candidate is not yet a managed command-center service.
 
@@ -35,7 +35,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Canonical dual-character requirements, role matrix, resource limits, profile boundaries, release gates, and four-state feature manifest.
 - Strict brain domain contracts, disabled adapters, provider-neutral model-broker boundary, deterministic fakes, prompt placeholders, and focused tests.
 - Authenticated and sequenced `family-core` protocol v1 with strict JSON parsing, bounded payloads, allowlisted administration operations, replay protection, schema, and tests.
-- Separate server-only Fabric `family-core` for Minecraft 26.2 / Java 25. The pinned 0.2.0 artifact is installed through the managed first-party lane and live-verified in the Family Server; its server bridge, Computer command, chat capture, identity events, administration, shutdown, companion telemetry, and companion events remain disabled.
+- Separate server-only Fabric `family-core` for Minecraft 26.2 / Java 25. The pinned 0.2.0 artifact is installed through the managed first-party lane and live-verified in the Family Server; its server bridge, Computer command, chat capture, identity events, administration, shutdown, companion telemetry, and companion events remain disabled. Candidate 0.3.0 is build-verified only and is the next staging artifact.
 - Companion bridge v2 observation/action inventory and runtime validators. Negotiation remains v1 and no v2 capability is advertised.
 - Authenticated dashboard status placeholder and a loopback-only reasoning route that validates requests and returns `FEATURE_DISABLED`.
 - Only the disabled `family-core` foundation JAR is installed into the live server through its authenticated artifact lock; model, profile, chat, administration, survival, and gameplay behavior remain off.
@@ -67,6 +67,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 - Exact upstream build: 74 tests, zero failures/errors, three skips.
 - Final plugin build: 20 tests, zero failures/errors/skips; JAR 35,436 bytes, SHA-256 `FAFD35F0B28A7F1D520EC47DA44AB7706DAA13E6D17558A8EA0CAC8ED1CDD10A`.
 - Final `family-core` build: 7 tests, zero failures/errors/skips; JAR 18,481 bytes, SHA-256 `755B4E01F2C268C92F1BDC95FB8295602C0EB064EFC227A30D6264BE9E4870BE`.
+- Reproducible `family-core` 0.3.0 bridge candidate: 13 tests, zero failures/errors/skips; JAR 46,765 bytes; two clean builds produced the same SHA-256 `94D226ED5A576FC556643D913B8D2D9E8293E458C25AEE37C1D220CC910BF526`. This candidate is not installed in the live server.
 - Patched upstream result files: 75 tests, zero failures/errors, three skips; Gradle's result socket reset after writing the results, and the hook test reran alone with a clean successful exit.
 - Offline fake-identity simulation: patched hook detected, no account/upstream/listener enabled, then configuration restored to all-false flags and blank identities.
 - Stock-runtime negative simulation: takeover request failed plugin preflight because the pinned hook was absent; no module registered, then configuration was restored to disabled blank defaults.

@@ -30,6 +30,8 @@ import { CompanionBridgeServer } from './companion/bridge-server.mjs';
 import { CompanionLifecycleManager } from './companion/lifecycle-manager.mjs';
 import { FamilyBridgeProtocolError, validateFamilyBridgeAction } from './companion/protocol.mjs';
 import { CompanionSessionManager } from './companion/session-manager.mjs';
+import { FamilyCoreBridgeServer } from './family-core/bridge-server.mjs';
+import { FamilyCoreSessionManager } from './family-core/session-manager.mjs';
 import { FamilyClientProvisioner } from './companion/client-provisioner.mjs';
 import { DpapiMinecraftAccountVault } from './companion/dpapi-vault.mjs';
 import { MicrosoftMinecraftAuth } from './companion/microsoft-auth.mjs';
@@ -57,7 +59,7 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 ]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
-const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.2.0.jar', import.meta.url));
+const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.3.0.jar', import.meta.url));
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -1033,6 +1035,21 @@ export async function createControlPlane(options = {}) {
   const companionSessions = options.companionSessions ?? new CompanionSessionManager({
     verifyHello: (payload, context) => companionLifecycle.verifyHello(payload, context),
   });
+  const familyCoreSessions = options.familyCoreSessions ?? new FamilyCoreSessionManager({
+    verifyHello: options.verifyFamilyCoreHello ?? (async (payload) => {
+      const instance = await store.get(familyServerInstanceId);
+      return instance !== null
+        && payload.serverId === familyServerInstanceId
+        && payload.minecraftVersion === instance.minecraftVersion
+        && (
+          payload.commandEnabled === false && payload.capabilities.length === 0
+          || payload.commandEnabled === true
+            && payload.capabilities.length === 1
+            && payload.capabilities[0] === 'computer.request'
+        );
+    }),
+    ...(typeof options.onComputerRequest === 'function' ? { onComputerRequest: options.onComputerRequest } : {}),
+  });
   if (!companionLifecycle) {
     companionLifecycle = new CompanionLifecycleManager({
       stateFile: path.join(managedRoot, 'private', 'companion-lifecycle.json'),
@@ -1867,6 +1884,12 @@ export async function createControlPlane(options = {}) {
           brain: familyCompanionBrain.status(),
         });
       }
+      if (request.method === 'GET' && url.pathname === '/v1/family-core/status' && url.search === '') {
+        return json(response, 200, {
+          ok: true,
+          familyCore: familyCoreSessions.status(),
+        });
+      }
       if (request.method === 'POST' && url.pathname === '/v1/control/prepare-shutdown') {
         if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
         if (!/^[a-f0-9]{32}$/.test(supervisorId ?? '')) {
@@ -2339,6 +2362,17 @@ export async function createControlPlane(options = {}) {
     throw new TypeError('The companion bridge must expose start() and close()');
   }
   companionBridge.start();
+  const familyCoreBridge = options.familyCoreBridge ?? new FamilyCoreBridgeServer({
+    httpServer: server,
+    sessionManager: familyCoreSessions,
+    // Production remains fail-closed until the managed launch path provisions
+    // a short-lived token digest and matching private server configuration.
+    authenticate: options.authenticateFamilyCore ?? (async () => null),
+  });
+  if (typeof familyCoreBridge.start !== 'function' || typeof familyCoreBridge.close !== 'function') {
+    throw new TypeError('The Family Core bridge must expose start() and close()');
+  }
+  familyCoreBridge.start();
   const backupTimerMs = Number.isInteger(options.backupTimerMs) && options.backupTimerMs >= 1_000
     ? options.backupTimerMs
     : 60_000;
@@ -2412,11 +2446,13 @@ export async function createControlPlane(options = {}) {
     legacyMigration,
     companionLifecycle,
     companionSessions,
+    familyCoreSessions,
     domainEventOutbox,
     companionDomainEvents,
     memoryEventConsumer,
     memoryEventSync,
     companionBridge,
+    familyCoreBridge,
     server,
     async listen(port = config.port) {
       await new Promise((resolve, reject) => {
@@ -2428,6 +2464,7 @@ export async function createControlPlane(options = {}) {
     async close() {
       if (backupTimer) clearInterval(backupTimer);
       if (backupRunInFlight) await backupRunInFlight;
+      await familyCoreBridge.close();
       await companionBridge.close();
       await companionDomainEvents?.close();
       if (memoryEventSync) {

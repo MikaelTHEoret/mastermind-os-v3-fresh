@@ -1,5 +1,6 @@
 package com.mastermind.minecraft.familycore.telemetry;
 
+import com.mastermind.minecraft.familycore.bridge.ServerBridgeConfig;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -12,6 +13,8 @@ import java.util.Properties;
 import java.util.UUID;
 
 public record FamilyCoreRuntimeConfig(
+    ServerBridgeConfig serverBridge,
+    boolean computerCommandEnabled,
     boolean companionTelemetryEnabled,
     UUID companionUuid,
     Path attestationFile,
@@ -30,18 +33,27 @@ public record FamilyCoreRuntimeConfig(
         try (Reader reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
             properties.load(reader);
         }
+        return fromProperties(properties);
+    }
+
+    public static FamilyCoreRuntimeConfig fromProperties(Properties properties) {
+        ServerBridgeConfig serverBridge = ServerBridgeConfig.fromProperties(properties);
+        boolean computerCommandEnabled = Boolean.parseBoolean(properties.getProperty("computerCommand.enabled", "false"));
+        if (computerCommandEnabled && !serverBridge.enabled()) {
+            throw new IllegalArgumentException("computerCommand requires serverBridge.enabled=true");
+        }
         boolean enabled = Boolean.parseBoolean(properties.getProperty("companionTelemetry.enabled", "false"));
-        if (!enabled) return disabled();
+        if (!enabled) return new FamilyCoreRuntimeConfig(serverBridge, computerCommandEnabled, false, null, null, null, 5);
         UUID companionUuid = UUID.fromString(required(properties, "companionTelemetry.companionUuid"));
         Path attestationFile = absolutePath(required(properties, "companionTelemetry.attestationFile"), "attestationFile");
         Path keyFile = absolutePath(required(properties, "companionTelemetry.keyFile"), "keyFile");
         int intervalTicks = Integer.parseInt(properties.getProperty("companionTelemetry.intervalTicks", "5"));
         if (intervalTicks < 1 || intervalTicks > 100) throw new IllegalArgumentException("intervalTicks must be between 1 and 100");
-        return new FamilyCoreRuntimeConfig(true, companionUuid, attestationFile, keyFile, intervalTicks);
+        return new FamilyCoreRuntimeConfig(serverBridge, computerCommandEnabled, true, companionUuid, attestationFile, keyFile, intervalTicks);
     }
 
     public static FamilyCoreRuntimeConfig disabled() {
-        return new FamilyCoreRuntimeConfig(false, null, null, null, 5);
+        return new FamilyCoreRuntimeConfig(ServerBridgeConfig.disabled(), false, false, null, null, null, 5);
     }
 
     private static String required(Properties properties, String key) {
