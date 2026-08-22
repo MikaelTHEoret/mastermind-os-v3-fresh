@@ -111,6 +111,26 @@ test('retains an authenticated credential only for the exact active server and r
   assert.equal(await absent(setup.manifestFile), true);
 });
 
+test('binds deterministic Computer command activation into the launch credential and hello', async (t) => {
+  const setup = await fixture(t);
+  await setup.manager.initialize();
+  const lease = await setup.manager.prepareLaunch(setup.instance, { computerCommandEnabled: true });
+  const config = await fs.readFile(setup.configFile, 'utf8');
+
+  assert.match(config, /computerCommand\.enabled=true/);
+  assert.equal(setup.manager.status().computerCommandEnabled, true);
+  assert.equal(setup.manager.verifyHello({
+    instanceId: SERVER_INSTANCE_ID,
+    commandEnabled: true,
+  }, { sessionId: SESSION_ID }), true);
+  assert.equal(setup.manager.verifyHello({
+    instanceId: SERVER_INSTANCE_ID,
+    commandEnabled: false,
+  }, { sessionId: SESSION_ID }), false);
+
+  await lease.release();
+});
+
 test('fails closed when any held credential file is changed', async (t) => {
   const setup = await fixture(t);
   await setup.manager.initialize();

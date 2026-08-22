@@ -227,7 +227,8 @@ test('unimplemented Computer requests receive explicit private and status reject
   assert.deepEqual(frames.map((frame) => frame.type), ['computer.requestStatus', 'computer.private']);
   assert.ok(frames.every((frame) => frame.correlationId === requestId));
   assert.equal(frames[0].payload.status, 'rejected');
-  assert.match(frames[1].payload.text, /not enabled/i);
+  assert.equal(frames[0].payload.message, 'Computer reasoning is not enabled yet.');
+  assert.equal(frames[1].payload.text, '[Computer] Help and status are available. Other requests are not enabled yet.');
   socket.close();
 });
 

@@ -62,6 +62,7 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
 const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.3.1.jar', import.meta.url));
 const FAMILY_CORE_BRIDGE_SHA256 = 'f344ce2363be26cf24ee0e9dc9bdf1c105614343883721a5d75710b15b502e7b';
+const FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED = true;
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -993,7 +994,9 @@ export async function createControlPlane(options = {}) {
       const core = await firstPartyCore.status(familyServerInstanceId);
       if (core?.state !== 'installed' || core.artifact?.version !== '0.3.1'
         || core.artifact?.sha256 !== FAMILY_CORE_BRIDGE_SHA256) return null;
-      return familyCoreCredentials.prepareLaunch(instance, { computerCommandEnabled: false });
+      return familyCoreCredentials.prepareLaunch(instance, {
+        computerCommandEnabled: FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED,
+      });
     });
   }
   const modrinthSeed = process.env.APPDATA ? path.join(process.env.APPDATA, 'ModrinthApp', 'meta') : null;

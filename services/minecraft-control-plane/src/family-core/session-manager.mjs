@@ -149,11 +149,11 @@ export class FamilyCoreSessionManager extends EventEmitter {
     this.send('computer.requestStatus', {
       requestId: message.messageId,
       status: 'rejected',
-      message: 'Computer chat is disabled.',
+      message: 'Computer reasoning is not enabled yet.',
     }, message.messageId);
     this.send('computer.private', {
       minecraftUuid: message.payload.player.minecraftUuid,
-      text: '[Computer] Computer chat is not enabled yet.',
+      text: '[Computer] Help and status are available. Other requests are not enabled yet.',
     }, message.messageId);
   }
 
