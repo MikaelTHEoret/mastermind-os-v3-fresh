@@ -21,6 +21,7 @@ public final class BridgeProtocol {
         "action.cancel",
         "client.shutdown",
         "direct.say",
+        "direct.respawn",
         "direct.lookAt",
         "direct.lookDelta",
         "direct.moveFor",
@@ -30,13 +31,13 @@ public final class BridgeProtocol {
 
     public static final Set<String> ALL_CAPABILITIES = Set.of(
         "state.snapshot", "action.cancel", "client.shutdown",
-        "direct.say", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
+        "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
     );
 
     public static final Set<String> ACTION_KINDS = Set.of(
-        "direct.say", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
+        "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
     );
@@ -52,4 +53,3 @@ public final class BridgeProtocol {
     private BridgeProtocol() {
     }
 }
-

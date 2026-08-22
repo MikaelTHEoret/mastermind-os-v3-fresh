@@ -40,14 +40,14 @@
     "capability": {
       "enum": [
         "state.snapshot", "action.cancel", "client.shutdown",
-        "direct.say", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
+        "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
     },
     "actionKind": {
       "enum": [
-        "direct.say", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
+        "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
@@ -55,7 +55,7 @@
     "capabilities": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 15,
+      "maxItems": 16,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
     },
@@ -352,7 +352,7 @@
         {
           "type": "object", "additionalProperties": false, "required": ["kind", "args"],
           "properties": {
-            "kind": { "enum": ["direct.jump", "direct.attack", "skill.escapeDanger"] },
+            "kind": { "enum": ["direct.respawn", "direct.jump", "direct.attack", "skill.escapeDanger"] },
             "args": { "type": "object", "additionalProperties": false, "maxProperties": 0 }
           }
         },
