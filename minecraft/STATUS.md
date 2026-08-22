@@ -27,6 +27,7 @@ Current milestone: M3F — Family Companion foundation (implemented; review chec
 ## In progress
 
 - Hybrid body foundation: promote the isolated live-verified signed handback candidate through the managed Family Server snapshot/rollback gate, then add gameplay skills one bounded lane at a time.
+- A schema-v2 authenticated first-party artifact registry, verified-snapshot gate, atomic install/rollback boundary, exact launch binding, and bounded status endpoint are now implemented for `family-core`. They are covered by focused manager, backup, verifier, mod, process, and control-plane tests but have not been activated against the live Family Server. Third-party mod mutations remain deliberately blocked while this staged core lane is active until combined dependency-graph validation is added.
 - The exact pinned Zenith runtime, three minimal core patches, secure credential bootstrap, Mastermind plugin, and server-signed telemetry mod are privately staged. Parent takeover and automatic handback are live-verified in an isolated copy of the Family world with all movement/action automation off; the candidate is not yet a managed command-center service.
 
 ## M3F foundation completed

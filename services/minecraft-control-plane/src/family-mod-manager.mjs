@@ -40,6 +40,7 @@ const MAX_TRANSACTION_STATE_BYTES = 64 * 1024 * 1024;
 const CORE_FILES = Object.freeze({
   fabricApi: 'fabric-api.jar', geyser: 'geyser-fabric.jar', floodgate: 'floodgate-fabric.jar',
 });
+const FIRST_PARTY_CORE_FILE = 'mastermind-family-core.jar';
 const CORE_NAMES = Object.freeze({ fabricApi: 'Fabric API', geyser: 'Geyser', floodgate: 'Floodgate' });
 const SAFE_ENVIRONMENTS = new Set(['server_only', 'dedicated_server_only', 'server_only_client_optional']);
 const CONFIRMATIONS = Object.freeze({
@@ -439,7 +440,8 @@ export class FamilyModManager {
       const instance = await this.#instance(instanceId);
       const manifest = await this.#manifest(instance.id);
       const scan = await this.#scanMods(instance, manifest, { tolerateUnmanaged: true });
-      const expectedCount = Object.keys(CORE_FILES).length + manifest.mods.length;
+      const firstPartyCoreCount = scan.entries.some((item) => item.name === FIRST_PARTY_CORE_FILE) ? 1 : 0;
+      const expectedCount = Object.keys(CORE_FILES).length + manifest.mods.length + firstPartyCoreCount;
       if (scan.unmanagedCount !== 0 || scan.entries.length !== expectedCount
         || manifest.mods.some((item) => scan.hashes.get(item.fileName) !== item.sha512)) {
         throw modError('MOD_INTEGRITY_FAILED', 409, 'The exact managed mod inventory is unavailable for launch.');
@@ -553,6 +555,13 @@ export class FamilyModManager {
     const manifest = await this.#manifest(instance.id);
     const before = await this.#scanMods(instance, manifest);
     if (before.unmanagedCount > 0) throw modError('MOD_UNMANAGED_MODS_PRESENT', 409, 'Unmanaged mod entries must be removed or adopted before managed mod changes.');
+    if (before.entries.some((item) => item.name === FIRST_PARTY_CORE_FILE)) {
+      throw modError(
+        'MOD_FIRST_PARTY_CORE_ACTIVE',
+        409,
+        'Third-party mod changes remain disabled while the staged first-party Family Core artifact is active.',
+      );
+    }
     const beforeDigest = digestEntries(before.entries);
     const reservationBytes = before.entries.reduce((sum, entry) => sum + entry.size, 0) * 2 + 512 * 1024 * 1024;
     await this.#assertPlanCapacity(instance.id, reservationBytes);
@@ -1106,11 +1115,14 @@ export class FamilyModManager {
   async #protectedIds(instance) { return [...new Set((await this.#inspectCore(instance)).flatMap((item) => item.metadata.flatMap((meta) => meta.ids)))]; }
 
   async #verifyCandidate(instance, manifest, directory, beforeScan) {
-    const expected = new Set([...Object.values(CORE_FILES), ...manifest.mods.map((item) => item.fileName)]);
+    const firstPartyCore = beforeScan.entries.some((item) => item.name === FIRST_PARTY_CORE_FILE)
+      ? [FIRST_PARTY_CORE_FILE] : [];
+    const expected = new Set([...Object.values(CORE_FILES), ...firstPartyCore, ...manifest.mods.map((item) => item.fileName)]);
     const scan = await scanFlatDirectory(directory, this.managedRoot);
     for (const [name, hash] of scan.hashes) {
       if (!expected.has(name)) throw modError('MOD_UNMANAGED_MODS_PRESENT', 409, 'The candidate contains an unmanaged mod entry.');
       if (Object.values(CORE_FILES).includes(name) && beforeScan.hashes.get(name) !== hash) throw modError('MOD_CORE_INTEGRITY_FAILED', 409, 'A protected core mod changed during the transaction.');
+      if (name === FIRST_PARTY_CORE_FILE && beforeScan.hashes.get(name) !== hash) throw modError('MOD_CORE_INTEGRITY_FAILED', 409, 'The protected first-party core mod changed during the transaction.');
     }
     for (const item of manifest.mods) if (scan.hashes.get(item.fileName) !== item.sha512) throw modError('MOD_INTEGRITY_FAILED', 409, 'A candidate mod failed final hash verification.');
     if (scan.entries.length !== expected.size) throw modError('MOD_INTEGRITY_FAILED', 409, 'The candidate mod inventory is incomplete.');
@@ -1125,7 +1137,7 @@ export class FamilyModManager {
       const result = await scanFlatDirectory(
         modsRoot, this.managedRoot, this.fileGuard, this.filesystemEntryVerifier,
       );
-      const known = new Set([...Object.values(CORE_FILES), ...manifest.mods.map((item) => item.fileName)]);
+      const known = new Set([...Object.values(CORE_FILES), FIRST_PARTY_CORE_FILE, ...manifest.mods.map((item) => item.fileName)]);
       const unmanagedCount = result.entries.filter((item) => !known.has(item.name)).length;
       if (!options.tolerateUnmanaged && unmanagedCount > 0) throw modError('MOD_UNMANAGED_MODS_PRESENT', 409, 'Unmanaged mod entries block managed mod transactions.');
       await assertModGuardChainHeld(ancestorChain, this.filesystemEntryVerifier);

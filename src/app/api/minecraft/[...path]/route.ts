@@ -200,6 +200,61 @@ function publicBrainEnvelope(envelope: Record<string, unknown>): Record<string, 
   };
 }
 
+function publicFirstPartyCoreEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  if (envelope.ok !== true || envelope.instanceId !== FAMILY_SERVER_ID
+    || !envelope.firstPartyCore || typeof envelope.firstPartyCore !== 'object' || Array.isArray(envelope.firstPartyCore)) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid first-party core status.');
+  }
+  const status = envelope.firstPartyCore as Record<string, unknown>;
+  const keys = ['state', 'generation', 'artifact', 'rollbackAvailable'];
+  if (Object.keys(status).length !== keys.length || Object.keys(status).some((key) => !keys.includes(key))
+    || !['disabled', 'installed'].includes(String(status.state))
+    || typeof status.generation !== 'string' || !SHA256.test(status.generation)
+    || typeof status.rollbackAvailable !== 'boolean') {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid first-party core status.');
+  }
+  let artifact: Record<string, unknown> | null = null;
+  if (status.state === 'installed') {
+    if (!status.artifact || typeof status.artifact !== 'object' || Array.isArray(status.artifact)) {
+      throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid first-party core artifact status.');
+    }
+    const source = status.artifact as Record<string, unknown>;
+    if (source.fileName !== 'mastermind-family-core.jar' || source.modId !== 'mastermind-family-core'
+      || typeof source.sha256 !== 'string' || !SHA256.test(source.sha256)
+      || !Number.isInteger(source.size) || Number(source.size) < 22 || Number(source.size) > 16 * 1024 * 1024
+      || typeof source.version !== 'string' || source.version.length < 1 || source.version.length > 96
+      || typeof source.minecraftVersion !== 'string' || source.minecraftVersion.length < 1 || source.minecraftVersion.length > 96
+      || typeof source.loaderVersion !== 'string' || source.loaderVersion.length < 1 || source.loaderVersion.length > 96
+      || typeof source.promotedAt !== 'string' || !Number.isFinite(Date.parse(source.promotedAt))
+      || typeof source.backupId !== 'string' || !BACKUP_ID.test(source.backupId)) {
+      throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid first-party core artifact status.');
+    }
+    artifact = {
+      fileName: source.fileName,
+      sha256: source.sha256.toLowerCase(),
+      size: source.size,
+      modId: source.modId,
+      version: source.version,
+      minecraftVersion: source.minecraftVersion,
+      loaderVersion: source.loaderVersion,
+      promotedAt: new Date(source.promotedAt).toISOString(),
+      backupId: source.backupId,
+    };
+  } else if (status.artifact !== null) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid disabled first-party core status.');
+  }
+  return {
+    ok: true,
+    instanceId: FAMILY_SERVER_ID,
+    firstPartyCore: {
+      state: status.state,
+      generation: status.generation.toLowerCase(),
+      artifact,
+      rollbackAvailable: status.rollbackAvailable,
+    },
+  };
+}
+
 async function rejectUnconsumedBody(
   request: NextRequest,
   status: number,
@@ -1226,6 +1281,10 @@ function mapTarget(method: string, segments: string[], searchParams: URLSearchPa
         return `/v1/instances/${FAMILY_SERVER_ID}/mods/operations/${segments[4].toLowerCase()}`;
       }
     }
+    if (segments[1] === FAMILY_SERVER_ID && segments[2] === 'first-party-core'
+      && method === 'GET' && segments.length === 3) {
+      return `/v1/instances/${FAMILY_SERVER_ID}/first-party-core`;
+    }
     if (segments[1] === FAMILY_SERVER_ID && segments[2] === 'worlds') {
       if (method === 'GET' && segments.length === 3) {
         return `/v1/instances/${FAMILY_SERVER_ID}/worlds`;
@@ -1798,6 +1857,8 @@ async function handle(request: NextRequest, context: RouteContext) {
     const isInstanceInventory = request.method === 'GET' && path.length === 1 && path[0] === 'instances';
     const isUpdateStatus = request.method === 'GET' && path.length === 3
       && path[0] === 'instances' && path[2] === 'update-status';
+    const isFirstPartyCoreStatus = request.method === 'GET' && path.length === 3
+      && path[0] === 'instances' && path[1] === FAMILY_SERVER_ID && path[2] === 'first-party-core';
     const isUpdateAction = request.method === 'POST' && path.length === 3
       && path[0] === 'instances' && path[2] === 'update';
     const isBrainStatus = request.method === 'GET' && path.length === 2
@@ -1885,6 +1946,8 @@ async function handle(request: NextRequest, context: RouteContext) {
             ? publicInstancesEnvelope
             : isUpdateStatus
               ? (envelope) => publicUpdateStatusEnvelope(envelope, path[1])
+              : isFirstPartyCoreStatus
+                ? publicFirstPartyCoreEnvelope
               : isUpdateAction
                 ? (envelope) => publicUpdateActionEnvelope(envelope, path[1])
                 : isRetiredVersionPurge

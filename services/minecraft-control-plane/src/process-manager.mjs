@@ -217,6 +217,10 @@ export class ProcessManager {
     if (this.launchModBindingProvider !== null && typeof this.launchModBindingProvider !== 'function') {
       throw new TypeError('launchModBindingProvider must be a function');
     }
+    this.firstPartyCoreLaunchBindingProvider = hooks.firstPartyCoreLaunchBindingProvider ?? null;
+    if (this.firstPartyCoreLaunchBindingProvider !== null && typeof this.firstPartyCoreLaunchBindingProvider !== 'function') {
+      throw new TypeError('firstPartyCoreLaunchBindingProvider must be a function');
+    }
     this.inspectProcessState = typeof hooks.inspectProcessState === 'function' ? hooks.inspectProcessState : inspectManagedProcessState;
     this.portReleasePollMs = Number.isInteger(hooks.portReleasePollMs) && hooks.portReleasePollMs >= 5
       ? hooks.portReleasePollMs
@@ -243,6 +247,15 @@ export class ProcessManager {
       throw new Error('The launch mod binding provider is already configured');
     }
     this.launchModBindingProvider = provider;
+    return true;
+  }
+
+  setFirstPartyCoreLaunchBindingProvider(provider) {
+    if (typeof provider !== 'function') throw new TypeError('firstPartyCoreLaunchBindingProvider must be a function');
+    if (this.firstPartyCoreLaunchBindingProvider && this.firstPartyCoreLaunchBindingProvider !== provider) {
+      throw new Error('The first-party core launch binding provider is already configured');
+    }
+    this.firstPartyCoreLaunchBindingProvider = provider;
     return true;
   }
 
@@ -285,6 +298,7 @@ export class ProcessManager {
       throw new Error(`Bedrock UDP port ${instance.bedrockPort} is already in use`);
     }
     let modLaunchBinding = null;
+    let firstPartyCoreLaunchBinding = null;
     let verification;
     try {
       if (this.usesDefaultInstallVerifier) {
@@ -294,13 +308,18 @@ export class ProcessManager {
           });
         }
         modLaunchBinding = await this.launchModBindingProvider(instance.id);
+        if (typeof this.firstPartyCoreLaunchBindingProvider === 'function') {
+          firstPartyCoreLaunchBinding = await this.firstPartyCoreLaunchBindingProvider(instance.id);
+        }
         verification = await this.verifyInstall(instance, {
           requireLaunchCapability: true,
           modLaunchBinding,
+          ...(firstPartyCoreLaunchBinding ? { firstPartyCoreLaunchBinding } : {}),
         });
       } else verification = await this.verifyInstall(instance);
     } catch (error) {
       await modLaunchBinding?.release?.().catch(() => undefined);
+      await firstPartyCoreLaunchBinding?.release?.().catch(() => undefined);
       throw error;
     }
     let capability;
@@ -308,16 +327,19 @@ export class ProcessManager {
     catch (error) {
       await releaseLaunchLease(verification?.lease).catch(() => undefined);
       await modLaunchBinding?.release?.().catch(() => undefined);
+      await firstPartyCoreLaunchBinding?.release?.().catch(() => undefined);
       throw error;
     }
     if (!capability && verification?.lease) {
       await releaseLaunchLease(verification.lease).catch(() => undefined);
       await modLaunchBinding?.release?.().catch(() => undefined);
+      await firstPartyCoreLaunchBinding?.release?.().catch(() => undefined);
       throw new Error('Install verifier returned an incomplete launch capability');
     }
     if (this.usesDefaultInstallVerifier && !capability) {
       await releaseLaunchLease(verification?.lease).catch(() => undefined);
       await modLaunchBinding?.release?.().catch(() => undefined);
+      await firstPartyCoreLaunchBinding?.release?.().catch(() => undefined);
       throw new Error('Complete launch verification did not return a one-shot capability');
     }
 

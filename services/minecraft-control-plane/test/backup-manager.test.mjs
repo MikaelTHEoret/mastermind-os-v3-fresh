@@ -580,6 +580,13 @@ test('creates a private verified mutable-state snapshot while excluding exact ru
   assert.equal(backup.kind, 'manual');
   assert.equal(backup.integrity, 'verified');
   assert.equal(backup.restorable, true);
+  const promotionBinding = await value.manager.assertVerifiedSnapshotWithinInstanceLock(value.id, backup.backupId);
+  assert.deepEqual(promotionBinding, {
+    backupId: backup.backupId,
+    integrity: 'verified',
+    identityDigest: promotionBinding.identityDigest,
+  });
+  assert.match(promotionBinding.identityDigest, /^[a-f0-9]{64}$/);
   const root = path.join(value.managedRoot, 'operator-backups', 'snapshots', value.id, backup.backupId);
   assert.equal(await fs.readFile(path.join(root, 'payload', 'world', 'level.dat'), 'utf8'), 'world-before');
   assert.equal(await fs.readFile(path.join(root, 'payload', 'config', 'floodgate', 'key.pem'), 'utf8'), 'private-floodgate-key');

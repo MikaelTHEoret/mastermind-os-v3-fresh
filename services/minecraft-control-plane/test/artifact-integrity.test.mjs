@@ -702,6 +702,67 @@ test('authenticates and seals managed user mods into the effective launch invent
   await capability.lease.release();
 });
 
+test('authenticates and seals the schema-v2 first-party Family Core launch binding', async (t) => {
+  const value = await launchFixture(t);
+  const bytes = testJar();
+  const fileName = 'mastermind-family-core.jar';
+  await fs.writeFile(path.join(value.directory, 'mods', fileName), bytes);
+  let released = false;
+  const firstPartyCoreLaunchBinding = {
+    binding: Object.freeze({
+      schemaVersion: 2,
+      instanceId: value.instance.id,
+      generation: 'f'.repeat(64),
+      artifacts: Object.freeze([Object.freeze({
+        fileName,
+        sha256: digest('sha256', bytes),
+        size: bytes.length,
+        modId: 'mastermind-family-core',
+        version: '0.2.0',
+      })]),
+    }),
+    async assertHeld() {
+      if (released) throw new Error('released');
+      return true;
+    },
+    async release() { released = true; },
+  };
+  const stableModLaunchBinding = {
+    binding: value.modLaunchBinding.binding,
+    async assertHeld() { return true; },
+    async release() {},
+  };
+  const capability = await verifyFamilyServerInstall(value.instance, {
+    requireLaunchCapability: true,
+    platform: 'linux',
+    nativeFilesystemGuards: false,
+    allowUnconstrainedModDiscoveryForTests: true,
+    modLaunchBinding: stableModLaunchBinding,
+    firstPartyCoreLaunchBinding,
+  });
+  t.after(() => capability.lease.release());
+  assert.equal(capability.modSnapshot.count, 4);
+  assert.match(capability.effectiveLaunchInventoryDigest, /^[a-f0-9]{64}$/);
+  await capability.lease.assertHeld();
+});
+
+test('rejects an installed Family Core JAR when its first-party binding is absent', async (t) => {
+  const value = await launchFixture(t);
+  await fs.writeFile(path.join(value.directory, 'mods', 'mastermind-family-core.jar'), testJar());
+  const stableModLaunchBinding = {
+    binding: value.modLaunchBinding.binding,
+    async assertHeld() { return true; },
+    async release() {},
+  };
+  await assert.rejects(() => verifyFamilyServerInstall(value.instance, {
+    requireLaunchCapability: true,
+    platform: 'linux',
+    nativeFilesystemGuards: false,
+    allowUnconstrainedModDiscoveryForTests: true,
+    modLaunchBinding: stableModLaunchBinding,
+  }), /entry bound|unlisted executable input/i);
+});
+
 test('does not reopen the mutable mod source after the launch snapshot is sealed', async (t) => {
   const value = await launchFixture(t, { managedUserMod: true });
   const source = value.modLaunchBinding;

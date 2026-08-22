@@ -27,6 +27,7 @@ const GEYSER_CONFIG_PATH = 'config/Geyser-Fabric/config.yml';
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 const SHA512 = /^[a-f0-9]{128}$/i;
 const SAFE_MANAGED_MOD = /^mastermind-[a-f0-9]{48}\.jar$/;
+const FIRST_PARTY_CORE_FILE = 'mastermind-family-core.jar';
 const WINDOWS_MOD_DISCOVERY_POLICY = 'authenticated-local-home';
 
 export const REQUIRED_FAMILY_ARTIFACTS = Object.freeze([
@@ -843,12 +844,42 @@ async function authenticatedManagedMods(instance, capability) {
   });
 }
 
-async function verifiedEffectiveMods(instance, launch, modCapability) {
+async function authenticatedFirstPartyCore(instance, capability) {
+  if (capability == null) return [];
+  if (typeof capability !== 'object' || typeof capability.assertHeld !== 'function'
+    || typeof capability.release !== 'function') {
+    throw launchTrustUnavailable('The authenticated first-party core launch binding is invalid');
+  }
+  await capability.assertHeld();
+  const binding = capability.binding;
+  if (!exactObjectKeys(binding, ['schemaVersion', 'instanceId', 'generation', 'artifacts'])
+    || binding.schemaVersion !== 2 || binding.instanceId !== instance.id || !SHA256.test(binding.generation ?? '')
+    || !Array.isArray(binding.artifacts) || binding.artifacts.length > 1) {
+    throw launchTrustUnavailable('The authenticated first-party core launch binding is invalid');
+  }
+  return binding.artifacts.map((entry) => {
+    if (!exactObjectKeys(entry, ['fileName', 'sha256', 'size', 'modId', 'version'])
+      || entry.fileName !== FIRST_PARTY_CORE_FILE || entry.modId !== 'mastermind-family-core'
+      || !SHA256.test(entry.sha256 ?? '') || !Number.isInteger(entry.size) || entry.size < 1
+      || entry.size > MAX_MANAGED_ARTIFACT_BYTES || typeof entry.version !== 'string'
+      || entry.version.length < 1 || entry.version.length > 96) {
+      throw launchTrustUnavailable('The authenticated first-party core launch binding contains an invalid artifact');
+    }
+    return { fileName: entry.fileName, sha256: entry.sha256.toLowerCase(), size: entry.size };
+  });
+}
+
+async function verifiedEffectiveMods(instance, launch, modCapability, firstPartyCoreCapability) {
   const managed = await authenticatedManagedMods(instance, modCapability);
+  const firstPartyCore = await authenticatedFirstPartyCore(instance, firstPartyCoreCapability);
   const core = launch.inventory.instanceFiles
     .filter((entry) => entry.relativePath.startsWith('mods/'))
     .map((entry) => ({ fileName: path.posix.basename(entry.relativePath), sha256: entry.sha256, size: entry.size }));
-  const expected = new Map([...core, ...managed].map((entry) => [entry.fileName, entry]));
+  const all = [...core, ...firstPartyCore, ...managed];
+  if (new Set(all.map((entry) => entry.fileName.toLocaleLowerCase('en-US'))).size !== all.length) {
+    throw launchTrustUnavailable('The authenticated mod launch bindings contain a file-name collision');
+  }
+  const expected = new Map(all.map((entry) => [entry.fileName, entry]));
   const directory = path.join(instance.directory, 'mods');
   const children = await boundedDirectoryEntries(directory, expected.size, 'Mods directory');
   if (children.length !== expected.size) throw new Error('Mods directory contains an unlisted executable input');
@@ -973,7 +1004,7 @@ async function assertNativeLaunchMetadata(instance, launch, options) {
     path.join(instance.directory, 'fabric-server-launch.jar')]) await assertWindowsFilesystemEntry(file);
 }
 
-async function createLaunchSession(instance, launch, mods, modBinding) {
+async function createLaunchSession(instance, launch, mods, modBinding, firstPartyCoreBinding = null) {
   const parent = path.join(launch.managedRoot, 'state', 'launch-sessions');
   const session = path.join(parent, `${instance.id}-${crypto.randomUUID()}`);
   const modsDirectory = path.join(session, 'mods');
@@ -1005,6 +1036,7 @@ async function createLaunchSession(instance, launch, mods, modBinding) {
       baseLaunchInventoryDigest: launch.digest,
       stack: launch.inventory.stack,
       modBinding,
+      ...(firstPartyCoreBinding ? { firstPartyCoreBinding } : {}),
       mods: copiedMods,
       commandFiles: {
         modsList: { sha256: crypto.createHash('sha256').update(modsListBytes).digest('hex'), size: modsListBytes.length },
@@ -1149,7 +1181,15 @@ async function createLaunchCapability(instance, manifest, runtime, launch, optio
       release: () => suppliedModCapability.release(),
     }
     : suppliedModCapability;
-  const externalLeases = [launch.keyLease, modCapability].filter(Boolean);
+  const suppliedFirstPartyCoreCapability = options.firstPartyCoreLaunchBinding;
+  const firstPartyCoreCapability = suppliedFirstPartyCoreCapability && typeof launch.keyLease?.withHeldDirectoryGuards === 'function'
+    ? {
+      binding: suppliedFirstPartyCoreCapability.binding,
+      assertHeld: () => launch.keyLease.withHeldDirectoryGuards(() => suppliedFirstPartyCoreCapability.assertHeld()),
+      release: () => suppliedFirstPartyCoreCapability.release(),
+    }
+    : suppliedFirstPartyCoreCapability;
+  const externalLeases = [launch.keyLease, modCapability, firstPartyCoreCapability].filter(Boolean);
   let session = null;
   let lease = null;
   let stage = 'windows-policy';
@@ -1161,11 +1201,17 @@ async function createLaunchCapability(instance, manifest, runtime, launch, optio
       );
     }
     stage = 'mod-inventory';
-    const mods = await verifiedEffectiveMods(instance, launch, modCapability);
+    const mods = await verifiedEffectiveMods(instance, launch, modCapability, firstPartyCoreCapability);
     stage = 'native-metadata';
     await assertNativeLaunchMetadata(instance, launch, options);
     stage = 'launch-session';
-    session = await createLaunchSession(instance, launch, mods, structuredClone(modCapability.binding));
+    session = await createLaunchSession(
+      instance,
+      launch,
+      mods,
+      structuredClone(modCapability.binding),
+      firstPartyCoreCapability ? structuredClone(firstPartyCoreCapability.binding) : null,
+    );
     const runtimeExecutable = path.join(runtime.runtimeDirectory, 'bin', 'java.exe');
     const assets = launch.inventory.launchAssets;
     const fabricClasspath = assets.fabricClasspath.map((relativePath) => path.join(launch.assetRoot, ...relativePath.split('/')));
@@ -1276,6 +1322,7 @@ export async function verifyFamilyServerInstall(instance, options = {}) {
     if (!capabilityTransferred) {
       await launch?.keyLease?.release().catch(() => undefined);
       await options.modLaunchBinding?.release?.().catch(() => undefined);
+      await options.firstPartyCoreLaunchBinding?.release?.().catch(() => undefined);
     }
   }
 }

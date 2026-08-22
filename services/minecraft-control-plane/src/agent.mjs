@@ -21,6 +21,7 @@ import { FamilyServerUpdateManager } from './update-manager.mjs';
 import { FamilyServerBackupManager } from './backup-manager.mjs';
 import { FamilyServerAdminManager } from './server-admin.mjs';
 import { FamilyModManager } from './family-mod-manager.mjs';
+import { FamilyCoreArtifactManager } from './family-core-artifact-manager.mjs';
 import { ModrinthClient } from './modrinth-client.mjs';
 import { FamilyWorldManager, removeManagedFabricRuntimeCache } from './world-manager.mjs';
 import { verifyFamilyServerInstall } from './artifact-integrity.mjs';
@@ -56,6 +57,7 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 ]);
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
+const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.2.0.jar', import.meta.url));
 const RESTORE_PLAN_ID_PATTERN = /^rst-[a-f0-9]{64}$/;
 const SAFE_BACKUP_ROUTE_CODES = new Set([
   'BODY_TOO_LARGE',
@@ -634,6 +636,28 @@ function worldRouteFailure(error) {
   return { status: 500, code: 'WORLD_OPERATION_FAILED', message: 'The Family Server world request failed safely.', sanitized: true };
 }
 
+function firstPartyCoreRouteFailure(error) {
+  const code = typeof error?.code === 'string' && /^FAMILY_CORE_[A-Z0-9_]{3,64}$/.test(error.code)
+    ? error.code
+    : 'FAMILY_CORE_OPERATION_FAILED';
+  const safeCodes = new Set([
+    'FAMILY_CORE_ARTIFACT_INVALID', 'FAMILY_CORE_BACKUP_REQUIRED', 'FAMILY_CORE_CONFIRMATION_REQUIRED',
+    'FAMILY_CORE_INSTANCE_INVALID', 'FAMILY_CORE_INTEGRITY_FAILED', 'FAMILY_CORE_RECOVERY_REQUIRED',
+    'FAMILY_CORE_STATE_CHANGED', 'FAMILY_CORE_STATE_INVALID', 'FAMILY_CORE_STATE_UNAVAILABLE',
+    'FAMILY_CORE_UNMANAGED',
+  ]);
+  const status = Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode <= 599
+    ? error.statusCode
+    : 500;
+  if (safeCodes.has(code)) return { status, code, message: error.message, sanitized: false };
+  return {
+    status: 500,
+    code: 'FAMILY_CORE_OPERATION_FAILED',
+    message: 'The first-party Family Core operation failed safely.',
+    sanitized: true,
+  };
+}
+
 export function publicBackupInitializationFailure(error) {
   const stage = [
     'integration', 'storage-roots', 'authentication-key', 'cleanup-recovery',
@@ -829,6 +853,26 @@ export async function createControlPlane(options = {}) {
       return processes.assertQuiescentWithinInstanceLock(id);
     },
   });
+  const firstPartyCore = options.firstPartyCore ?? new FamilyCoreArtifactManager(managedRoot, store, {
+    withInstanceLock: withStrictUpdateLifecycleLock,
+    assertQuiescentWithinInstanceLock: (id) => {
+      if (typeof processes.assertQuiescentWithinInstanceLock !== 'function') {
+        throw Object.assign(new Error('The exact first-party core lifecycle boundary is unavailable.'), {
+          code: 'FAMILY_CORE_STATE_UNAVAILABLE', statusCode: 503,
+        });
+      }
+      return processes.assertQuiescentWithinInstanceLock(id);
+    },
+    assertVerifiedBackupWithinInstanceLock: (id, backupId) => {
+      if (typeof backups?.assertVerifiedSnapshotWithinInstanceLock !== 'function') {
+        throw Object.assign(new Error('The verified Family Server snapshot boundary is unavailable.'), {
+          code: 'FAMILY_CORE_BACKUP_REQUIRED', statusCode: 503,
+        });
+      }
+      return backups.assertVerifiedSnapshotWithinInstanceLock(id, backupId);
+    },
+  });
+  if (typeof firstPartyCore.initialize === 'function') await firstPartyCore.initialize();
   if (typeof mods.setLifecycleLock === 'function') mods.setLifecycleLock(withStrictUpdateLifecycleLock);
   if (typeof processes.setLaunchModBindingProvider === 'function') {
     processes.setLaunchModBindingProvider((instanceId) => {
@@ -838,6 +882,16 @@ export async function createControlPlane(options = {}) {
         });
       }
       return mods.acquireLaunchBindingWithinInstanceLock(instanceId);
+    });
+  }
+  if (typeof processes.setFirstPartyCoreLaunchBindingProvider === 'function') {
+    processes.setFirstPartyCoreLaunchBindingProvider((instanceId) => {
+      if (typeof firstPartyCore.acquireLaunchBindingWithinInstanceLock !== 'function') {
+        throw Object.assign(new Error('The authenticated first-party core launch binding is unavailable.'), {
+          code: 'LAUNCH_TRUST_UNAVAILABLE', statusCode: 503,
+        });
+      }
+      return firstPartyCore.acquireLaunchBindingWithinInstanceLock(instanceId);
     });
   }
   let modRecovery = options.modRecovery ?? null;
@@ -1073,6 +1127,12 @@ export async function createControlPlane(options = {}) {
       });
     }
     await mods.assertSafeForLifecycle({ instanceId });
+    if (typeof firstPartyCore.assertSafeForLifecycleWithinInstanceLock !== 'function') {
+      throw Object.assign(new Error('The authenticated first-party core recovery fence is unavailable.'), {
+        code: 'FAMILY_CORE_STATE_UNAVAILABLE', statusCode: 503,
+      });
+    }
+    await firstPartyCore.assertSafeForLifecycleWithinInstanceLock(instanceId);
     if (typeof worlds.assertSafeForLifecycle !== 'function') {
       throw Object.assign(new Error('The authenticated world recovery fence is unavailable.'), {
         code: 'WORLD_RECOVERY_REQUIRED', statusCode: 409,
@@ -1471,6 +1531,7 @@ export async function createControlPlane(options = {}) {
     let backupRouteContext = false;
     let adminRouteContext = false;
     let modRouteContext = false;
+    let firstPartyCoreRouteContext = false;
     let worldRouteContext = false;
     let updateStatusRouteContext = false;
     let lifecycleMutationContext = false;
@@ -1480,6 +1541,7 @@ export async function createControlPlane(options = {}) {
       backupRouteContext = /^\/v1\/instances\/[^/]+\/backups(?:\/|$)/.test(url.pathname);
       adminRouteContext = /^\/v1\/instances\/[^/]+\/admin(?:\/|$)/.test(url.pathname);
       modRouteContext = /^\/v1\/instances\/[^/]+\/mods(?:\/|$)/.test(url.pathname);
+      firstPartyCoreRouteContext = /^\/v1\/instances\/[^/]+\/first-party-core(?:\/|$)/.test(url.pathname);
       worldRouteContext = /^\/v1\/instances\/[^/]+\/worlds(?:\/|$)/.test(url.pathname);
       updateStatusRouteContext = request.method === 'GET'
         && /^\/v1\/instances\/[^/]+\/update-status$/.test(url.pathname);
@@ -1546,6 +1608,7 @@ export async function createControlPlane(options = {}) {
             transactionalBackupRestore: true,
             deferredAutomaticBackups: true,
             managedModrinthMods: true,
+            managedFirstPartyCoreArtifacts: true,
             geyser: true,
             floodgate: true,
             ps4ConnectionSetup: true,
@@ -1604,6 +1667,72 @@ export async function createControlPlane(options = {}) {
       }
       if (request.method === 'GET' && url.pathname === '/v1/instances') {
         return json(response, 200, { ok: true, instances: (await store.list()).map(publicInstance) });
+      }
+      const firstPartyCoreStatus = url.search === ''
+        ? url.pathname.match(/^\/v1\/instances\/([^/]+)\/first-party-core$/)
+        : null;
+      if (request.method === 'GET' && firstPartyCoreStatus) {
+        if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
+        const id = decodeURIComponent(firstPartyCoreStatus[1]);
+        if (id !== familyServerInstanceId) {
+          return json(response, 400, { ok: false, code: 'FAMILY_CORE_INSTANCE_INVALID', message: 'First-party core artifacts are restricted to family-server.' });
+        }
+        const status = await processes.withInstanceLock(id, () => firstPartyCore.status(id));
+        return json(response, 200, { ok: true, instanceId: id, firstPartyCore: status });
+      }
+      const firstPartyCoreAction = url.search === ''
+        ? url.pathname.match(/^\/v1\/instances\/([^/]+)\/first-party-core\/(promote|rollback)$/)
+        : null;
+      if (request.method === 'POST' && firstPartyCoreAction) {
+        if (draining) return json(response, 503, { ok: false, code: 'CONTROL_PLANE_DRAINING', message: 'The local control plane is draining.' });
+        const id = decodeURIComponent(firstPartyCoreAction[1]);
+        if (id !== familyServerInstanceId) {
+          return json(response, 400, { ok: false, code: 'FAMILY_CORE_INSTANCE_INVALID', message: 'First-party core artifacts are restricted to family-server.' });
+        }
+        if (companionLifecycleIsActive(companionLifecycle)) {
+          throw Object.assign(new Error('Stop the managed Family AI client before changing first-party server artifacts.'), {
+            code: 'FAMILY_CORE_STATE_CHANGED', statusCode: 409,
+          });
+        }
+        const input = await readJsonBody(request);
+        if (!input || typeof input !== 'object' || Array.isArray(input)) {
+          throw Object.assign(new Error('The first-party core request is invalid.'), { code: 'FAMILY_CORE_ARTIFACT_INVALID', statusCode: 400 });
+        }
+        let operation;
+        if (firstPartyCoreAction[2] === 'promote') {
+          const keys = ['expectedSha256', 'expectedSize', 'backupId', 'confirmation'];
+          if (Object.keys(input).length !== keys.length || Object.keys(input).some((key) => !keys.includes(key))
+            || !SHA256_PATTERN.test(input.expectedSha256 ?? '')
+            || !Number.isInteger(input.expectedSize) || input.expectedSize < 22 || input.expectedSize > 16 * 1024 * 1024
+            || !BACKUP_ID_PATTERN.test(input.backupId ?? '') || input.confirmation !== 'PROMOTE FIRST-PARTY FAMILY CORE') {
+            throw Object.assign(new Error('Family Core promotion requires one pinned artifact, verified backup, and exact confirmation.'), {
+              code: 'FAMILY_CORE_ARTIFACT_INVALID', statusCode: 400,
+            });
+          }
+          operation = await withManagedLifecycleRun(() => firstPartyCore.promote({
+            instanceId: id,
+            sourcePath: FAMILY_CORE_CANDIDATE_PATH,
+            expectedSha256: input.expectedSha256,
+            expectedSize: input.expectedSize,
+            backupId: input.backupId,
+            confirmation: input.confirmation,
+          }));
+        } else {
+          const keys = ['expectedGeneration', 'confirmation'];
+          if (Object.keys(input).length !== keys.length || Object.keys(input).some((key) => !keys.includes(key))
+            || !SHA256_PATTERN.test(input.expectedGeneration ?? '')
+            || input.confirmation !== 'ROLL BACK FIRST-PARTY FAMILY CORE') {
+            throw Object.assign(new Error('Family Core rollback requires the current generation and exact confirmation.'), {
+              code: 'FAMILY_CORE_STATE_CHANGED', statusCode: 400,
+            });
+          }
+          operation = await withManagedLifecycleRun(() => firstPartyCore.rollback({
+            instanceId: id,
+            expectedGeneration: input.expectedGeneration,
+            confirmation: input.confirmation,
+          }));
+        }
+        return json(response, 200, { ok: true, instanceId: id, operation });
       }
       const modSearch = url.pathname.match(/^\/v1\/instances\/([^/]+)\/mods\/catalog\/search$/);
       if (request.method === 'GET' && modSearch) {
@@ -2159,7 +2288,8 @@ export async function createControlPlane(options = {}) {
         : updateStatusRouteContext
         ? { status: 500, code: 'UPDATE_STATUS_FAILED', message: 'The Family Server update status is unavailable.', sanitized: true }
         : backupRouteContext ? backupRouteFailure(error) : adminRouteContext ? adminRouteFailure(error)
-        : modRouteContext ? modRouteFailure(error) : worldRouteContext ? worldRouteFailure(error) : classifyError(error);
+        : modRouteContext ? modRouteFailure(error) : firstPartyCoreRouteContext ? firstPartyCoreRouteFailure(error)
+        : worldRouteContext ? worldRouteFailure(error) : classifyError(error);
       if (lifecycleMutationContext && failure.code === 'CONTROL_ACTION_FAILED') {
         console.warn(formatLifecycleFailureDiagnostic(error));
       }
@@ -2171,6 +2301,9 @@ export async function createControlPlane(options = {}) {
       }
       if (adminRouteContext && failure.sanitized) {
         console.warn(`Family Server administration request failed (${failure.code}).`);
+      }
+      if (firstPartyCoreRouteContext && failure.sanitized) {
+        console.warn(`Family Server first-party core request failed (${failure.code}).`);
       }
       if (worldRouteContext && failure.sanitized) console.warn(`Family Server world request failed (${failure.code}).`);
       const ownerPid = Number.isInteger(error?.owner?.pid) && error.owner.pid > 0 && error.owner.pid <= 0xffffffff
@@ -2185,10 +2318,10 @@ export async function createControlPlane(options = {}) {
         ok: false,
         code: failure.code,
         message: globalRecoveryMessage || safeUpdateMessage || safeLifecycleMessage
-          || lifecycleMutationContext || updateStatusRouteContext || backupRouteContext || adminRouteContext || modRouteContext || worldRouteContext
+          || lifecycleMutationContext || updateStatusRouteContext || backupRouteContext || adminRouteContext || modRouteContext || firstPartyCoreRouteContext || worldRouteContext
           ? failure.message
           : (error?.message ?? 'Control request failed.'),
-        ...(!lifecycleMutationContext && !updateStatusRouteContext && !backupRouteContext && !adminRouteContext && !modRouteContext && !worldRouteContext && (ownerPid || ownerName)
+        ...(!lifecycleMutationContext && !updateStatusRouteContext && !backupRouteContext && !adminRouteContext && !modRouteContext && !firstPartyCoreRouteContext && !worldRouteContext && (ownerPid || ownerName)
           ? { owner: { ...(ownerPid ? { pid: ownerPid } : {}), ...(ownerName ? { processName: ownerName } : {}) } }
           : {}),
       });
@@ -2269,6 +2402,7 @@ export async function createControlPlane(options = {}) {
     recoveryPreflight,
     backups,
     mods,
+    firstPartyCore,
     worlds,
     administration,
     backupRecovery,

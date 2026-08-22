@@ -341,6 +341,20 @@ export class FamilyServerBackupManager {
     });
   }
 
+  async assertVerifiedSnapshotWithinInstanceLock(instanceId, backupId) {
+    const request = validateBackupInput({ instanceId, backupId });
+    await this.assertSafeForLifecycle({ instanceId: request.instanceId });
+    return this.#serialized(async () => {
+      const instance = await this.#quiescentInstance(request.instanceId);
+      const verified = await this.#verifySnapshot(instance, request.backupId, { recordResult: false });
+      return Object.freeze({
+        backupId: verified.manifest.backupId,
+        integrity: 'verified',
+        identityDigest: verified.identityDigest,
+      });
+    });
+  }
+
   async verify(input) {
     return this.#safePublic(async () => {
       const request = validateBackupInput(input);

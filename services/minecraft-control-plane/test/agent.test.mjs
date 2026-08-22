@@ -1101,6 +1101,65 @@ test('validates IDs before lifecycle and log access', async (t) => {
   assert.equal((await fetch(`${baseUrl}/v1/instances`, { method: 'POST', headers })).status, 404);
 });
 
+test('exposes only authenticated bounded first-party core status', async (t) => {
+  const calls = [];
+  const firstPartyCore = {
+    async initialize() { calls.push(['initialize']); return { state: 'disabled' }; },
+    async status(id) {
+      calls.push(['status', id]);
+      return { state: 'disabled', generation: 'a'.repeat(64), artifact: null, rollbackAvailable: false };
+    },
+    async acquireLaunchBindingWithinInstanceLock() {
+      return { binding: { schemaVersion: 2, instanceId: 'family-server', generation: 'a'.repeat(64), artifacts: [] }, async assertHeld() {}, async release() {} };
+    },
+    async assertSafeForLifecycleWithinInstanceLock() { return true; },
+    async promote(input) {
+      calls.push(['promote', { ...input, sourcePath: path.basename(input.sourcePath) }]);
+      return { action: 'promoted', manifest: { generation: 'c'.repeat(64) } };
+    },
+    async rollback(input) {
+      calls.push(['rollback', input]);
+      return { action: 'disabled', manifest: { generation: 'd'.repeat(64) } };
+    },
+  };
+  const { baseUrl } = await fixture(t, { firstPartyCore });
+  assert.equal((await fetch(`${baseUrl}/v1/instances/family-server/first-party-core`)).status, 401);
+  const response = await fetch(`${baseUrl}/v1/instances/family-server/first-party-core`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.deepEqual(body.firstPartyCore, {
+    state: 'disabled', generation: 'a'.repeat(64), artifact: null, rollbackAvailable: false,
+  });
+  const promoted = await fetch(`${baseUrl}/v1/instances/family-server/first-party-core/promote`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      expectedSha256: 'b'.repeat(64), expectedSize: 18_481, backupId: 'bkp-0123456789abcdef0123456789abcdef',
+      confirmation: 'PROMOTE FIRST-PARTY FAMILY CORE',
+    }),
+  });
+  assert.equal(promoted.status, 200);
+  const rolledBack = await fetch(`${baseUrl}/v1/instances/family-server/first-party-core/rollback`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedGeneration: 'c'.repeat(64), confirmation: 'ROLL BACK FIRST-PARTY FAMILY CORE' }),
+  });
+  assert.equal(rolledBack.status, 200);
+  assert.deepEqual(calls, [
+    ['initialize'],
+    ['status', 'family-server'],
+    ['promote', {
+      instanceId: 'family-server', sourcePath: 'family-core-0.2.0.jar', expectedSha256: 'b'.repeat(64),
+      expectedSize: 18_481, backupId: 'bkp-0123456789abcdef0123456789abcdef', confirmation: 'PROMOTE FIRST-PARTY FAMILY CORE',
+    }],
+    ['rollback', {
+      instanceId: 'family-server', expectedGeneration: 'c'.repeat(64), confirmation: 'ROLL BACK FIRST-PARTY FAMILY CORE',
+    }],
+  ]);
+});
+
 test('exposes only typed administration status, plans, actions, and operation reconciliation', async (t) => {
   const calls = [];
   const administration = {

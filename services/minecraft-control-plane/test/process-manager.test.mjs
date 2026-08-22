@@ -750,26 +750,34 @@ test('a pre-spawn lease substitution failure prevents process creation and relea
   assert.equal((await value.store.get(id)).status, 'failed');
 });
 
-test('the default verifier receives the exact mod launch binding provider under the instance lock', async (t) => {
+test('the default verifier receives exact mod and first-party core launch bindings under the instance lock', async (t) => {
   const id = 'default-mod-binding';
   const value = await capabilityFixture(t, id);
   let providerCalls = 0;
   let bindingReleases = 0;
+  let coreProviderCalls = 0;
+  let coreBindingReleases = 0;
   const modLaunchBinding = {
     binding: { schemaVersion: 1, instanceId: id, generation: 'a'.repeat(64), inventoryDigest: 'b'.repeat(64), mods: [] },
     async assertHeld() { return true; },
     async release() { bindingReleases += 1; },
+  };
+  const firstPartyCoreLaunchBinding = {
+    binding: { schemaVersion: 2, instanceId: id, generation: 'c'.repeat(64), artifacts: [] },
+    async assertHeld() { return true; },
+    async release() { coreBindingReleases += 1; },
   };
   const manager = new ProcessManager(value.store, { async append() {} }, process.execPath, undefined, {
     defaultInstallVerifier: async (instance, options) => {
       assert.equal(instance.id, id);
       assert.equal(options.requireLaunchCapability, true);
       assert.equal(options.modLaunchBinding, modLaunchBinding);
+      assert.equal(options.firstPartyCoreLaunchBinding, firstPartyCoreLaunchBinding);
       return {
         command: { executable: process.execPath, args: value.args, cwd: value.directory },
         lease: {
-          async assertHeld() { await modLaunchBinding.assertHeld(); },
-          async release() { await modLaunchBinding.release(); },
+          async assertHeld() { await modLaunchBinding.assertHeld(); await firstPartyCoreLaunchBinding.assertHeld(); },
+          async release() { await modLaunchBinding.release(); await firstPartyCoreLaunchBinding.release(); },
         },
       };
     },
@@ -784,11 +792,19 @@ test('the default verifier receives the exact mod launch binding provider under 
     assert.equal(instanceId, id);
     return modLaunchBinding;
   });
+  manager.setFirstPartyCoreLaunchBindingProvider(async (instanceId) => {
+    coreProviderCalls += 1;
+    assert.equal(instanceId, id);
+    return firstPartyCoreLaunchBinding;
+  });
   await manager.start(id);
   assert.equal(providerCalls, 1);
+  assert.equal(coreProviderCalls, 1);
   assert.equal(bindingReleases, 0);
+  assert.equal(coreBindingReleases, 0);
   await manager.stop(id, 2_000);
   assert.equal(bindingReleases, 1);
+  assert.equal(coreBindingReleases, 1);
 });
 
 test('a malformed partial custom capability releases its lease before command construction', async (t) => {
