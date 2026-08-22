@@ -1402,9 +1402,24 @@ export async function createControlPlane(options = {}) {
     }
   }
   let draining = false;
+  let managedLifecycleRuns = 0;
+  let backupRunInFlight = null;
+
+  const withManagedLifecycleRun = async (operation) => {
+    if (typeof operation !== 'function') throw new TypeError('Managed lifecycle operation must be a function');
+    managedLifecycleRuns += 1;
+    try {
+      // Close a scheduler scan that won the race immediately before lifecycle
+      // admission. Incrementing first prevents another timer tick from taking
+      // its place while the exact prior run drains.
+      if (backupRunInFlight) await backupRunInFlight;
+      return await operation();
+    }
+    finally { managedLifecycleRuns -= 1; }
+  };
 
   const startManagedInstanceWithinLock = async (id, { ensureRunning = false } = {}) => (
-    processes.withInstanceLock(id, async () => {
+    withManagedLifecycleRun(() => processes.withInstanceLock(id, async () => {
       if (ensureRunning) {
         const current = await store.get(id);
         if (!current) {
@@ -1449,7 +1464,7 @@ export async function createControlPlane(options = {}) {
         throw new Error('The process manager does not expose its locked start boundary');
       }
       return { action: 'started', instance: await processes.startWithinInstanceLock(id) };
-    }, { priority: 'lifecycle' })
+    }, { priority: 'lifecycle' }))
   );
 
   const server = http.createServer(async (request, response) => {
@@ -2194,9 +2209,9 @@ export async function createControlPlane(options = {}) {
   const backupTimerMs = Number.isInteger(options.backupTimerMs) && options.backupTimerMs >= 1_000
     ? options.backupTimerMs
     : 60_000;
-  let backupRunInFlight = null;
   const runScheduledBackups = () => {
-    if (backupRunInFlight || draining || globalRecoveryFence || companionLifecycleIsActive(companionLifecycle)) return;
+    if (backupRunInFlight || managedLifecycleRuns > 0 || draining || globalRecoveryFence
+      || companionLifecycleIsActive(companionLifecycle)) return;
     const run = Promise.resolve()
       .then(async () => {
         await latchLiveBackupRecoveryFence();

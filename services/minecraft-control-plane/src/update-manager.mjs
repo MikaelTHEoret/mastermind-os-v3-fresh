@@ -921,11 +921,6 @@ export class FamilyServerUpdateManager {
           throw stateError('The canonical server directory changed identity before final update publication');
         }
         await this.#assertStopped(await this.#instance(instance.id));
-        await this.assertStackUpdateAllowedWithinInstanceLock(instance.id, {
-          ...plan.target.identity,
-          worldDataVersion: prepared.recordPatch.worldDataVersion,
-          minecraftServerArtifact: verifiedServerArtifact,
-        });
         await this.filesystemTreeVerifier(paths.instance, {
           maxEntries: MAX_UPDATE_TREE_ENTRIES,
           maxDepth: MAX_UPDATE_TREE_DEPTH,
@@ -962,6 +957,17 @@ export class FamilyServerUpdateManager {
         });
       };
       const candidatePublicationTree = await verifyCandidateForPublication();
+      // The world interlock scans descendants of the live instance. On Windows
+      // it cannot safely open those descendants after moveManagedDirectory has
+      // acquired the exclusive parent publication guard. Revalidate the
+      // interlock immediately before guard acquisition; the held source
+      // identity and protected-state hashes below close the remaining race.
+      await this.#assertStopped(await this.#instance(instance.id));
+      await this.assertStackUpdateAllowedWithinInstanceLock(instance.id, {
+        ...plan.target.identity,
+        worldDataVersion: prepared.recordPatch.worldDataVersion,
+        minecraftServerArtifact: verifiedServerArtifact,
+      });
       await this.#withAuthenticatedMutationBoundary(marker, () => moveManagedDirectory(
           paths.instance,
           paths.backup,

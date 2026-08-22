@@ -1779,6 +1779,83 @@ test('does not overlap scheduled backup runs and records a top-level scheduler f
   assert.equal(warnings.some((message) => message.includes('private-world')), false);
 });
 
+test('does not start the scheduled backup scanner while a managed server start is in flight', async (t) => {
+  let scheduledRuns = 0;
+  let releaseScheduledRun;
+  let releaseStart;
+  let markStartEntered;
+  let startWasEntered = false;
+  const scheduledRunRelease = new Promise((resolve) => { releaseScheduledRun = resolve; });
+  const startEntered = new Promise((resolve) => { markStartEntered = resolve; });
+  const startRelease = new Promise((resolve) => { releaseStart = resolve; });
+  const stopped = {
+    id: 'family-server', displayName: 'Family Server', projectId: 'family-server', kind: 'server',
+    minecraftVersion: '26.2', status: 'stopped', pid: null,
+  };
+  const store = {
+    async initialize() {}, async list() { return [structuredClone(stopped)]; },
+    async get(id) { return id === stopped.id ? structuredClone(stopped) : null; },
+  };
+  const processes = {
+    async withInstanceLock(_id, operation) { return operation(); },
+    async isActive() { return false; },
+    async startWithinInstanceLock() {
+      startWasEntered = true;
+      markStartEntered();
+      await startRelease;
+      return { ...stopped, status: 'running', pid: 4545 };
+    },
+    async shutdown() {},
+  };
+  const backups = {
+    async preflightRecoveryEvidence() { return { domain: 'backup', instances: [] }; },
+    recoveryStatus() { return { manualRecoveryRequired: 0, global: false, instanceIds: [] }; },
+    async assertSafeForLifecycle() {},
+    async runDueBackups() { scheduledRuns += 1; await scheduledRunRelease; return []; },
+  };
+  const updater = {
+    async preflightRecoveryEvidence() { return { domain: 'update', instances: [] }; },
+    async reconcileInterruptedTransactions() { return []; }, async assertSafeForLifecycle() {},
+    async check() { return { state: 'current', requiresApproval: false }; },
+    setStackInterlock() {}, async markReady() {},
+  };
+  const mods = {
+    async preflightRecoveryEvidence() { return { domain: 'mods', instances: [] }; },
+    async prepareStackValidation() {}, async initialize() { return []; }, setWorldInterlock() {},
+    async assertStackUpdateAllowedWithinInstanceLock() {}, async assertSafeForLifecycle() {},
+    async assertStartAllowedWithinInstanceLock() {},
+  };
+  const worlds = {
+    async preflightRecoveryEvidence() { return { domain: 'world', instances: [] }; },
+    async prepareRestoreValidation() {}, async initialize() { return []; },
+    async assertSafeForLifecycle() {}, async assertMutationAllowedWithinInstanceLock() {},
+    async assertStackUpdateAllowedWithinInstanceLock() {}, async assertModMutationAllowedWithinInstanceLock() {},
+    async reconcileGeneratedWorldWithinInstanceLock() { return false; },
+  };
+  const { baseUrl } = await fixture(t, {
+    store, processes, processRecovery: [], backups, backupRecovery: [], updater, updateRecovery: [],
+    mods, modRecovery: [], worlds, worldRecovery: [], backupTimerMs: 1_000,
+    administration: { async initialize() {} },
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  assert.equal(scheduledRuns, 1, 'the fixture must establish one scheduler run before lifecycle admission');
+  const start = fetch(`${baseUrl}/v1/instances/family-server/start`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}` },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(startWasEntered, false, 'start must wait for the exact in-flight scheduler run to close');
+  releaseScheduledRun();
+  await startEntered;
+  await new Promise((resolve) => setTimeout(resolve, 2_150));
+  assert.equal(scheduledRuns, 1, 'the scheduler must not contend with a managed start');
+  releaseStart();
+  const response = await start;
+  assert.equal(response.status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 1_100));
+  assert.ok(scheduledRuns >= 2, 'the scheduler may resume after the managed start leaves its lifecycle scope');
+});
+
 test('rechecks the live backup recovery fence inside the mod mutation lock', async (t) => {
   const warnings = [];
   t.mock.method(console, 'warn', (message) => warnings.push(message));

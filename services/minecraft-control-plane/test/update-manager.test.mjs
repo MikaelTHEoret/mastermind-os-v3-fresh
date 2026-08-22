@@ -126,8 +126,9 @@ async function fixture(t, options = {}) {
         ? options.withInstanceLock(_instanceId, operation)
         : operation();
     },
-    assertStackUpdateAllowedWithinInstanceLock: async () => {
+    assertStackUpdateAllowedWithinInstanceLock: async (...args) => {
       state.interlockCalls += 1;
+      await options.onStackInterlock?.(...args);
       if (options.modsBlockUpdate) throw Object.assign(new Error('Managed add-on mods block Minecraft/Fabric stack updates.'), {
         code: 'MODS_BLOCK_MINECRAFT_UPDATE', statusCode: 409,
       });
@@ -444,6 +445,48 @@ test('automatically stages a same-Minecraft component update, preserves mutable 
   assert.equal(ready.transaction.phase, 'ready');
   assert.equal((await value.store.get(value.id)).updateStatus.state, 'verified');
   assert.equal(await fileExists(backup), true, 'readiness must not silently delete the rollback backup');
+});
+
+test('runs the final stack interlock before acquiring the live instance publication guard', async (t) => {
+  const held = new Map();
+  const finishGuard = (target) => {
+    const key = path.resolve(target);
+    const count = held.get(key) ?? 0;
+    if (count <= 1) held.delete(key); else held.set(key, count - 1);
+  };
+  const directoryGuard = async (target) => {
+    const key = path.resolve(target);
+    held.set(key, (held.get(key) ?? 0) + 1);
+    let active = true;
+    const finish = async (operation) => {
+      if (!active) return;
+      active = false;
+      try { await operation?.(); } finally { finishGuard(target); }
+    };
+    return {
+      assertHeld() { if (!active) throw new Error('test directory guard was already released'); },
+      release: () => finish(),
+      delete: () => finish(() => fs.rmdir(target)),
+      rename: (destination) => finish(() => fs.rename(target, destination)),
+    };
+  };
+  directoryGuard.batch = async (targets) => Promise.all(targets.map(directoryGuard));
+  let value;
+  value = await fixture(t, {
+    directoryGuard,
+    onStackInterlock: async () => {
+      assert.equal(
+        held.has(path.resolve(value.instanceDirectory)),
+        false,
+        'the world/mod interlock must not run beneath the exclusive live instance publication guard',
+      );
+    },
+  });
+
+  const result = await value.manager.update({ instanceId: value.id });
+  assert.equal(result.action, 'updated');
+  assert.equal(result.transaction.phase, 'pending-readiness');
+  assert.equal(held.size, 0, 'every publication guard must be released after the update');
 });
 
 test('same-version migrated records backfill launch trust without copying legacy executable roots', async (t) => {

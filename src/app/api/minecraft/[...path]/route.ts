@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { request as httpRequest } from 'node:http';
 import { MinecraftAccessError, getControlPlaneConfiguration, requireMinecraftAccess } from '@/lib/minecraft/access';
 
 export const runtime = 'nodejs';
@@ -21,6 +22,7 @@ const MAX_WORLD_BODY_BYTES = 2 * 1024;
 const MAX_UPSTREAM_RESPONSE_BYTES = 512 * 1024;
 const MAX_LOG_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MOD_PLAN_TIMEOUT_MS = 30 * 60 * 1000;
+const BUFFERED_LOCAL_CONTROL_THRESHOLD_MS = 5 * 60 * 1000;
 const FAMILY_SERVER_ID = 'family-server';
 const JAVA_PROFILE_NAME = /^[A-Za-z0-9_]{3,16}$/;
 const ADMIN_REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -98,6 +100,71 @@ const FAMILY_BRAIN_FEATURES = Object.freeze([
 const FAMILY_BRAIN_STATES = new Set(['planned', 'stubbed', 'implemented', 'live-verified']);
 
 type RouteContext = { params: Promise<{ path: string[] }> };
+
+function bufferedLocalControlRequest(
+  url: URL,
+  init: { method: string; headers: Record<string, string>; body?: string; signal: AbortSignal },
+): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finishReject = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    const request = httpRequest(url, {
+      method: init.method,
+      headers: init.headers,
+      agent: false,
+    }, (response) => {
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      response.on('data', (chunk: Buffer | string) => {
+        const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        bytes += value.byteLength;
+        if (bytes > MAX_UPSTREAM_RESPONSE_BYTES) {
+          response.destroy();
+          finishReject(new MinecraftAccessError(
+            502,
+            'CONTROL_RESPONSE_TOO_LARGE',
+            'The local Minecraft agent response exceeded the proxy limit.',
+          ));
+          return;
+        }
+        chunks.push(value);
+      });
+      response.once('error', finishReject);
+      response.once('end', () => {
+        if (settled) return;
+        settled = true;
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (Array.isArray(value)) value.forEach((item) => headers.append(name, item));
+          else if (value !== undefined) headers.set(name, value);
+        }
+        resolve(new Response(Buffer.concat(chunks), {
+          status: response.statusCode ?? 502,
+          headers,
+        }));
+      });
+    });
+    const abort = () => {
+      const reason = init.signal.reason instanceof Error
+        ? init.signal.reason
+        : new DOMException('The local control request was aborted.', 'AbortError');
+      request.destroy(reason);
+      finishReject(reason);
+    };
+    if (init.signal.aborted) {
+      abort();
+      return;
+    }
+    init.signal.addEventListener('abort', abort, { once: true });
+    request.once('error', finishReject);
+    request.once('close', () => init.signal.removeEventListener('abort', abort));
+    request.end(init.body);
+  });
+}
 
 function errorResponse(status: number, code: string, message: string) {
   return NextResponse.json(
@@ -1765,12 +1832,14 @@ async function handle(request: NextRequest, context: RouteContext) {
         ? BACKUP_OPERATION_TIMEOUT_MS
       : isWorldPlanMutation
         ? MOD_PLAN_TIMEOUT_MS
+      : isWorldRequest
+        ? MOD_PLAN_TIMEOUT_MS
       : path[0] === 'provision'
       ? 10 * 60 * 1000
       : path[0] === 'client' && path[1] === 'provision'
         ? 15 * 60 * 1000
       : path[0] === 'instances' && ['start', 'update', 'retired-version'].includes(path[2] ?? '')
-        ? 10 * 60 * 1000
+        ? 60 * 60 * 1000
       : path[0] === 'instances' && path[2] === 'lan'
         ? 11 * 60 * 1000
         : isAdminActionMutation || isAdminPlanMutation || isModRequest
@@ -1781,17 +1850,27 @@ async function handle(request: NextRequest, context: RouteContext) {
     let upstream: Response;
     let responseBody: string;
     try {
-      upstream = await fetch(new URL(target, baseUrl), {
+      const upstreamUrl = new URL(target, baseUrl);
+      const upstreamHeaders = {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/json',
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      };
+      const signal = AbortSignal.timeout(timeoutMs);
+      upstream = timeoutMs > BUFFERED_LOCAL_CONTROL_THRESHOLD_MS
+        ? await bufferedLocalControlRequest(upstreamUrl, {
+          method: request.method,
+          headers: upstreamHeaders,
+          body,
+          signal,
+        })
+        : await fetch(upstreamUrl, {
         method: request.method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-          ...(body ? { 'Content-Type': 'application/json' } : {}),
-        },
+        headers: upstreamHeaders,
         body,
         cache: 'no-store',
         redirect: 'error',
-        signal: AbortSignal.timeout(timeoutMs),
+        signal,
       });
       responseBody = await readBoundedUpstreamJson(
         upstream,
