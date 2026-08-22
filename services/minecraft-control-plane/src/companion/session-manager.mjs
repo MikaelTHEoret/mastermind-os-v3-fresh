@@ -297,7 +297,8 @@ export class CompanionSessionManager extends EventEmitter {
     const now = this.now();
     const synchronized = this.#isSynchronized(connection, now);
     if (!synchronized) throw sessionError(409, 'COMPANION_NOT_SYNCHRONIZED', 'The Family AI client has not published a fresh in-world Family Server state.');
-    if (this.activeAction) throw sessionError(409, 'COMPANION_BUSY', 'The Family AI client already has an active action.');
+    const physical = action.kind !== 'direct.say';
+    if (physical && this.activeAction) throw sessionError(409, 'COMPANION_BUSY', 'The Family AI client already has an active action.');
     if (!connection.capabilities.has(action.kind)) {
       throw sessionError(409, 'CAPABILITY_UNAVAILABLE', `The connected bridge does not support '${action.kind}'.`);
     }
@@ -314,7 +315,7 @@ export class CompanionSessionManager extends EventEmitter {
       deadlineAt: new Date(now + timeoutMs).toISOString(),
     };
     this.actionHistory.set(record.actionId, record);
-    this.activeAction = record;
+    if (physical) this.activeAction = record;
     try {
       this.#send('action.execute', {
         actionId: record.actionId,

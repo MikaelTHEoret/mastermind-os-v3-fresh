@@ -1,6 +1,6 @@
 # Mastermind Zenith headless controller
 
-Minimal Minecraft-protocol controller used to prove the private Zenith controller entrance.
+Minimal Minecraft-protocol controller for the private Zenith controller entrance.
 
 Safety properties:
 
@@ -8,11 +8,14 @@ Safety properties:
 - connects only to IPv4 loopback;
 - never accepts credentials in command-line arguments or environment variables;
 - never logs the access token or raw disconnect details;
-- exposes no movement, chat, inventory, or interaction commands yet;
-- disconnects after a bounded hold period and closes its Netty resources.
+- accepts a second bounded JSON-lines channel on the same private stdin pipe;
+- currently exposes only `chat.say`, rejects command-prefixed or unsafe text, and never echoes chat content;
+- exposes no movement, inventory, or interaction commands yet;
+- disconnects after a bounded hold period, invalid command, or transport failure and closes its Netty resources.
 
-This probe is not an autonomous player. It exists only to validate authenticated login,
-controller admission, revocation, and clean shutdown before the action surface is added.
+This controller is not yet an autonomous player. The first action slice allows the companion
+to converse through the same embodied controller path as a real client while movement remains
+with the safe native fallback or an authenticated parent.
 
 The pinned Minecraft 26.2 palette dimensions are supplied explicitly because Zenith's
 MCProtocolLib fork delegates that metadata to its embedding client. This probe does not

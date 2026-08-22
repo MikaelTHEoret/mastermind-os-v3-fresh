@@ -70,6 +70,7 @@ test('wire parsing rejects invalid JSON and oversized payloads before decoding',
 test('the action union accepts only bounded typed direct actions and Baritone skills', () => {
   const actions = [
     { kind: 'direct.say', args: { text: 'Hello family' } },
+    { kind: 'direct.respawn', args: {} },
     { kind: 'direct.lookAt', args: { x: 1, y: 64, z: 2, durationMs: 250 } },
     { kind: 'direct.lookDelta', args: { yawDelta: 15, pitchDelta: -4, durationMs: 100 } },
     { kind: 'direct.moveFor', args: { forward: 1, strafe: 0, durationMs: 500, sprint: true, sneak: false } },

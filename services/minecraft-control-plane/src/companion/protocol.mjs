@@ -10,6 +10,7 @@ export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'action.cancel',
   'client.shutdown',
   'direct.say',
+  'direct.respawn',
   'direct.lookAt',
   'direct.lookDelta',
   'direct.moveFor',
@@ -143,6 +144,7 @@ function validateActionArgs(action) {
       break;
     case 'direct.jump':
     case 'direct.attack':
+    case 'direct.respawn':
     case 'skill.escapeDanger':
       exactObject(args, `${kind}.args`, []);
       break;

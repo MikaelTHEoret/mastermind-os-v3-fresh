@@ -256,6 +256,18 @@ test('no new action can be dispatched after graceful shutdown begins', async () 
   ));
 });
 
+test('conversation remains a non-physical side channel while one foreground task runs', async () => {
+  const { manager } = await readyManager();
+  await synchronizeInWorld(manager);
+  const physical = manager.dispatchAction({ kind: 'skill.explore', args: { radius: 64 } });
+  const speech = manager.dispatchAction({ kind: 'direct.say', args: { text: 'I am still exploring.' } });
+  assert.equal(manager.status().activeAction.actionId, physical.actionId);
+  assert.equal(speech.kind, 'direct.say');
+  assert.throws(() => manager.dispatchAction({ kind: 'direct.jump', args: {} }), (error) => (
+    error instanceof CompanionSessionError && error.code === 'COMPANION_BUSY'
+  ));
+});
+
 test('socket send failures cannot strand an action or shutdown mutation', async () => {
   const first = await readyManager();
   await synchronizeInWorld(first.manager);

@@ -13,6 +13,7 @@ final class BoundedLineReader {
         var bytes = new ByteArrayOutputStream(Math.min(1024, maximumBytes));
         while (true) {
             int value = input.read();
+            if (value == -1 && bytes.size() == 0) return null;
             if (value == -1 || value == '\n') break;
             if (bytes.size() >= maximumBytes) throw new IOException("INPUT_TOO_LARGE");
             bytes.write(value);

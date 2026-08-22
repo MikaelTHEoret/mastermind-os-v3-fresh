@@ -8,6 +8,7 @@ import com.mastermind.minecraft.familyagent.navigation.NavigationUnavailableExce
 import com.mastermind.minecraft.familyagent.protocol.ClientPayloads;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
@@ -262,6 +263,7 @@ final class MinecraftActionController {
                     requireConnection().sendChat(command.arguments().get("text").getAsString());
                     finishSucceeded(command.actionId(), "sent");
                 }
+                case "direct.respawn" -> respawn(command);
                 case "direct.lookAt", "direct.lookDelta" -> running = new TimedLook(command, nowNanos);
                 case "direct.moveFor" -> running = new TimedMove(command, nowNanos);
                 case "direct.jump" -> running = new OneTickJump(command, nowNanos);
@@ -284,6 +286,16 @@ final class MinecraftActionController {
         minecraft.gameMode.attack(player, target.getEntity());
         player.swing(InteractionHand.MAIN_HAND);
         finishSucceeded(command.actionId(), "attacked");
+    }
+
+    private void respawn(ActionCommand command) {
+        var player = requirePlayer();
+        if (player.getHealth() > 0.0F && !player.isDeadOrDying()) {
+            finishFailed(command.actionId(), "not-dead", "The companion is already alive");
+            return;
+        }
+        requireConnection().send(new ServerboundClientCommandPacket(ServerboundClientCommandPacket.Action.PERFORM_RESPAWN));
+        finishSucceeded(command.actionId(), "respawn-requested");
     }
 
     private void startNavigation(ActionCommand command) {

@@ -41,7 +41,7 @@ final class LaunchEnvelope {
             || value.port < 1024 || value.port > 65535 || !MODES.contains(value.mode)
             || value.profile == null || value.profile.name == null
             || !PLAYER_NAME.matcher(value.profile.name).matches()
-            || value.holdMillis < 250 || value.holdMillis > 300_000) {
+            || value.holdMillis < 250 || value.holdMillis > 86_400_000) {
             throw new IllegalArgumentException("INVALID_LAUNCH_ENVELOPE");
         }
         final UUID profileId;

@@ -118,12 +118,18 @@ public final class HeadlessControllerMain {
                 exit = 4;
             } else if (playReady.getCount() != 0) {
                 exit = 7;
-            } else if (disconnected.await(launch.holdMillis, TimeUnit.MILLISECONDS)) {
-                exit = 7;
             } else {
-                cleanStop.set(true);
-                session.disconnect("Mastermind controller probe complete");
-                disconnected.await(5, TimeUnit.SECONDS);
+                Thread.ofPlatform()
+                    .name("mastermind-controller-commands")
+                    .daemon(true)
+                    .start(new ControllerCommandLoop(System.in, session, cleanStop));
+                if (disconnected.await(launch.holdMillis, TimeUnit.MILLISECONDS)) {
+                    exit = cleanStop.get() ? 6 : 7;
+                } else {
+                    cleanStop.set(true);
+                    session.disconnect("Mastermind controller hold complete");
+                    disconnected.await(5, TimeUnit.SECONDS);
+                }
             }
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
