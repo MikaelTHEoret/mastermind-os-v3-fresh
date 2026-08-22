@@ -5,6 +5,7 @@ import {
   validateAuthorizationDecision,
   validateBehaviorMode,
   validateConversationInput,
+  validateConversationResponseMarker,
   validatePlayerPrincipal,
   validateProfileClaim,
   validateReasoningRequest,
@@ -79,23 +80,127 @@ export class ConversationRouter {
   constructor(options = {}) {
     this.flags = { ...FAMILY_COMPANION_FEATURE_FLAGS, ...(options.flags ?? {}) };
     this.companionNames = new Set((options.companionNames ?? ['the_alchemist___', 'alchemist']).map((value) => value.toLowerCase()));
+    this.attentionWindowMs = options.attentionWindowMs ?? 2 * 60 * 1000;
+    if (!Number.isInteger(this.attentionWindowMs) || this.attentionWindowMs < 5_000 || this.attentionWindowMs > 10 * 60 * 1000) {
+      throw new TypeError('attentionWindowMs must be an integer between 5000 and 600000');
+    }
+    this.activeCompanionSessions = new Map();
+  }
+
+  classify(value) {
+    const input = validateConversationInput(value);
+    if (input.channel === 'computer-command' || input.directedAt === 'COMPUTER') {
+      return { actor: 'COMPUTER', reason: 'explicit-computer-command', input };
+    }
+    const lower = input.text.toLowerCase();
+    const named = [...this.companionNames].some((name) => {
+      const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`, 'i').test(lower);
+    });
+    if (input.directedAt === 'COMPANION' || named) {
+      return { actor: 'COMPANION', reason: input.directedAt === 'COMPANION' ? 'explicit-companion-target' : 'companion-name', input };
+    }
+    const atMs = Date.parse(input.occurredAt);
+    this.#prune(atMs);
+    const active = this.activeCompanionSessions.get(input.minecraftUuid);
+    if (active && input.replyToMessageId === active.lastResponseMessageId) {
+      return { actor: 'COMPANION', reason: 'reply-to-companion', input };
+    }
+    if (active && active.expiresAtMs > atMs) {
+      return { actor: 'COMPANION', reason: 'active-conversation', input };
+    }
+    return { actor: null, reason: 'not-addressed', input };
   }
 
   route(value) {
-    const input = validateConversationInput(value);
-    if (input.channel === 'computer-command' || input.directedAt === 'COMPUTER') {
-      return this.flags.computerChat
-        ? { ok: true, actor: 'COMPUTER', reason: 'explicit-computer-command', input }
-        : featureUnavailable('computerChat');
+    const classification = this.classify(value);
+    if (classification.actor === 'COMPUTER' && !this.flags.computerChat) return featureUnavailable('computerChat');
+    if (classification.actor === 'COMPANION' && !this.flags.companionConversation) return featureUnavailable('companionConversation');
+    return { ok: true, ...classification };
+  }
+
+  markResponse(value) {
+    const marker = validateConversationResponseMarker(value);
+    if (marker.actor !== 'COMPANION') return { ok: true, tracked: false, reason: 'computer-has-no-ambient-attention' };
+    const occurredAtMs = Date.parse(marker.occurredAt);
+    this.#prune(occurredAtMs);
+    this.activeCompanionSessions.set(marker.minecraftUuid, {
+      lastResponseMessageId: marker.messageId,
+      expiresAtMs: occurredAtMs + this.attentionWindowMs,
+    });
+    return { ok: true, tracked: true, expiresAt: new Date(occurredAtMs + this.attentionWindowMs).toISOString() };
+  }
+
+  status(atMs = Date.now()) {
+    if (!Number.isFinite(atMs)) throw new TypeError('Conversation status time must be finite');
+    this.#prune(atMs);
+    return { activeCompanionSessions: this.activeCompanionSessions.size, attentionWindowMs: this.attentionWindowMs };
+  }
+
+  #prune(atMs) {
+    for (const [minecraftUuid, session] of this.activeCompanionSessions) {
+      if (session.expiresAtMs <= atMs) this.activeCompanionSessions.delete(minecraftUuid);
     }
-    const lower = input.text.toLowerCase();
-    const named = [...this.companionNames].some((name) => lower.includes(name));
-    if (input.directedAt === 'COMPANION' || named) {
-      return this.flags.companionConversation
-        ? { ok: true, actor: 'COMPANION', reason: input.directedAt === 'COMPANION' ? 'explicit-companion-target' : 'companion-name', input }
-        : featureUnavailable('companionConversation');
+  }
+}
+
+export class ConversationIntake {
+  constructor(options = {}) {
+    this.router = options.router ?? new ConversationRouter();
+    this.permissionPolicy = options.permissionPolicy ?? new PermissionPolicy();
+    this.received = 0;
+    this.addressed = 0;
+    this.ignored = 0;
+    this.last = null;
+  }
+
+  ingest(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('A conversation intake value is required');
+    const allowed = new Set(['role', 'messageId', 'occurredAt', 'minecraftUuid', 'displayName', 'channel', 'text', 'directedAt', 'replyToMessageId']);
+    if (Object.keys(value).some((key) => !allowed.has(key)) || !PLAYER_ROLES.includes(value.role)) {
+      throw new TypeError('Conversation intake contains invalid identity or fields');
     }
-    return { ok: true, actor: null, reason: 'not-addressed', input };
+    const { role, ...candidate } = value;
+    const classification = this.router.classify(candidate);
+    const authorization = classification.actor === 'COMPANION'
+      ? this.permissionPolicy.authorize({ role, capability: 'conversation' })
+      : null;
+    const execution = classification.actor === 'COMPANION'
+      ? featureUnavailable('companionConversation')
+      : classification.actor === 'COMPUTER'
+        ? featureUnavailable('computerChat')
+        : null;
+    this.received += 1;
+    if (classification.actor === null) this.ignored += 1;
+    else this.addressed += 1;
+    this.last = {
+      receivedAt: classification.input.occurredAt,
+      actor: classification.actor,
+      reason: classification.reason,
+      executionCode: execution?.code ?? null,
+    };
+    return {
+      ok: true,
+      actor: classification.actor,
+      reason: classification.reason,
+      authorization,
+      execution,
+    };
+  }
+
+  status() {
+    return {
+      schemaVersion: 1,
+      received: this.received,
+      addressed: this.addressed,
+      ignored: this.ignored,
+      lastReceivedAt: this.last?.receivedAt ?? null,
+      lastActor: this.last?.actor ?? null,
+      lastReason: this.last?.reason ?? null,
+      lastExecutionCode: this.last?.executionCode ?? null,
+      activeCompanionSessions: this.router.status().activeCompanionSessions,
+      storesChatContent: false,
+    };
   }
 }
 
@@ -244,10 +349,14 @@ export function createFamilyCompanionSkeleton() {
     'inventory.move', 'inventory.give', 'craft.recipe', 'container.transfer', 'skill.sleep',
     'skill.eat', 'skill.combat', 'skill.tendCrops', 'skill.deliverItem', 'skill.buildBounded',
   ].map((id) => ({ id, availability: 'stubbed', cancellable: true, physical: true, roles: ['parent', 'child'] }));
+  const permissionPolicy = new PermissionPolicy();
+  const conversationRouter = new ConversationRouter();
+  const conversationIntake = new ConversationIntake({ router: conversationRouter, permissionPolicy });
   return {
     identityResolver: new IdentityResolver(),
-    permissionPolicy: new PermissionPolicy(),
-    conversationRouter: new ConversationRouter(),
+    permissionPolicy,
+    conversationRouter,
+    conversationIntake,
     personaEngine: new PersonaEngine(),
     reasoningModel: new DisabledReasoningModel(),
     modelBroker: new MastermindModelBroker(),
@@ -260,6 +369,8 @@ export function createFamilyCompanionSkeleton() {
     profileRepository: new ProfileRepository(),
     computerTools: new ComputerToolRegistry(),
     resourceGovernor: new ResourceGovernor(),
+    ingestChat: (value) => conversationIntake.ingest(value),
+    conversationStatus: () => conversationIntake.status(),
     status: publicFeatureStatus,
   };
 }

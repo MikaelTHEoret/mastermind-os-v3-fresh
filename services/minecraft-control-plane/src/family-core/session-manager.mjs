@@ -173,6 +173,7 @@ export class FamilyCoreSessionManager extends EventEmitter {
       channel: message.payload.channel,
       text: message.payload.text,
       messageId: message.messageId,
+      occurredAt: message.sentAt,
       ...(message.payload.replyToMessageId ? { replyToMessageId: message.payload.replyToMessageId } : {}),
     };
     this.emit('chat-received', clone(event));

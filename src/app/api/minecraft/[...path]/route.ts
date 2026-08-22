@@ -207,6 +207,53 @@ function publicBrainEnvelope(envelope: Record<string, unknown>): Record<string, 
   };
 }
 
+const CONVERSATION_REASONS = new Set([
+  'explicit-computer-command',
+  'explicit-companion-target',
+  'companion-name',
+  'reply-to-companion',
+  'active-conversation',
+  'not-addressed',
+]);
+
+function publicConversationStatusEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
+  if (envelope.ok !== true || !envelope.conversation || typeof envelope.conversation !== 'object'
+    || Array.isArray(envelope.conversation)) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid conversation intake status.');
+  }
+  const status = envelope.conversation as Record<string, unknown>;
+  const keys = [
+    'schemaVersion', 'received', 'addressed', 'ignored', 'lastReceivedAt', 'lastActor',
+    'lastReason', 'lastExecutionCode', 'activeCompanionSessions', 'storesChatContent',
+  ];
+  const canonicalLastReceivedAt = typeof status.lastReceivedAt === 'string'
+    && Number.isFinite(Date.parse(status.lastReceivedAt))
+    && new Date(status.lastReceivedAt).toISOString() === status.lastReceivedAt;
+  if (Object.keys(status).length !== keys.length || Object.keys(status).some((key) => !keys.includes(key))
+    || status.schemaVersion !== 1
+    || !Number.isInteger(status.received) || Number(status.received) < 0
+    || !Number.isInteger(status.addressed) || Number(status.addressed) < 0
+    || !Number.isInteger(status.ignored) || Number(status.ignored) < 0
+    || Number(status.addressed) + Number(status.ignored) !== Number(status.received)
+    || !Number.isInteger(status.activeCompanionSessions) || Number(status.activeCompanionSessions) < 0
+    || status.storesChatContent !== false
+    || (status.lastReceivedAt !== null && !canonicalLastReceivedAt)
+    || (status.lastActor !== null && !['COMPUTER', 'COMPANION'].includes(String(status.lastActor)))
+    || (status.lastReason !== null && !CONVERSATION_REASONS.has(String(status.lastReason)))
+    || (status.lastExecutionCode !== null && status.lastExecutionCode !== 'FEATURE_DISABLED')
+    || (Number(status.received) === 0
+      && [status.lastReceivedAt, status.lastActor, status.lastReason, status.lastExecutionCode].some((value) => value !== null))
+    || (Number(status.received) > 0 && (status.lastReceivedAt === null || status.lastReason === null))
+    || (Number(status.received) > 0 && ((status.lastActor === null) !== (status.lastReason === 'not-addressed')))
+    || ((status.lastExecutionCode === null) !== (status.lastActor === null))) {
+    throw new MinecraftAccessError(502, 'INVALID_CONTROL_RESPONSE', 'The local Minecraft agent returned invalid conversation intake status.');
+  }
+  return {
+    ok: true,
+    conversation: Object.fromEntries(keys.map((key) => [key, status[key]])),
+  };
+}
+
 function publicFirstPartyCoreEnvelope(envelope: Record<string, unknown>): Record<string, unknown> {
   if (envelope.ok !== true || envelope.instanceId !== FAMILY_SERVER_ID
     || !envelope.firstPartyCore || typeof envelope.firstPartyCore !== 'object' || Array.isArray(envelope.firstPartyCore)) {
@@ -1322,6 +1369,10 @@ function mapTarget(method: string, segments: string[], searchParams: URLSearchPa
   if (method === 'GET' && segments.length === 2 && segments[0] === 'brain' && segments[1] === 'status' && ![...searchParams].length) {
     return '/v1/brain/status';
   }
+  if (method === 'GET' && segments.length === 2 && segments[0] === 'brain'
+    && segments[1] === 'conversation-status' && ![...searchParams].length) {
+    return '/v1/brain/conversation-status';
+  }
   if (method === 'POST' && segments.length === 3 && segments[0] === 'family-core'
     && segments[1] === 'identities' && segments[2] === 'parent' && ![...searchParams].length) {
     return '/v1/family-core/identities/parent';
@@ -2023,6 +2074,8 @@ async function handle(request: NextRequest, context: RouteContext) {
       && path[0] === 'instances' && path[2] === 'update';
     const isBrainStatus = request.method === 'GET' && path.length === 2
       && path[0] === 'brain' && path[1] === 'status';
+    const isConversationStatus = request.method === 'GET' && path.length === 2
+      && path[0] === 'brain' && path[1] === 'conversation-status';
     const isRetiredVersionPurge = request.method === 'POST' && path.length === 4
       && path[0] === 'instances' && path[2] === 'retired-version' && path[3] === 'purge';
     if (process.platform === 'win32' && (isModPlanMutation || isModActionMutation)) {
@@ -2120,6 +2173,8 @@ async function handle(request: NextRequest, context: RouteContext) {
                   ? (envelope) => publicRetiredVersionPurgeEnvelope(envelope, path[1])
                   : isBrainStatus
                     ? publicBrainEnvelope
+                  : isConversationStatus
+                    ? publicConversationStatusEnvelope
                   : undefined,
       );
     } catch (error) {

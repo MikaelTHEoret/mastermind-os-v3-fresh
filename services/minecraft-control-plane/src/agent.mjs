@@ -1099,6 +1099,17 @@ export async function createControlPlane(options = {}) {
     }),
     resolvePlayer: (player) => familyCoreIdentities.resolvePlayer(player),
     ...(typeof options.onComputerRequest === 'function' ? { onComputerRequest: options.onComputerRequest } : {}),
+    onChatReceived: options.onFamilyCoreChatReceived ?? ((event) => familyCompanionBrain.ingestChat({
+      role: event.player.role,
+      messageId: event.messageId,
+      occurredAt: event.occurredAt,
+      minecraftUuid: event.player.minecraftUuid,
+      displayName: event.player.displayName,
+      channel: event.channel,
+      text: event.text,
+      directedAt: null,
+      ...(event.replyToMessageId ? { replyToMessageId: event.replyToMessageId } : {}),
+    })),
   });
   if (!companionLifecycle) {
     companionLifecycle = new CompanionLifecycleManager({
@@ -1932,6 +1943,12 @@ export async function createControlPlane(options = {}) {
         return json(response, 200, {
           ok: true,
           brain: familyCompanionBrain.status(),
+        });
+      }
+      if (request.method === 'GET' && url.pathname === '/v1/brain/conversation-status' && url.search === '') {
+        return json(response, 200, {
+          ok: true,
+          conversation: familyCompanionBrain.conversationStatus(),
         });
       }
       if (request.method === 'GET' && url.pathname === '/v1/family-core/status' && url.search === '') {

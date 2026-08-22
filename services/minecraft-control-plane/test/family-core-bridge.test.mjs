@@ -296,12 +296,13 @@ test('chat capture resolves the player centrally and emits no model or response 
     player: { minecraftUuid, displayName: 'MISS_LENKA', role: 'guest', identityBound: false },
     channel: 'public',
     text: 'Hello Alchemist',
-  })));
+  }, { sentAt: '2026-08-22T13:03:19.019Z' })));
   const [event] = await received;
   assert.equal(event.text, 'Hello Alchemist');
   assert.equal(event.channel, 'public');
   assert.equal(event.player.playerId, parentId);
   assert.equal(event.player.role, 'parent');
+  assert.equal(event.occurredAt, '2026-08-22T13:03:19.019Z');
   assert.equal(captured.length, 1);
   assert.equal(manager.status().identities.present, 0);
   socket.close();

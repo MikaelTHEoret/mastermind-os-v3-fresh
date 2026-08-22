@@ -137,6 +137,18 @@ export function validateConversationInput(value) {
   };
 }
 
+export function validateConversationResponseMarker(value) {
+  const marker = plainObject(value, 'conversation response marker', [
+    'messageId', 'occurredAt', 'minecraftUuid', 'actor',
+  ]);
+  return {
+    messageId: uuid(marker.messageId, 'messageId'),
+    occurredAt: timestamp(marker.occurredAt, 'occurredAt'),
+    minecraftUuid: uuid(marker.minecraftUuid, 'minecraftUuid'),
+    actor: boundedString(marker.actor, 'actor', { values: BRAIN_ACTORS }),
+  };
+}
+
 function validateTaskStep(value, label) {
   const step = plainObject(value, label, ['stepId', 'skill', 'arguments'], ['requiresApproval']);
   return {

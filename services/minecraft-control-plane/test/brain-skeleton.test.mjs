@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   BEHAVIOR_MODES,
   BrainContractError,
+  ConversationIntake,
   ConversationRouter,
   FakeModelBroker,
   FakeReasoningModel,
@@ -20,6 +21,7 @@ import {
 
 const IDs = Object.freeze({
   message: '01919a62-8e84-7c6b-8eb0-4f79592f3abe',
+  response: '01919a62-8e84-7c6b-8eb0-4f79592f3abd',
   player: '01919a62-8e84-7c6b-8eb0-4f79592f3abf',
   request: '01919a62-8e84-7c6b-8eb0-4f79592f3ac0',
   claim: '01919a62-8e84-7c6b-8eb0-4f79592f3ac1',
@@ -59,6 +61,60 @@ test('conversation routing keeps Computer and companion identities separate', ()
   assert.equal(router.route(conversation({ channel: 'computer-command', text: 'status', directedAt: 'COMPUTER' })).actor, 'COMPUTER');
   assert.equal(router.route(conversation({ text: 'Alchemist, come with me', directedAt: 'COMPANION' })).actor, 'COMPANION');
   assert.equal(router.route(conversation()).actor, null);
+});
+
+test('conversation attention requires an explicit name, reply, or bounded active session', () => {
+  const router = new ConversationRouter({
+    flags: { computerChat: true, companionConversation: true },
+    attentionWindowMs: 5_000,
+  });
+  assert.equal(router.classify(conversation({ text: 'Alchemist, come with me' })).reason, 'companion-name');
+  assert.equal(router.classify(conversation({ text: 'A palechemist is not the companion' })).actor, null);
+  assert.deepEqual(router.markResponse({
+    messageId: IDs.response,
+    occurredAt: '2026-08-21T12:00:00.000Z',
+    minecraftUuid: IDs.player,
+    actor: 'COMPANION',
+  }).tracked, true);
+  assert.equal(router.classify(conversation({
+    occurredAt: '2026-08-21T12:00:01.000Z',
+    replyToMessageId: IDs.response,
+  })).reason, 'reply-to-companion');
+  assert.equal(router.classify(conversation({ occurredAt: '2026-08-21T12:00:02.000Z' })).reason, 'active-conversation');
+  assert.equal(router.classify(conversation({ occurredAt: '2026-08-21T12:00:05.000Z' })).actor, null);
+  assert.equal(router.markResponse({
+    messageId: IDs.response,
+    occurredAt: '2026-08-21T12:00:06.000Z',
+    minecraftUuid: IDs.player,
+    actor: 'COMPUTER',
+  }).tracked, false);
+});
+
+test('conversation intake records only redacted routing evidence while execution stays disabled', () => {
+  const intake = new ConversationIntake();
+  const text = 'Alchemist, this private test phrase must not be retained';
+  const result = intake.ingest({ role: 'parent', ...conversation({ text }) });
+  assert.equal(result.actor, 'COMPANION');
+  assert.equal(result.authorization.allowed, true);
+  assert.equal(result.execution.code, 'FEATURE_DISABLED');
+  assert.deepEqual(intake.status(), {
+    schemaVersion: 1,
+    received: 1,
+    addressed: 1,
+    ignored: 0,
+    lastReceivedAt: '2026-08-21T12:00:00.000Z',
+    lastActor: 'COMPANION',
+    lastReason: 'companion-name',
+    lastExecutionCode: 'FEATURE_DISABLED',
+    activeCompanionSessions: 0,
+    storesChatContent: false,
+  });
+  const serialized = JSON.stringify(intake.status());
+  assert.equal(serialized.includes(text), false);
+  assert.equal(serialized.includes(IDs.player), false);
+
+  assert.equal(intake.ingest({ role: 'guest', ...conversation({ text: 'ordinary ambient chat' }) }).actor, null);
+  assert.equal(intake.status().ignored, 1);
 });
 
 test('disabled routes return structured feature results instead of pretending to succeed', () => {
