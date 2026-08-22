@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-21T00:00:00.000Z",
+  "updatedAt": "2026-08-22T11:44:49.015Z",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -17,8 +17,10 @@
     "companion.zenithBody": "stubbed",
     "companion.manualTakeover": "stubbed",
     "companion.hybridTelemetry": "stubbed",
-    "familyCore.protocol": "stubbed",
-    "familyCore.serverMod": "stubbed",
+    "familyCore.protocol": "live-verified",
+    "familyCore.serverMod": "live-verified",
+    "familyCore.identityEvents": "live-verified",
+    "computer.deterministicCommands": "live-verified",
     "computer.chat": "stubbed",
     "companion.conversation": "stubbed",
     "brain.modelReasoning": "stubbed",
