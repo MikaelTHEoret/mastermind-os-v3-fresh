@@ -15,6 +15,14 @@ const COMPANION_MINECRAFT_UUID = '996a56dd-fb3c-4f90-9158-1a608652ec77';
 const COMPANION_DISPLAY_NAME = 'the_alchemist___';
 const DEFAULT_ENDPOINT = 'https://api.openai.com/v1/responses';
 const MAX_REPLY_CHARS = 220;
+const ENABLED_PHYSICAL_SKILLS = Object.freeze([
+  'follow the requesting player',
+  'walk to supplied coordinates',
+  'explore a bounded nearby radius',
+  'gather supported blocks',
+  'stop the current physical task',
+]);
+const CAPABILITY_QUESTION = /^(?:what can you do|what are (?:your )?(?:abilities|capabilities)|what are you capable of(?: doing)?|what do you have access to)(?: now)?[?!.]*$/u;
 const PRIVATE_ENV_KEYS = Object.freeze([
   'OPENAI_API_KEY',
   'MASTERMIND_MINECRAFT_COMPANION_CONVERSATION_ENABLED',
@@ -32,6 +40,9 @@ Do not introduce yourself unless asked, repeat your own name unnecessarily, or a
 Stay the same character while adapting vocabulary and detail to the named player's role. Use that role only to calibrate the reply; never mention or label the role.
 Safety and privacy rules are silent behavior constraints. Follow them without advertising them. Redirect or decline briefly only when a request actually requires it, and explain the boundary only if the player asks why.
 Never claim you performed, observed, remembered, or can perform an action unless the supplied context says so.
+The supplied capabilities object is authoritative. If physicalActions is true, you can move through the Minecraft world and perform exactly the listed enabledPhysicalSkills. Never broadly claim that you cannot move, follow, gather, or use Baritone when those skills are listed.
+Do not claim that a physical request started or succeeded merely because the player asked; deterministic task execution is handled outside this conversation lane.
+When asked what you are or what you can do, answer naturally as the embodied Minecraft companion using only the supplied identity and capability facts. Clearly distinguish enabled skills from listed limitations without mentioning internal architecture.
 Never issue Minecraft commands, URLs, secrets, purchases, or requests for private information. Do not infer diagnoses, protected traits, psychographics, or commercial intent.
 If asked for an unavailable physical action, say naturally and briefly that you cannot do that one yet, then continue the conversation if useful.
 Return one natural reply with no speaker prefix.`;
@@ -44,6 +55,21 @@ function boundedReply(value) {
     throw Object.assign(new Error('Model reply violated the Minecraft chat boundary'), { code: 'MODEL_OUTPUT_INVALID' });
   }
   return text;
+}
+
+function isCapabilityQuestion(value) {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 512) return false;
+  const normalized = value.normalize('NFKC').trim().toLocaleLowerCase('en-US')
+    .replace(/^(?:hey\s+)?(?:the[_ ]?alchemist_+|alchemist)\s*[,!:;-]?\s*/u, '');
+  return CAPABILITY_QUESTION.test(normalized);
+}
+
+function capabilityReply(flags) {
+  if (flags.physicalTaskPlanning !== true) {
+    return "I can chat with you, but my movement and task controls aren't enabled right now.";
+  }
+  const survival = flags.survivalAutomation === true ? ' and handle basic survival' : '';
+  return `I can chat while I move, follow you, walk to coordinates, scout nearby, gather supported blocks, stop on request${survival}. I can't sleep, craft, use storage, build, or deliver items yet.`;
 }
 
 export function isCompanionSelfMessage(value) {
@@ -297,6 +323,20 @@ export class CompanionConversationCoordinator {
       this.intake.markExecution('COMPANION_OUTPUT_UNAVAILABLE', value.occurredAt);
       return { ...intake, execution: { ok: false, code: 'COMPANION_OUTPUT_UNAVAILABLE' } };
     }
+    if (isCapabilityQuestion(value.text)) {
+      try {
+        await this.sendChat(capabilityReply(this.flags));
+        this.replies += 1;
+        this.intake.markExecution('CAPABILITY_REPLY_DISPATCHED', value.occurredAt);
+        this.#markCompanionResponse(value);
+        return { ...intake, execution: { ok: true, code: 'CAPABILITY_REPLY_DISPATCHED' } };
+      } catch (error) {
+        this.failures += 1;
+        const failure = publicFailure(error, 'COMPANION_OUTPUT_FAILED');
+        this.intake.markExecution(failure.code, value.occurredAt);
+        return { ...intake, execution: failure };
+      }
+    }
     const leaseId = this.governor.acquire();
     if (!leaseId) {
       this.failures += 1;
@@ -314,7 +354,18 @@ export class CompanionConversationCoordinator {
           player: { displayName: value.displayName, role: value.role },
           message: value.text,
           channel: value.channel,
-          capabilities: { conversation: true, physicalActions: this.flags.physicalTaskPlanning === true, persistentMemory: false },
+          identity: {
+            character: 'The_AlChemist___',
+            embodiment: 'Minecraft player account in the Family world',
+          },
+          capabilities: {
+            conversation: true,
+            physicalActions: this.flags.physicalTaskPlanning === true,
+            enabledPhysicalSkills: this.flags.physicalTaskPlanning === true ? ENABLED_PHYSICAL_SKILLS : [],
+            survivalAutomation: this.flags.survivalAutomation === true,
+            persistentMemory: false,
+            limitations: ['sleeping', 'container management', 'crafting', 'building', 'item delivery'],
+          },
         },
         authorizedTools: [],
         deadlineAt: new Date(Date.now() + 20_000).toISOString(),

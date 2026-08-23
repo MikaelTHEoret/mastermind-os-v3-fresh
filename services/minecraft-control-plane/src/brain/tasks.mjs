@@ -18,46 +18,59 @@ const BLOCK_ALIASES = new Map([
 
 function normalizeRequest(value) {
   if (typeof value !== 'string' || value.length < 1 || value.length > 512) return null;
-  return value
+  let request = value
     .normalize('NFKC')
     .trim()
     .replace(/^(?:hey\s+)?(?:the[_ ]?alchemist_+|alchemist)\s*[,!:;-]?\s*/iu, '')
-    .replace(/^please\s+/iu, '')
     .replace(/\s+please[.!?]*$/iu, '')
     .trim()
     .toLocaleLowerCase('en-US');
+  for (let index = 0; index < 3; index += 1) {
+    const previous = request;
+    request = request
+      .replace(/^are you sure\b[\s,;:!?-]*/u, '')
+      .replace(/^(?:okay|ok|alright|all right|well|then|actually|yes|yeah|yep|right)\b[\s,;:!?-]*/u, '')
+      .replace(/^(?:can|could|would|will)\s+you\b[\s,;:!?-]*/u, '')
+      .replace(/^please\b[\s,;:!?-]*/u, '')
+      .trim();
+    if (request === previous) break;
+  }
+  return request;
 }
 
-function task(intent, action, acknowledgement, timeoutMs) {
-  return Object.freeze({ handled: true, intent, action, acknowledgement, timeoutMs });
+function task(intent, action, acknowledgement, timeoutMs, replaceCurrent = false) {
+  return Object.freeze({ handled: true, intent, action, acknowledgement, timeoutMs, replaceCurrent });
 }
 
 export function compileDeterministicCompanionTask(text) {
-  const request = normalizeRequest(text);
+  let request = normalizeRequest(text);
   if (!request) return null;
   if (/^(?:stop|stop that|cancel|cancel that|never mind|nevermind)[.!?]*$/u.test(request)) {
     return Object.freeze({ handled: true, intent: 'cancel-current', action: null, acknowledgement: null, timeoutMs: null });
   }
+  const replacement = request.match(/^(?:stop|stop that|cancel|cancel that)\s+(?:and|then)\s+(.+)$/u);
+  const replaceCurrent = replacement !== null;
+  if (replacement) request = replacement[1].trim();
 
   const follow = request.match(/^follow me(?:\s+from\s+(\d+(?:\.\d+)?)\s+blocks?)?[.!?]*$/u);
   if (follow) {
     const distance = follow[1] === undefined ? 4 : Number(follow[1]);
     if (!Number.isFinite(distance) || distance < 2 || distance > 16) return null;
-    return task('follow-player', { kind: 'skill.followPlayer', args: { playerUuid: null, distance } }, "Okay, I'll follow you.", 30 * 60_000);
+    return task('follow-player', { kind: 'skill.followPlayer', args: { playerUuid: null, distance } }, "Okay, I'll follow you.", 30 * 60_000, replaceCurrent);
   }
 
   const navigate = request.match(/^(?:go|walk|navigate|come)\s+to\s+(?:x\s*)?(-?\d+)\s*[, ]+\s*(?:y\s*)?(-?\d+)\s*[, ]+\s*(?:z\s*)?(-?\d+)[.!?]*$/u);
   if (navigate) {
     const [x, y, z] = navigate.slice(1).map(Number);
     if (Math.abs(x) > 30_000_000 || y < -2_048 || y > 2_048 || Math.abs(z) > 30_000_000) return null;
-    return task('navigate', { kind: 'skill.navigateTo', args: { x, y, z, tolerance: 2 } }, "Okay, I'm on my way.", 10 * 60_000);
+    return task('navigate', { kind: 'skill.navigateTo', args: { x, y, z, tolerance: 2 } }, "Okay, I'm on my way.", 10 * 60_000, replaceCurrent);
   }
 
   const explore = request.match(/^(?:explore|look around|scout)(?:\s+(?:within\s+)?(\d+)\s+blocks?)?[.!?]*$/u);
   if (explore) {
     const radius = explore[1] === undefined ? 64 : Number(explore[1]);
     if (!Number.isInteger(radius) || radius < 16 || radius > 256) return null;
-    return task('explore', { kind: 'skill.explore', args: { radius } }, "I'll scout around nearby.", 10 * 60_000);
+    return task('explore', { kind: 'skill.explore', args: { radius } }, "I'll scout around nearby.", 10 * 60_000, replaceCurrent);
   }
 
   const gather = request.match(/^(?:gather|collect|mine|chop|get)\s+(?:(\d+)\s+)?([a-z ]+?)[.!?]*$/u);
@@ -68,7 +81,7 @@ export function compileDeterministicCompanionTask(text) {
     if (!blockId || !Number.isInteger(count) || count < 1 || count > 64) return null;
     return task('gather-block', {
       kind: 'skill.gatherBlock', args: { blockId, count, maxDistance: 64 },
-    }, `I'll look for ${count} ${label}.`, 15 * 60_000);
+    }, `I'll look for ${count} ${label}.`, 15 * 60_000, replaceCurrent);
   }
   return null;
 }
@@ -84,10 +97,17 @@ export class CompanionPhysicalTaskSupervisor {
     this.dispatchAction = options.dispatchAction;
     this.cancelAction = options.cancelAction;
     this.waitForActionActivation = options.waitForActionActivation ?? (async (action) => action);
+    this.waitForPhysicalIdle = options.waitForPhysicalIdle ?? (async () => {
+      const deadline = Date.now() + 3_000;
+      while (this.sessionStatus()?.activeAction) {
+        if (Date.now() >= deadline) throw Object.assign(new Error('The prior action did not stop in time'), { code: 'ACTION_STOP_TIMEOUT' });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    });
     this.sessionStatus = options.sessionStatus;
     this.sendChat = options.sendChat;
     if (typeof this.dispatchAction !== 'function' || typeof this.cancelAction !== 'function'
-      || typeof this.waitForActionActivation !== 'function'
+      || typeof this.waitForActionActivation !== 'function' || typeof this.waitForPhysicalIdle !== 'function'
       || typeof this.sessionStatus !== 'function' || typeof this.sendChat !== 'function') {
       throw new TypeError('The physical task supervisor dependencies are invalid');
     }
@@ -136,6 +156,14 @@ export class CompanionPhysicalTaskSupervisor {
       const action = compiled.action.kind === 'skill.followPlayer'
         ? { ...compiled.action, args: { ...compiled.action.args, playerUuid: value.minecraftUuid } }
         : compiled.action;
+      if (compiled.replaceCurrent) {
+        const active = this.sessionStatus()?.activeAction ?? null;
+        if (active && typeof active.actionId === 'string' && !TERMINAL_ACTION_STATUSES.has(active.status)) {
+          await this.cancelAction(active.actionId, 'player-replacement-request');
+          await this.waitForPhysicalIdle(active.actionId, { timeoutMs: 3_000 });
+          this.cancelled += 1;
+        }
+      }
       const dispatched = await this.dispatchAction(action, { timeoutMs: compiled.timeoutMs });
       await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
       this.accepted += 1;

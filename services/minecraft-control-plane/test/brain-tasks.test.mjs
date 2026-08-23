@@ -12,6 +12,14 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   assert.deepEqual(compileDeterministicCompanionTask('Alchemist, follow me').action, {
     kind: 'skill.followPlayer', args: { playerUuid: null, distance: 4 },
   });
+  assert.deepEqual(compileDeterministicCompanionTask('are you sure ? follow me').action, {
+    kind: 'skill.followPlayer', args: { playerUuid: null, distance: 4 },
+  });
+  assert.deepEqual(compileDeterministicCompanionTask('Okay, could you please follow me?').action, {
+    kind: 'skill.followPlayer', args: { playerUuid: null, distance: 4 },
+  });
+  assert.equal(compileDeterministicCompanionTask('stop and follow me').replaceCurrent, true);
+  assert.equal(compileDeterministicCompanionTask('cancel that then explore 32 blocks').replaceCurrent, true);
   assert.deepEqual(compileDeterministicCompanionTask('go to 10 64 -20').action, {
     kind: 'skill.navigateTo', args: { x: 10, y: 64, z: -20, tolerance: 2 },
   });
@@ -25,6 +33,9 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   assert.equal(compileDeterministicCompanionTask('get me something useful'), null);
   assert.equal(compileDeterministicCompanionTask('explore 999 blocks'), null);
   assert.equal(compileDeterministicCompanionTask('mine 65 coal'), null);
+  assert.equal(compileDeterministicCompanionTask("don't follow me"), null);
+  assert.equal(compileDeterministicCompanionTask('why did you say follow me'), null);
+  assert.equal(compileDeterministicCompanionTask('are you sure you can follow me'), null);
 });
 
 test('physical task supervisor dispatches one typed action and narrates briefly', async () => {
@@ -97,6 +108,30 @@ test('physical task supervisor cancels only the authoritative active action', as
   assert.deepEqual(calls, [
     ['cancel', '22222222-2222-4222-8222-222222222222', 'player-request'],
     ['say', 'Okay, stopping.'],
+  ]);
+});
+
+test('physical task supervisor atomically replaces active work before starting a new request', async () => {
+  const calls = [];
+  let active = { actionId: '22222222-2222-4222-8222-222222222222', status: 'started' };
+  const supervisor = new CompanionPhysicalTaskSupervisor({
+    dispatchAction: async (action, options) => {
+      calls.push(['dispatch', action, options]);
+      return { actionId: '33333333-3333-4333-8333-333333333333', kind: action.kind, status: 'dispatched' };
+    },
+    waitForActionActivation: async () => {},
+    waitForPhysicalIdle: async (actionId, options) => { calls.push(['idle', actionId, options]); active = null; },
+    cancelAction: async (actionId, reason) => { calls.push(['cancel', actionId, reason]); },
+    sessionStatus: () => ({ activeAction: active }),
+    sendChat: async (text) => calls.push(['say', text]),
+  });
+  const result = await supervisor.handle({ role: 'parent', minecraftUuid: PLAYER_UUID, text: 'stop and follow me' });
+  assert.equal(result.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.deepEqual(calls, [
+    ['cancel', '22222222-2222-4222-8222-222222222222', 'player-replacement-request'],
+    ['idle', '22222222-2222-4222-8222-222222222222', { timeoutMs: 3_000 }],
+    ['dispatch', { kind: 'skill.followPlayer', args: { playerUuid: PLAYER_UUID, distance: 4 } }, { timeoutMs: 1_800_000 }],
+    ['say', "Okay, I'll follow you."],
   ]);
 });
 

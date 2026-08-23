@@ -83,6 +83,8 @@ test('OpenAI provider sends a non-stored structured request and validates the bo
   assert.match(body.instructions, /relaxed, genuine friend/u);
   assert.match(body.instructions, /silent behavior constraints/u);
   assert.match(body.instructions, /without advertising them/u);
+  assert.match(body.instructions, /capabilities object is authoritative/u);
+  assert.match(body.instructions, /you can move through the Minecraft world/u);
   assert.doesNotMatch(body.instructions, /embodied Minecraft family companion/u);
   assert.match(captured.init.headers.authorization, /^Bearer sk-test-/u);
 });
@@ -149,6 +151,64 @@ test('conversation coordinator dispatches a real-account chat action and opens b
   assert.deepEqual(sent, ['Hi Mik! What should we build today?']);
   assert.equal(coordinator.status().replies, 1);
   assert.equal(coordinator.status().activeCompanionSessions, 1);
+});
+
+test('conversation context describes the companion identity and exact enabled physical skills', async () => {
+  let request;
+  const coordinator = new CompanionConversationCoordinator({
+    flags: {
+      companionConversation: true, modelReasoning: true, physicalTaskPlanning: true, survivalAutomation: true,
+    },
+    provider: {
+      async reason(value) {
+        request = value;
+        return {
+          requestId: value.requestId,
+          status: 'succeeded',
+          output: { text: 'I can follow, explore, and gather while we chat.' },
+          model: 'fixture',
+          completedAt: new Date().toISOString(),
+        };
+      },
+    },
+    canSendChat: () => true,
+    sendChat: async () => {},
+  });
+  await coordinator.ingest(chat({ text: 'Alchemist, tell me about yourself' }));
+  assert.deepEqual(request.input.identity, {
+    character: 'The_AlChemist___', embodiment: 'Minecraft player account in the Family world',
+  });
+  assert.equal(request.input.capabilities.physicalActions, true);
+  assert.equal(request.input.capabilities.survivalAutomation, true);
+  assert.deepEqual(request.input.capabilities.enabledPhysicalSkills, [
+    'follow the requesting player',
+    'walk to supplied coordinates',
+    'explore a bounded nearby radius',
+    'gather supported blocks',
+    'stop the current physical task',
+  ]);
+  assert.ok(request.input.capabilities.limitations.includes('sleeping'));
+});
+
+test('capability questions use the authoritative manifest without a model call', async () => {
+  let modelCalls = 0;
+  const sent = [];
+  const coordinator = new CompanionConversationCoordinator({
+    flags: {
+      companionConversation: true, modelReasoning: true, physicalTaskPlanning: true, survivalAutomation: true,
+    },
+    provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
+    canSendChat: () => true,
+    sendChat: async (text) => sent.push(text),
+  });
+  const result = await coordinator.ingest(chat({ text: 'Alchemist, what are you capable of doing now?' }));
+  assert.equal(result.execution.code, 'CAPABILITY_REPLY_DISPATCHED');
+  assert.equal(modelCalls, 0);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0], /follow you/u);
+  assert.match(sent[0], /basic survival/u);
+  assert.match(sent[0], /can't sleep/u);
+  assert.ok(sent[0].length <= 220);
 });
 
 test('conversation coordinator handles deterministic physical tasks without a model call', async () => {
