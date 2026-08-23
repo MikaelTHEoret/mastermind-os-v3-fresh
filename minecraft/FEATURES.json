@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-22T21:15:35.835-04:00",
+  "updatedAt": "2026-08-22T22:40:15.000-04:00",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -10,7 +10,7 @@
     "companion.bridgeReady": "live-verified",
     "companion.directSay": "live-verified",
     "companion.navigate": "implemented",
-    "companion.follow": "implemented",
+    "companion.follow": "live-verified",
     "companion.gather": "implemented",
     "companion.cancel": "live-verified",
     "companion.safeStop": "live-verified",
@@ -26,7 +26,7 @@
     "companion.conversationRouting": "live-verified",
     "companion.conversation": "live-verified",
     "brain.modelReasoning": "live-verified",
-    "brain.taskPlanning": "implemented",
+    "brain.taskPlanning": "live-verified",
     "brain.survival": "implemented",
     "profiles.capture": "stubbed",
     "profiles.parentCodexReuse": "stubbed",
