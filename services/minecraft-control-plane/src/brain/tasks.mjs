@@ -16,6 +16,12 @@ const BLOCK_ALIASES = new Map([
   ['iron', 'minecraft:iron_ore'], ['iron ore', 'minecraft:iron_ore'],
 ]);
 
+const PLACEABLE_BLOCK_ALIASES = new Map([
+  ['oak plank', 'minecraft:oak_planks'], ['oak planks', 'minecraft:oak_planks'],
+  ['cobblestone', 'minecraft:cobblestone'], ['stone', 'minecraft:stone'],
+  ['dirt', 'minecraft:dirt'], ['torch', 'minecraft:torch'],
+]);
+
 function normalizeRequest(value) {
   if (typeof value !== 'string' || value.length < 1 || value.length > 512) return null;
   let request = value
@@ -59,11 +65,37 @@ export function compileDeterministicCompanionTask(text) {
     return task('follow-player', { kind: 'skill.followPlayer', args: { playerUuid: null, distance } }, "Okay, I'll follow you.", 30 * 60_000, replaceCurrent);
   }
 
-  const navigate = request.match(/^(?:go|walk|navigate|come)\s+to\s+(?:x\s*)?(-?\d+)\s*[, ]+\s*(?:y\s*)?(-?\d+)\s*[, ]+\s*(?:z\s*)?(-?\d+)[.!?]*$/u);
+  const navigate = request.match(/^(?:go|walk|navigate|come)\s+to\s+(?:coordinates?\s+)?(?:x\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:y\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:z\s*=?\s*)?(-?\d+)[.!?]*$/u);
   if (navigate) {
     const [x, y, z] = navigate.slice(1).map(Number);
     if (Math.abs(x) > 30_000_000 || y < -2_048 || y > 2_048 || Math.abs(z) > 30_000_000) return null;
     return task('navigate', { kind: 'skill.navigateTo', args: { x, y, z, tolerance: 2 } }, "Okay, I'm on my way.", 10 * 60_000, replaceCurrent);
+  }
+
+  const lookAt = request.match(/^look\s+at\s+(?:coordinates?\s+)?(?:x\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:y\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:z\s*=?\s*)?(-?\d+)[.!?]*$/u);
+  if (lookAt) {
+    const [x, y, z] = lookAt.slice(1).map(Number);
+    if (Math.abs(x) > 30_000_000 || y < -2_048 || y > 2_048 || Math.abs(z) > 30_000_000) return null;
+    return task('look-at', { kind: 'direct.lookAt', args: { x, y, z, durationMs: 250 } }, "Okay, I'm looking there.", 15_000, replaceCurrent);
+  }
+
+  if (/^(?:use|use it|use that|use this|interact|interact with it|open it|open that|press it|press that)[.!?]*$/u.test(request)) {
+    return task('use-crosshair', { kind: 'direct.use', args: { hand: 'main' } }, "Okay, I'll try it.", 15_000, replaceCurrent);
+  }
+
+  const selectSlot = request.match(/^(?:select|use|switch to)\s+(?:hotbar\s+)?slot\s+([1-9])[.!?]*$/u);
+  if (selectSlot) {
+    const visibleSlot = Number(selectSlot[1]);
+    return task('select-slot', { kind: 'direct.selectSlot', args: { slot: visibleSlot - 1 } }, `Okay, slot ${visibleSlot}.`, 15_000, replaceCurrent);
+  }
+
+  const place = request.match(/^place\s+(?:a\s+)?([a-z0-9_: ]+?)\s+at\s+(?:coordinates?\s+)?(?:x\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:y\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:z\s*=?\s*)?(-?\d+)[.!?]*$/u);
+  if (place) {
+    const label = place[1].trim().replace(/\s+/gu, ' ');
+    const blockId = PLACEABLE_BLOCK_ALIASES.get(label) ?? (/^[a-z0-9_.-]+:[a-z0-9_./-]+$/u.test(label) ? label : null);
+    const [x, y, z] = place.slice(2).map(Number);
+    if (!blockId || Math.abs(x) > 30_000_000 || y < -2_048 || y > 2_048 || Math.abs(z) > 30_000_000) return null;
+    return task('place-block', { kind: 'direct.placeBlock', args: { blockId, x, y, z } }, `Okay, I'll place ${label} there.`, 15_000, replaceCurrent);
   }
 
   const explore = request.match(/^(?:explore|look around|scout)(?:\s+(?:within\s+)?(\d+)\s+blocks?)?[.!?]*$/u);

@@ -23,6 +23,21 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   assert.deepEqual(compileDeterministicCompanionTask('go to 10 64 -20').action, {
     kind: 'skill.navigateTo', args: { x: 10, y: 64, z: -20, tolerance: 2 },
   });
+  assert.deepEqual(compileDeterministicCompanionTask('go to coordinates x=10, y=64, z=-20').action, {
+    kind: 'skill.navigateTo', args: { x: 10, y: 64, z: -20, tolerance: 2 },
+  });
+  assert.deepEqual(compileDeterministicCompanionTask('look at x=12 y=65 z=-18').action, {
+    kind: 'direct.lookAt', args: { x: 12, y: 65, z: -18, durationMs: 250 },
+  });
+  assert.deepEqual(compileDeterministicCompanionTask('use it').action, {
+    kind: 'direct.use', args: { hand: 'main' },
+  });
+  assert.deepEqual(compileDeterministicCompanionTask('select hotbar slot 3').action, {
+    kind: 'direct.selectSlot', args: { slot: 2 },
+  });
+  assert.deepEqual(compileDeterministicCompanionTask('place oak planks at x=12 y=64 z=-18').action, {
+    kind: 'direct.placeBlock', args: { blockId: 'minecraft:oak_planks', x: 12, y: 64, z: -18 },
+  });
   assert.deepEqual(compileDeterministicCompanionTask('chop 12 oak logs').action, {
     kind: 'skill.gatherBlock', args: { blockId: 'minecraft:oak_log', count: 12, maxDistance: 64 },
   });
@@ -33,6 +48,7 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   assert.equal(compileDeterministicCompanionTask('get me something useful'), null);
   assert.equal(compileDeterministicCompanionTask('explore 999 blocks'), null);
   assert.equal(compileDeterministicCompanionTask('mine 65 coal'), null);
+  assert.equal(compileDeterministicCompanionTask('place a castle over there'), null);
   assert.equal(compileDeterministicCompanionTask("don't follow me"), null);
   assert.equal(compileDeterministicCompanionTask('why did you say follow me'), null);
   assert.equal(compileDeterministicCompanionTask('are you sure you can follow me'), null);

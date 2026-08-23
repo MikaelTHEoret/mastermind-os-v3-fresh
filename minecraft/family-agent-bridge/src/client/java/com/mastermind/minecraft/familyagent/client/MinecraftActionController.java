@@ -8,9 +8,19 @@ import com.mastermind.minecraft.familyagent.navigation.NavigationUnavailableExce
 import com.mastermind.minecraft.familyagent.protocol.ClientPayloads;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
+import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.time.Instant;
@@ -23,12 +33,50 @@ import java.util.function.BiConsumer;
 final class MinecraftActionController {
     private static final int TERMINAL_REPLAY_LIMIT = 128;
 
-    private sealed interface RunningAction permits TimedMove, TimedLook, OneTickJump, NavigationAction {
+    private sealed interface RunningAction permits TimedMove, TimedLook, OneTickJump, PlacementAction, NavigationAction {
         ActionCommand command();
 
         void tick(long nowNanos);
 
         void cancel(String reason);
+    }
+
+    private final class PlacementAction implements RunningAction {
+        private final ActionCommand command;
+        private final BlockPos target;
+        private final Identifier expectedBlock;
+        private final long deadlineNanos;
+
+        private PlacementAction(ActionCommand command, BlockPos target, Identifier expectedBlock, long nowNanos) {
+            this.command = command;
+            this.target = target;
+            this.expectedBlock = expectedBlock;
+            this.deadlineNanos = nowNanos + 2_000_000_000L;
+        }
+
+        @Override
+        public ActionCommand command() {
+            return command;
+        }
+
+        @Override
+        public void tick(long nowNanos) {
+            if (minecraft.level == null) {
+                finishFailed(command.actionId(), "not-in-world", "The Family AI client is not in a world");
+                return;
+            }
+            var actual = BuiltInRegistries.BLOCK.getKey(minecraft.level.getBlockState(target).getBlock());
+            if (expectedBlock.equals(actual)) {
+                finishSucceeded(command.actionId(), "placed");
+            } else if (nowNanos >= deadlineNanos) {
+                finishFailed(command.actionId(), "placement-not-confirmed", "The server did not confirm the requested block placement");
+            }
+        }
+
+        @Override
+        public void cancel(String reason) {
+            // A placement is a single bounded interaction and holds no input state.
+        }
     }
 
     private final class TimedMove implements RunningAction {
@@ -283,6 +331,9 @@ final class MinecraftActionController {
                 case "direct.moveFor" -> running = new TimedMove(command, nowNanos);
                 case "direct.jump" -> running = new OneTickJump(command, nowNanos);
                 case "direct.attack" -> attack(command);
+                case "direct.selectSlot" -> selectSlot(command);
+                case "direct.use" -> use(command);
+                case "direct.placeBlock" -> placeBlock(command, nowNanos);
                 default -> startNavigation(command);
             }
         } catch (NavigationUnavailableException error) {
@@ -301,6 +352,112 @@ final class MinecraftActionController {
         minecraft.gameMode.attack(player, target.getEntity());
         player.swing(InteractionHand.MAIN_HAND);
         finishSucceeded(command.actionId(), "attacked");
+    }
+
+    private void selectSlot(ActionCommand command) {
+        var slot = command.arguments().get("slot").getAsInt();
+        selectHotbarSlot(requirePlayer(), slot);
+        finishSucceeded(command.actionId(), "selected");
+    }
+
+    private void use(ActionCommand command) {
+        var player = requirePlayer();
+        var gameMode = minecraft.gameMode;
+        if (gameMode == null) {
+            finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active game mode");
+            return;
+        }
+        var hand = command.arguments().get("hand").getAsString().equals("off")
+            ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        final InteractionResult result;
+        if (minecraft.hitResult instanceof BlockHitResult blockTarget
+            && blockTarget.getType() == HitResult.Type.BLOCK) {
+            result = gameMode.useItemOn(player, hand, blockTarget);
+        } else if (minecraft.hitResult instanceof EntityHitResult entityTarget) {
+            result = gameMode.interact(player, entityTarget.getEntity(), entityTarget, hand);
+        } else {
+            result = gameMode.useItem(player, hand);
+        }
+        if (!result.consumesAction()) {
+            finishFailed(command.actionId(), "nothing-used", "The selected hand and crosshair target did not accept an interaction");
+            return;
+        }
+        player.swing(hand);
+        finishSucceeded(command.actionId(), "used");
+    }
+
+    private void placeBlock(ActionCommand command, long nowNanos) {
+        var player = requirePlayer();
+        var level = minecraft.level;
+        var gameMode = minecraft.gameMode;
+        if (level == null || gameMode == null) {
+            finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
+            return;
+        }
+        var args = command.arguments();
+        var expectedBlock = Identifier.parse(args.get("blockId").getAsString());
+        var target = new BlockPos(args.get("x").getAsInt(), args.get("y").getAsInt(), args.get("z").getAsInt());
+        if (!level.getBlockState(target).canBeReplaced()) {
+            finishFailed(command.actionId(), "target-occupied", "The requested placement position is not replaceable");
+            return;
+        }
+        var targetCenter = Vec3.atCenterOf(target);
+        if (player.getEyePosition().distanceToSqr(targetCenter) > 36.0) {
+            finishFailed(command.actionId(), "target-out-of-reach", "The requested placement position is outside normal player reach");
+            return;
+        }
+        var slot = findHotbarBlock(player, expectedBlock);
+        if (slot < 0) {
+            finishFailed(command.actionId(), "block-not-in-hotbar", "The requested block is not available in the companion hotbar");
+            return;
+        }
+
+        BlockHitResult hit = null;
+        for (var direction : Direction.values()) {
+            var support = target.relative(direction);
+            var clickedFace = direction.getOpposite();
+            var supportState = level.getBlockState(support);
+            if (!supportState.isAir() && supportState.isFaceSturdy(level, support, clickedFace)) {
+                var location = Vec3.atCenterOf(support).add(
+                    clickedFace.getStepX() * 0.5,
+                    clickedFace.getStepY() * 0.5,
+                    clickedFace.getStepZ() * 0.5
+                );
+                hit = new BlockHitResult(location, clickedFace, support, false);
+                break;
+            }
+        }
+        if (hit == null) {
+            finishFailed(command.actionId(), "no-placement-support", "No solid adjacent face can support the requested block");
+            return;
+        }
+
+        selectHotbarSlot(player, slot);
+        var result = gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
+        if (!result.consumesAction()) {
+            finishFailed(command.actionId(), "placement-rejected", "Minecraft rejected the bounded block placement interaction");
+            return;
+        }
+        player.swing(InteractionHand.MAIN_HAND);
+        running = new PlacementAction(command, target, expectedBlock, nowNanos);
+    }
+
+    private int findHotbarBlock(net.minecraft.client.player.LocalPlayer player, Identifier blockId) {
+        for (var slot = 0; slot < 9; slot += 1) {
+            ItemStack stack = player.getInventory().getItem(slot);
+            if (stack.isEmpty() || !(stack.getItem() instanceof BlockItem blockItem)) {
+                continue;
+            }
+            if (blockId.equals(BuiltInRegistries.BLOCK.getKey(blockItem.getBlock()))) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private void selectHotbarSlot(net.minecraft.client.player.LocalPlayer player, int slot) {
+        player.getInventory().setSelectedSlot(slot);
+        requireConnection().send(new ServerboundSetCarriedItemPacket(slot));
     }
 
     private void respawn(ActionCommand command) {

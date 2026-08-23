@@ -197,6 +197,21 @@ public final class BridgeCodec {
                 }
             }
             case "direct.jump", "direct.attack", "direct.respawn", "skill.escapeDanger" -> exactObject(args, kind + ".args");
+            case "direct.selectSlot" -> {
+                exactObject(args, kind + ".args", "slot");
+                integer(args, "slot", 0, 8);
+            }
+            case "direct.use" -> {
+                exactObject(args, kind + ".args", "hand");
+                enumString(args, "hand", Set.of("main", "off"));
+            }
+            case "direct.placeBlock" -> {
+                exactObject(args, kind + ".args", "blockId", "x", "y", "z");
+                patternedString(args, "blockId", 3, 128, REGISTRY_ID);
+                integer(args, "x", -30_000_000, 30_000_000);
+                integer(args, "y", -2_048, 2_048);
+                integer(args, "z", -30_000_000, 30_000_000);
+            }
             case "skill.navigateTo" -> {
                 exactObject(args, kind + ".args", "x", "y", "z", "tolerance");
                 integer(args, "x", -30_000_000, 30_000_000);

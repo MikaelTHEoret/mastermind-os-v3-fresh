@@ -95,6 +95,28 @@ final class BridgeCodecTest {
     }
 
     @Test
+    void decodesBoundedInventoryUseAndPlacementActions() {
+        var slotArgs = new JsonObject();
+        slotArgs.addProperty("slot", 2);
+        var selected = assertInstanceOf(
+            ControlMessage.Execute.class,
+            codec.decodeControl(execute("direct.selectSlot", slotArgs, 2), SESSION, 1)
+        );
+        assertEquals(2, selected.action().arguments().get("slot").getAsInt());
+
+        var useArgs = new JsonObject();
+        useArgs.addProperty("hand", "main");
+        codec.decodeControl(execute("direct.use", useArgs, 3), SESSION, 2);
+
+        var placeArgs = new JsonObject();
+        placeArgs.addProperty("blockId", "minecraft:oak_planks");
+        placeArgs.addProperty("x", 10);
+        placeArgs.addProperty("y", 64);
+        placeArgs.addProperty("z", -20);
+        codec.decodeControl(execute("direct.placeBlock", placeArgs, 4), SESSION, 3);
+    }
+
+    @Test
     void rejectsCommandsUnsafeFlagsUnknownFieldsReplaysAndDuplicateKeys() {
         var sayArgs = new JsonObject();
         sayArgs.addProperty("text", "/op somebody");

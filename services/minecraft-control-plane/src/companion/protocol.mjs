@@ -17,6 +17,9 @@ export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'direct.moveFor',
   'direct.jump',
   'direct.attack',
+  'direct.selectSlot',
+  'direct.use',
+  'direct.placeBlock',
   'skill.navigateTo',
   'skill.followPlayer',
   'skill.gatherBlock',
@@ -149,6 +152,21 @@ function validateActionArgs(action) {
     case 'direct.respawn':
     case 'skill.escapeDanger':
       exactObject(args, `${kind}.args`, []);
+      break;
+    case 'direct.selectSlot':
+      exactObject(args, `${kind}.args`, ['slot']);
+      numberValue(args.slot, `${kind}.args.slot`, 0, 8, { integer: true });
+      break;
+    case 'direct.use':
+      exactObject(args, `${kind}.args`, ['hand']);
+      stringValue(args.hand, `${kind}.args.hand`, { values: new Set(['main', 'off']) });
+      break;
+    case 'direct.placeBlock':
+      exactObject(args, `${kind}.args`, ['blockId', 'x', 'y', 'z']);
+      stringValue(args.blockId, `${kind}.args.blockId`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(args.x, `${kind}.args.x`, -30_000_000, 30_000_000, { integer: true });
+      numberValue(args.y, `${kind}.args.y`, -2_048, 2_048, { integer: true });
+      numberValue(args.z, `${kind}.args.z`, -30_000_000, 30_000_000, { integer: true });
       break;
     case 'skill.navigateTo':
       exactObject(args, `${kind}.args`, ['x', 'y', 'z', 'tolerance']);

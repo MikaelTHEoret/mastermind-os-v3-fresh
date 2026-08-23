@@ -185,6 +185,10 @@ test('conversation context describes the companion identity and exact enabled ph
     'walk to supplied coordinates',
     'explore a bounded nearby radius',
     'gather supported blocks',
+    'look at supplied coordinates',
+    'select a numbered hotbar slot',
+    'use the item or object under the crosshair',
+    'place a supported hotbar block at nearby coordinates',
     'stop the current physical task',
   ]);
   assert.ok(request.input.capabilities.limitations.includes('sleeping'));
