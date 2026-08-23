@@ -140,7 +140,12 @@ test('inventory snapshots accept bounded totals and reject duplicates or excess 
       awareness: {
         radius: 8,
         blocks: [{ blockId: 'minecraft:lodestone', x: 3, y: 64, z: 4, distanceSq: 5, count: 1 }],
-        players: [{ minecraftUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', displayName: 'Mik', x: 2, y: 64, z: 3, distanceSq: 2 }],
+        players: [{ minecraftUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', displayName: 'Mik', x: 2, y: 64, z: 3, distanceSq: 2, visible: true, heldItemId: 'minecraft:torch' }],
+        entities: [{
+          entityUuid: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', typeId: 'minecraft:cow', displayName: 'Cow',
+          category: 'passive', x: 4, y: 64, z: 3, distanceSq: 5, visible: true, alive: true, itemId: null,
+        }],
+        crosshairTarget: { kind: 'block', blockId: 'minecraft:lodestone', x: 3, y: 64, z: 4, distanceSq: 5 },
       },
     },
   };
@@ -150,6 +155,9 @@ test('inventory snapshots accept bounded totals and reject duplicates or excess 
   assert.equal(validateFamilyBridgeMessage(withInventory, {
     direction: 'client', expectedSessionId: sessionId,
   }).payload.awareness.blocks[0].blockId, 'minecraft:lodestone');
+  assert.equal(validateFamilyBridgeMessage(withInventory, {
+    direction: 'client', expectedSessionId: sessionId,
+  }).payload.awareness.entities[0].category, 'passive');
   expectProtocolError(() => validateFamilyBridgeMessage({
     ...withInventory,
     payload: {

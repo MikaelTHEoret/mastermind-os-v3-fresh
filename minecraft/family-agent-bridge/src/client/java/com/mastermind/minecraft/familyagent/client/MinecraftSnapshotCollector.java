@@ -8,6 +8,12 @@ import com.mastermind.minecraft.familyagent.navigation.NavigationProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.monster.Enemy;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -145,17 +151,73 @@ final class MinecraftSnapshotCollector {
             if (distanceSq > 4_096.0D) continue;
             nearby.add(new NearbyPlayer(
                 other.getUUID().toString(), other.getName().getString(),
-                other.getX(), other.getY(), other.getZ(), distanceSq
+                other.getX(), other.getY(), other.getZ(), distanceSq,
+                player.hasLineOfSight(other),
+                other.getMainHandItem().isEmpty() ? null
+                    : BuiltInRegistries.ITEM.getKey(other.getMainHandItem().getItem()).toString()
             ));
         }
         var players = new com.google.gson.JsonArray();
         nearby.stream().sorted(Comparator.comparingDouble(NearbyPlayer::distanceSq)).limit(16)
             .forEach(observation -> players.add(observation.json()));
+
+        var entities = new ArrayList<NearbyEntity>();
+        for (Entity entity : level.getEntities(player, player.getBoundingBox().inflate(32.0D))) {
+            if (entity == player || entity instanceof net.minecraft.world.entity.player.Player) continue;
+            var distanceSq = player.distanceToSqr(entity);
+            if (distanceSq > 1_024.0D) continue;
+            var typeId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
+            var category = entity instanceof Enemy ? "hostile"
+                : entity instanceof Animal ? "passive"
+                : entity instanceof ItemEntity ? "item"
+                : "other";
+            var itemId = entity instanceof ItemEntity item && !item.getItem().isEmpty()
+                ? BuiltInRegistries.ITEM.getKey(item.getItem().getItem()).toString()
+                : null;
+            entities.add(new NearbyEntity(
+                entity.getUUID().toString(), typeId, entity.getName().getString(), category,
+                entity.getX(), entity.getY(), entity.getZ(), distanceSq,
+                player.hasLineOfSight(entity), entity.isAlive(), itemId
+            ));
+        }
+        var entityValues = new com.google.gson.JsonArray();
+        entities.stream().sorted(Comparator.comparingDouble(NearbyEntity::distanceSq)).limit(32)
+            .forEach(observation -> entityValues.add(observation.json()));
+
         var awareness = new JsonObject();
         awareness.addProperty("radius", radius);
         awareness.add("blocks", blocks);
         awareness.add("players", players);
+        awareness.add("entities", entityValues);
+        awareness.add("crosshairTarget", crosshairTarget(minecraft, player));
         payload.add("awareness", awareness);
+    }
+
+    private static JsonObject crosshairTarget(Minecraft minecraft, net.minecraft.world.entity.player.Player player) {
+        var value = new JsonObject();
+        var hit = minecraft.hitResult;
+        if (hit instanceof BlockHitResult blockHit) {
+            var pos = blockHit.getBlockPos();
+            var state = minecraft.level.getBlockState(pos);
+            value.addProperty("kind", "block");
+            value.addProperty("blockId", BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
+            value.addProperty("x", pos.getX());
+            value.addProperty("y", pos.getY());
+            value.addProperty("z", pos.getZ());
+            value.addProperty("distanceSq", Math.min(1_024.0D, player.distanceToSqr(Vec3.atCenterOf(pos))));
+        } else if (hit instanceof EntityHitResult entityHit) {
+            var entity = entityHit.getEntity();
+            value.addProperty("kind", "entity");
+            value.addProperty("entityUuid", entity.getUUID().toString());
+            value.addProperty("typeId", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString());
+            value.addProperty("x", entity.getX());
+            value.addProperty("y", entity.getY());
+            value.addProperty("z", entity.getZ());
+            value.addProperty("distanceSq", Math.min(1_024.0D, player.distanceToSqr(entity)));
+        } else {
+            value.addProperty("kind", "miss");
+        }
+        return value;
     }
 
     private record LocalBlock(String blockId, int x, int y, int z, int distanceSq, int count) {
@@ -176,7 +238,8 @@ final class MinecraftSnapshotCollector {
         }
     }
 
-    private record NearbyPlayer(String minecraftUuid, String displayName, double x, double y, double z, double distanceSq) {
+    private record NearbyPlayer(String minecraftUuid, String displayName, double x, double y, double z, double distanceSq,
+                                boolean visible, String heldItemId) {
         JsonObject json() {
             var value = new JsonObject();
             value.addProperty("minecraftUuid", minecraftUuid);
@@ -185,6 +248,30 @@ final class MinecraftSnapshotCollector {
             value.addProperty("y", y);
             value.addProperty("z", z);
             value.addProperty("distanceSq", distanceSq);
+            value.addProperty("visible", visible);
+            if (heldItemId == null) value.add("heldItemId", JsonNull.INSTANCE);
+            else value.addProperty("heldItemId", heldItemId);
+            return value;
+        }
+    }
+
+    private record NearbyEntity(String entityUuid, String typeId, String displayName, String category,
+                                double x, double y, double z, double distanceSq,
+                                boolean visible, boolean alive, String itemId) {
+        JsonObject json() {
+            var value = new JsonObject();
+            value.addProperty("entityUuid", entityUuid);
+            value.addProperty("typeId", typeId);
+            value.addProperty("displayName", displayName.substring(0, Math.min(64, displayName.length())));
+            value.addProperty("category", category);
+            value.addProperty("x", x);
+            value.addProperty("y", y);
+            value.addProperty("z", z);
+            value.addProperty("distanceSq", distanceSq);
+            value.addProperty("visible", visible);
+            value.addProperty("alive", alive);
+            if (itemId == null) value.add("itemId", JsonNull.INSTANCE);
+            else value.addProperty("itemId", itemId);
             return value;
         }
     }

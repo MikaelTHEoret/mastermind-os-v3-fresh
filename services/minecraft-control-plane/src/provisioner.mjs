@@ -964,7 +964,7 @@ export class ServerProvisioner {
       await fs.writeFile(path.join(staging, 'eula.txt'), 'eula=true\n', 'utf8');
       await fs.writeFile(
         path.join(staging, 'server.properties'),
-        `online-mode=true\nserver-ip=\nserver-port=${javaPort}\nlevel-name=world\nmotd=Mastermind Family Server\nview-distance=10\n`,
+        `online-mode=true\nserver-ip=\nserver-port=${javaPort}\nlevel-name=world\nmotd=Mastermind Family Server\ndifficulty=peaceful\nview-distance=10\n`,
         'utf8',
       );
       const now = new Date().toISOString();

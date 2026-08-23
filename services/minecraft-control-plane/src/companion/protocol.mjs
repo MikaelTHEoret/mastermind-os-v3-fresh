@@ -308,7 +308,7 @@ function validateInventory(value) {
 
 function validateLocalAwareness(value) {
   if (value === null) return null;
-  const awareness = exactObject(value, 'state.snapshot.payload.awareness', ['radius', 'blocks', 'players']);
+  const awareness = exactObject(value, 'state.snapshot.payload.awareness', ['radius', 'blocks', 'players'], ['entities', 'crosshairTarget']);
   numberValue(awareness.radius, 'awareness.radius', 1, 16, { integer: true });
   if (!Array.isArray(awareness.blocks) || awareness.blocks.length > 64) fail('INVALID_MESSAGE', 'awareness blocks must be bounded');
   const blockIds = new Set();
@@ -326,15 +326,64 @@ function validateLocalAwareness(value) {
   if (!Array.isArray(awareness.players) || awareness.players.length > 16) fail('INVALID_MESSAGE', 'awareness players must be bounded');
   const playerIds = new Set();
   for (const playerValue of awareness.players) {
-    const player = exactObject(playerValue, 'awareness player', ['minecraftUuid', 'displayName', 'x', 'y', 'z', 'distanceSq']);
+    const player = exactObject(playerValue, 'awareness player', ['minecraftUuid', 'displayName', 'x', 'y', 'z', 'distanceSq'], ['visible', 'heldItemId']);
     uuidValue(player.minecraftUuid, 'awareness player UUID');
     stringValue(player.displayName, 'awareness player displayName', { min: 1, max: 64 });
     numberValue(player.x, 'awareness player x', -30_000_000, 30_000_000);
     numberValue(player.y, 'awareness player y', -2_048, 2_048);
     numberValue(player.z, 'awareness player z', -30_000_000, 30_000_000);
     numberValue(player.distanceSq, 'awareness player distanceSq', 0, 4_096);
+    if (Object.hasOwn(player, 'visible')) booleanValue(player.visible, 'awareness player visible');
+    if (Object.hasOwn(player, 'heldItemId') && player.heldItemId !== null) {
+      stringValue(player.heldItemId, 'awareness player heldItemId', { min: 3, max: 128, pattern: REGISTRY_ID });
+    }
     if (playerIds.has(player.minecraftUuid)) fail('INVALID_MESSAGE', 'awareness players contain a duplicate UUID');
     playerIds.add(player.minecraftUuid);
+  }
+  if (Object.hasOwn(awareness, 'entities')) {
+    if (!Array.isArray(awareness.entities) || awareness.entities.length > 32) fail('INVALID_MESSAGE', 'awareness entities must be bounded');
+    const entityIds = new Set();
+    for (const entityValue of awareness.entities) {
+      const entity = exactObject(entityValue, 'awareness entity', [
+        'entityUuid', 'typeId', 'displayName', 'category', 'x', 'y', 'z', 'distanceSq', 'visible', 'alive', 'itemId',
+      ]);
+      uuidValue(entity.entityUuid, 'awareness entity UUID');
+      stringValue(entity.typeId, 'awareness entity typeId', { min: 3, max: 128, pattern: REGISTRY_ID });
+      stringValue(entity.displayName, 'awareness entity displayName', { min: 1, max: 64 });
+      stringValue(entity.category, 'awareness entity category', { min: 4, max: 7, values: new Set(['hostile', 'passive', 'item', 'other']) });
+      numberValue(entity.x, 'awareness entity x', -30_000_000, 30_000_000);
+      numberValue(entity.y, 'awareness entity y', -2_048, 2_048);
+      numberValue(entity.z, 'awareness entity z', -30_000_000, 30_000_000);
+      numberValue(entity.distanceSq, 'awareness entity distanceSq', 0, 1_024);
+      booleanValue(entity.visible, 'awareness entity visible');
+      booleanValue(entity.alive, 'awareness entity alive');
+      if (entity.itemId !== null) stringValue(entity.itemId, 'awareness entity itemId', { min: 3, max: 128, pattern: REGISTRY_ID });
+      if (entityIds.has(entity.entityUuid)) fail('INVALID_MESSAGE', 'awareness entities contain a duplicate UUID');
+      entityIds.add(entity.entityUuid);
+    }
+  }
+  if (Object.hasOwn(awareness, 'crosshairTarget')) {
+    const target = exactObject(awareness.crosshairTarget, 'awareness crosshairTarget', ['kind'], [
+      'blockId', 'entityUuid', 'typeId', 'x', 'y', 'z', 'distanceSq',
+    ]);
+    stringValue(target.kind, 'awareness crosshairTarget kind', { min: 4, max: 6, values: new Set(['miss', 'block', 'entity']) });
+    if (target.kind === 'miss') exactObject(target, 'awareness crosshairTarget', ['kind']);
+    else if (target.kind === 'block') {
+      exactObject(target, 'awareness crosshairTarget', ['kind', 'blockId', 'x', 'y', 'z', 'distanceSq']);
+      stringValue(target.blockId, 'awareness crosshairTarget blockId', { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(target.x, 'awareness crosshairTarget x', -30_000_000, 30_000_000, { integer: true });
+      numberValue(target.y, 'awareness crosshairTarget y', -2_048, 2_048, { integer: true });
+      numberValue(target.z, 'awareness crosshairTarget z', -30_000_000, 30_000_000, { integer: true });
+      numberValue(target.distanceSq, 'awareness crosshairTarget distanceSq', 0, 1_024);
+    } else {
+      exactObject(target, 'awareness crosshairTarget', ['kind', 'entityUuid', 'typeId', 'x', 'y', 'z', 'distanceSq']);
+      uuidValue(target.entityUuid, 'awareness crosshairTarget entityUuid');
+      stringValue(target.typeId, 'awareness crosshairTarget typeId', { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(target.x, 'awareness crosshairTarget x', -30_000_000, 30_000_000);
+      numberValue(target.y, 'awareness crosshairTarget y', -2_048, 2_048);
+      numberValue(target.z, 'awareness crosshairTarget z', -30_000_000, 30_000_000);
+      numberValue(target.distanceSq, 'awareness crosshairTarget distanceSq', 0, 1_024);
+    }
   }
   return awareness;
 }

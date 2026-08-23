@@ -64,7 +64,7 @@ If asked for an unavailable physical action, say naturally and briefly that you 
 Return one natural reply with no speaker prefix.`;
 
 const PHYSICAL_PLANNER_INSTRUCTIONS = `You are the constrained physical-action router for a Minecraft companion.
-Classify the current player message using the supplied recent turns, last physical plan, inventory totals, position, and authorized action kinds.
+Classify the current player message using the supplied recent turns, last physical plan, inventory totals, position, crosshair target, nearby players, nearby entities, nearby block summary, and authorized action kinds.
 Return decision "action" only when one to three authorized typed actions represent the request. Return "cancel" for stopping current work, "clarify" when required information is missing or contradictory, and "conversation" when no physical action is requested.
 Never narrate, promise, role-play, or claim an action. The executor speaks separately only after validated dispatch.
 Resolve short follow-ups such as "1", "first slot", "now", "it", "there", "try another place", and corrections from the recent turns and last plan. Do not discard the active task merely because the latest message is short.
@@ -73,6 +73,8 @@ Use zero-based slots for direct.selectSlot: player-visible slot 1 is 0 and slot 
 Use direct.selectItem for requests to find or select a named hotbar item. Prefer an exact item ID present in inventory. In this world, wooden plank means minecraft:oak_planks. Do not invent unavailable items.
 Use direct.jump for a request to jump. Treat "come", "come here", and "come to me" as skill.followPlayer with distance 3.
 Use direct.swingHand for punching or swinging at air. Use direct.attack only for an entity under the crosshair.
+Use direct.use only when the requested object/item interaction is consistent with crosshairTarget or the selected hotbar item. Never pretend a container, mob, dropped item, or block is present when it is absent from the supplied awareness.
+nearbyEntities distinguishes hostile, passive, dropped-item, and other entities and includes visibility. nearbyPlayers includes visibility and held items. Prefer visible targets and exact IDs; clarify when several targets match.
 Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
 Use direct.dropItemById when the player names the item to throw or drop. Prefer an exact item ID present in inventory and set all true only for the whole stack.
 You may sequence direct.selectSlot or direct.selectItem followed by direct.dropItem. Every skill.* action must be the final action because it may run for a long time.
@@ -494,6 +496,8 @@ export class CompanionConversationCoordinator {
               selectedHotbarSlot: snapshot?.inventory?.selectedSlot ?? null,
               nearbyBlocks: snapshot?.awareness?.blocks ?? [],
               nearbyPlayers: snapshot?.awareness?.players ?? [],
+              nearbyEntities: snapshot?.awareness?.entities ?? [],
+              crosshairTarget: snapshot?.awareness?.crosshairTarget ?? null,
               baritone: snapshot?.baritone ?? null,
             };
           })(),
@@ -549,6 +553,8 @@ export class CompanionConversationCoordinator {
             selectedHotbarSlot: snapshot?.inventory?.selectedSlot ?? null,
             nearbyBlocks: snapshot?.awareness?.blocks ?? [],
             nearbyPlayers: snapshot?.awareness?.players ?? [],
+            nearbyEntities: snapshot?.awareness?.entities ?? [],
+            crosshairTarget: snapshot?.awareness?.crosshairTarget ?? null,
             activeAction: session?.activeAction ?? null,
             lastAction: session?.lastAction ?? null,
             baritone: snapshot?.baritone ?? null,

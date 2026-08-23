@@ -322,9 +322,62 @@
                       "x": { "type": "number", "minimum": -30000000, "maximum": 30000000 },
                       "y": { "type": "number", "minimum": -2048, "maximum": 2048 },
                       "z": { "type": "number", "minimum": -30000000, "maximum": 30000000 },
-                      "distanceSq": { "type": "number", "minimum": 0, "maximum": 4096 }
+                      "distanceSq": { "type": "number", "minimum": 0, "maximum": 4096 },
+                      "visible": { "type": "boolean" },
+                      "heldItemId": { "oneOf": [{ "$ref": "#/$defs/registryId" }, { "type": "null" }] }
                     }
                   }
+                },
+                "entities": {
+                  "type": "array", "maxItems": 32,
+                  "items": {
+                    "type": "object", "additionalProperties": false,
+                    "required": ["entityUuid", "typeId", "displayName", "category", "x", "y", "z", "distanceSq", "visible", "alive", "itemId"],
+                    "properties": {
+                      "entityUuid": { "$ref": "#/$defs/uuid" },
+                      "typeId": { "$ref": "#/$defs/registryId" },
+                      "displayName": { "type": "string", "minLength": 1, "maxLength": 64 },
+                      "category": { "enum": ["hostile", "passive", "item", "other"] },
+                      "x": { "type": "number", "minimum": -30000000, "maximum": 30000000 },
+                      "y": { "type": "number", "minimum": -2048, "maximum": 2048 },
+                      "z": { "type": "number", "minimum": -30000000, "maximum": 30000000 },
+                      "distanceSq": { "type": "number", "minimum": 0, "maximum": 1024 },
+                      "visible": { "type": "boolean" },
+                      "alive": { "type": "boolean" },
+                      "itemId": { "oneOf": [{ "$ref": "#/$defs/registryId" }, { "type": "null" }] }
+                    }
+                  }
+                },
+                "crosshairTarget": {
+                  "oneOf": [
+                    {
+                      "type": "object", "additionalProperties": false, "required": ["kind"],
+                      "properties": { "kind": { "const": "miss" } }
+                    },
+                    {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["kind", "blockId", "x", "y", "z", "distanceSq"],
+                      "properties": {
+                        "kind": { "const": "block" }, "blockId": { "$ref": "#/$defs/registryId" },
+                        "x": { "type": "integer", "minimum": -30000000, "maximum": 30000000 },
+                        "y": { "type": "integer", "minimum": -2048, "maximum": 2048 },
+                        "z": { "type": "integer", "minimum": -30000000, "maximum": 30000000 },
+                        "distanceSq": { "type": "number", "minimum": 0, "maximum": 1024 }
+                      }
+                    },
+                    {
+                      "type": "object", "additionalProperties": false,
+                      "required": ["kind", "entityUuid", "typeId", "x", "y", "z", "distanceSq"],
+                      "properties": {
+                        "kind": { "const": "entity" }, "entityUuid": { "$ref": "#/$defs/uuid" },
+                        "typeId": { "$ref": "#/$defs/registryId" },
+                        "x": { "type": "number", "minimum": -30000000, "maximum": 30000000 },
+                        "y": { "type": "number", "minimum": -2048, "maximum": 2048 },
+                        "z": { "type": "number", "minimum": -30000000, "maximum": 30000000 },
+                        "distanceSq": { "type": "number", "minimum": 0, "maximum": 1024 }
+                      }
+                    }
+                  ]
                 }
               }
             },

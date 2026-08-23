@@ -189,7 +189,9 @@ test('provisions a verified latest-compatible family stack with Geyser and Flood
   assert.equal(Object.hasOwn(instance.javaRuntime, 'executableRelativePath'), false);
   assert.deepEqual(runtimeCalls, [{ major: 25, component: 'java-runtime-epsilon' }]);
   assert.equal(await fs.readFile(path.join(root, 'eula.txt'), 'utf8'), 'eula=true\n');
-  assert.match(await fs.readFile(path.join(root, 'server.properties'), 'utf8'), /server-port=25565/);
+  const serverProperties = await fs.readFile(path.join(root, 'server.properties'), 'utf8');
+  assert.match(serverProperties, /server-port=25565/);
+  assert.match(serverProperties, /^difficulty=peaceful$/mu);
   const geyserConfig = await fs.readFile(path.join(root, 'config', 'Geyser-Fabric', 'config.yml'), 'utf8');
   assert.match(geyserConfig, /address: 0\.0\.0\.0/);
   assert.match(geyserConfig, /port: 19132/);

@@ -344,7 +344,12 @@ test('short follow-ups retain dialogue and game awareness for bounded multi-step
         },
         awareness: {
           blocks: [{ blockId: 'minecraft:lodestone', x: 11, y: 64, z: 20, distanceSq: 1, count: 1 }],
-          players: [{ minecraftUuid: PLAYER, displayName: 'Mik', x: 12, y: 64, z: 20, distanceSq: 4 }],
+          players: [{ minecraftUuid: PLAYER, displayName: 'Mik', x: 12, y: 64, z: 20, distanceSq: 4, visible: true, heldItemId: null }],
+          entities: [{
+            entityUuid: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', typeId: 'minecraft:cow', displayName: 'Cow',
+            category: 'passive', x: 13, y: 64, z: 20, distanceSq: 9, visible: true, alive: true, itemId: null,
+          }],
+          crosshairTarget: { kind: 'block', blockId: 'minecraft:lodestone', x: 11, y: 64, z: 20, distanceSq: 1 },
         },
         baritone: { state: 'idle', activeSkill: null, goal: null },
       },
@@ -372,6 +377,8 @@ test('short follow-ups retain dialogue and game awareness for bounded multi-step
     { slot: 0, itemId: 'minecraft:cooked_mutton', count: 2 },
   ]);
   assert.equal(requests[1].input.companionState.nearbyPlayers[0].minecraftUuid, PLAYER);
+  assert.equal(requests[1].input.companionState.nearbyEntities[0].typeId, 'minecraft:cow');
+  assert.equal(requests[1].input.companionState.crosshairTarget.blockId, 'minecraft:lodestone');
   assert.deepEqual(planned[1][1].actions, [
     { kind: 'direct.selectSlot', args: { slot: 0 } },
     { kind: 'direct.dropItem', args: { all: false } },

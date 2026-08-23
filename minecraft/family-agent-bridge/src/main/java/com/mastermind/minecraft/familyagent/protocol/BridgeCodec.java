@@ -368,7 +368,8 @@ public final class BridgeCodec {
 
     private void validateAwareness(JsonElement element) {
         if (element.isJsonNull()) return;
-        var awareness = exactObject(element, "state.snapshot.payload.awareness", "radius", "blocks", "players");
+        var awareness = exactObject(element, "state.snapshot.payload.awareness",
+            Set.of("radius", "blocks", "players"), Set.of("entities", "crosshairTarget"));
         integer(awareness, "radius", 1, 16);
         var blocks = array(awareness, "blocks", 0, 64);
         var blockIds = new HashSet<String>();
@@ -385,14 +386,64 @@ public final class BridgeCodec {
         var players = array(awareness, "players", 0, 16);
         var playerIds = new HashSet<String>();
         for (var playerElement : players) {
-            var player = exactObject(playerElement, "awareness player", "minecraftUuid", "displayName", "x", "y", "z", "distanceSq");
+            var player = exactObject(playerElement, "awareness player",
+                Set.of("minecraftUuid", "displayName", "x", "y", "z", "distanceSq"), Set.of("visible", "heldItemId"));
             var playerId = uuid(player, "minecraftUuid").toString();
             string(player, "displayName", 1, 64);
             number(player, "x", -30_000_000, 30_000_000);
             number(player, "y", -2_048, 2_048);
             number(player, "z", -30_000_000, 30_000_000);
             number(player, "distanceSq", 0, 4_096);
+            if (player.has("visible")) bool(player, "visible");
+            if (player.has("heldItemId") && !isNull(player.get("heldItemId"))) patternedString(player, "heldItemId", 3, 128, REGISTRY_ID);
             if (!playerIds.add(playerId)) throw invalid("awareness players contain a duplicate UUID");
+        }
+        if (awareness.has("entities")) {
+            var entities = array(awareness, "entities", 0, 32);
+            var entityIds = new HashSet<String>();
+            for (var entityElement : entities) {
+                var entity = exactObject(entityElement, "awareness entity",
+                    "entityUuid", "typeId", "displayName", "category", "x", "y", "z", "distanceSq", "visible", "alive", "itemId");
+                var entityId = uuid(entity, "entityUuid").toString();
+                patternedString(entity, "typeId", 3, 128, REGISTRY_ID);
+                string(entity, "displayName", 1, 64);
+                enumString(entity, "category", Set.of("hostile", "passive", "item", "other"));
+                number(entity, "x", -30_000_000, 30_000_000);
+                number(entity, "y", -2_048, 2_048);
+                number(entity, "z", -30_000_000, 30_000_000);
+                number(entity, "distanceSq", 0, 1_024);
+                bool(entity, "visible");
+                bool(entity, "alive");
+                if (!isNull(entity.get("itemId"))) patternedString(entity, "itemId", 3, 128, REGISTRY_ID);
+                if (!entityIds.add(entityId)) throw invalid("awareness entities contain a duplicate UUID");
+            }
+        }
+        if (awareness.has("crosshairTarget")) validateCrosshairTarget(awareness.get("crosshairTarget"));
+    }
+
+    private void validateCrosshairTarget(JsonElement element) {
+        var target = object(element, "awareness crosshairTarget");
+        var kind = string(target, "kind", 4, 6);
+        switch (kind) {
+            case "miss" -> exactObject(target, "awareness crosshairTarget", "kind");
+            case "block" -> {
+                exactObject(target, "awareness crosshairTarget", "kind", "blockId", "x", "y", "z", "distanceSq");
+                patternedString(target, "blockId", 3, 128, REGISTRY_ID);
+                integer(target, "x", -30_000_000, 30_000_000);
+                integer(target, "y", -2_048, 2_048);
+                integer(target, "z", -30_000_000, 30_000_000);
+                number(target, "distanceSq", 0, 1_024);
+            }
+            case "entity" -> {
+                exactObject(target, "awareness crosshairTarget", "kind", "entityUuid", "typeId", "x", "y", "z", "distanceSq");
+                uuid(target, "entityUuid");
+                patternedString(target, "typeId", 3, 128, REGISTRY_ID);
+                number(target, "x", -30_000_000, 30_000_000);
+                number(target, "y", -2_048, 2_048);
+                number(target, "z", -30_000_000, 30_000_000);
+                number(target, "distanceSq", 0, 1_024);
+            }
+            default -> throw invalid("awareness crosshair target kind is invalid");
         }
     }
 
