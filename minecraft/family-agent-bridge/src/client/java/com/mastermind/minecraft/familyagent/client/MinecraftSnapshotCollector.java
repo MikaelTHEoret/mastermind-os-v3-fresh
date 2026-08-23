@@ -199,6 +199,10 @@ final class MinecraftSnapshotCollector {
         if (hit instanceof BlockHitResult blockHit) {
             var pos = blockHit.getBlockPos();
             var state = minecraft.level.getBlockState(pos);
+            if (state.isAir()) {
+                value.addProperty("kind", "miss");
+                return value;
+            }
             value.addProperty("kind", "block");
             value.addProperty("blockId", BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
             value.addProperty("x", pos.getX());
