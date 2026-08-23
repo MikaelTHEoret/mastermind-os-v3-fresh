@@ -302,6 +302,27 @@ export class CompanionSessionManager extends EventEmitter {
         );
       }
     }
+    const awarenessNegotiated = connection.capabilities.has('state.localAwareness');
+    const awarenessPresent = Object.hasOwn(payload, 'awareness');
+    if (awarenessNegotiated !== awarenessPresent) {
+      throw new FamilyBridgeProtocolError(
+        'CAPABILITY_MISMATCH',
+        awarenessNegotiated
+          ? 'Snapshot omitted negotiated local awareness telemetry'
+          : 'Snapshot included local awareness telemetry that was not negotiated',
+        4406,
+      );
+    }
+    if (awarenessNegotiated) {
+      const inWorld = payload.phase === 'in-world';
+      if (inWorld !== (payload.awareness !== null)) {
+        throw new FamilyBridgeProtocolError(
+          'ACTION_STATE_MISMATCH',
+          'Local awareness availability did not match the client world phase',
+          4400,
+        );
+      }
+    }
   }
 
   #acceptActionStatus(payload) {

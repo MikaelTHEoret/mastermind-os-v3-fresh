@@ -53,7 +53,9 @@ function hello(seq = 1, overrides = {}) {
       minecraftVersion: '26.2',
       loaderVersion: '0.19.3',
       baritoneVersion: '1.12.0',
-      capabilities: FAMILY_BRIDGE_CAPABILITIES.filter((value) => value !== 'state.inventory'),
+      capabilities: FAMILY_BRIDGE_CAPABILITIES.filter((value) => (
+        value !== 'state.inventory' && value !== 'state.localAwareness'
+      )),
       ...overrides,
     },
   });
@@ -87,6 +89,7 @@ test('inventory telemetry is optional for legacy clients and exact when negotiat
       health: 20, maxHealth: 20, hunger: 20, armor: 0, dimension: 'minecraft:overworld',
     },
     world: { timeOfDay: 1_000, weather: 'clear' },
+    awareness: { radius: 8, blocks: [], players: [] },
     baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
     safety: { killSwitch: false },
   };
@@ -97,11 +100,21 @@ test('inventory telemetry is optional for legacy clients and exact when negotiat
   const accepted = await readyManager({ helloOverrides: { capabilities: inventoryCapabilities } });
   await accepted.manager.receive(clientMessage({
     type: 'state.snapshot', seq: 2, messageId: '27272727-2727-4727-8727-272727272727',
-    payload: { ...baseSnapshot, inventory: { items: [{ itemId: 'minecraft:oak_log', count: 3 }] } },
+    payload: { ...baseSnapshot, inventory: { items: [{ itemId: 'minecraft:oak_log', count: 3 }], hotbar: [{ slot: 0, itemId: 'minecraft:oak_log', count: 3 }], selectedSlot: 0 } },
   }));
   assert.deepEqual(accepted.manager.status().latestSnapshot.inventory, {
-    items: [{ itemId: 'minecraft:oak_log', count: 3 }],
+    items: [{ itemId: 'minecraft:oak_log', count: 3 }], hotbar: [{ slot: 0, itemId: 'minecraft:oak_log', count: 3 }], selectedSlot: 0,
   });
+
+  const missingAwareness = await readyManager({ helloOverrides: { capabilities: inventoryCapabilities } });
+  const { awareness: _awareness, ...snapshotWithoutAwareness } = baseSnapshot;
+  await assert.rejects(missingAwareness.manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 2, messageId: '29292929-2929-4929-8929-292929292928',
+    payload: {
+      ...snapshotWithoutAwareness,
+      inventory: { items: [], hotbar: [], selectedSlot: 0 },
+    },
+  })), (error) => error.code === 'CAPABILITY_MISMATCH');
 
   const legacy = await readyManager();
   await assert.rejects(legacy.manager.receive(clientMessage({
@@ -123,6 +136,7 @@ test('gather actions retain terminal inventory-delta evidence for later verifica
       health: 20, maxHealth: 20, hunger: 20, armor: 0, dimension: 'minecraft:overworld',
     },
     world: { timeOfDay: 1_000, weather: 'clear' },
+    awareness: { radius: 8, blocks: [], players: [] },
     inventory: { items: [{ itemId: 'minecraft:oak_log', count }] },
     baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
     safety: { killSwitch: false },

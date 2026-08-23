@@ -133,12 +133,23 @@ test('inventory snapshots accept bounded totals and reject duplicates or excess 
     ...source,
     payload: {
       ...source.payload,
-      inventory: { items: [{ itemId: 'minecraft:oak_log', count: 4 }] },
+      inventory: {
+        items: [{ itemId: 'minecraft:oak_log', count: 4 }],
+        hotbar: [{ slot: 2, itemId: 'minecraft:oak_log', count: 4 }], selectedSlot: 2,
+      },
+      awareness: {
+        radius: 8,
+        blocks: [{ blockId: 'minecraft:lodestone', x: 3, y: 64, z: 4, distanceSq: 5, count: 1 }],
+        players: [{ minecraftUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', displayName: 'Mik', x: 2, y: 64, z: 3, distanceSq: 2 }],
+      },
     },
   };
   assert.equal(validateFamilyBridgeMessage(withInventory, {
     direction: 'client', expectedSessionId: sessionId,
   }).payload.inventory.items[0].count, 4);
+  assert.equal(validateFamilyBridgeMessage(withInventory, {
+    direction: 'client', expectedSessionId: sessionId,
+  }).payload.awareness.blocks[0].blockId, 'minecraft:lodestone');
   expectProtocolError(() => validateFamilyBridgeMessage({
     ...withInventory,
     payload: {

@@ -29,6 +29,7 @@ function normalizeRequest(value) {
   let request = value
     .normalize('NFKC')
     .trim()
+    .replace(/\s+([.!?])/gu, '$1')
     .replace(/^(?:hey\s+)?(?:the[_ ]?alchemist_+|alchemist)\s*[,!:;-]?\s*/iu, '')
     .replace(/\s+please[.!?]*$/iu, '')
     .trim()
@@ -65,6 +66,15 @@ export function compileDeterministicCompanionTask(text) {
     const distance = follow[1] === undefined ? 4 : Number(follow[1]);
     if (!Number.isFinite(distance) || distance < 2 || distance > 16) return null;
     return task('follow-player', { kind: 'skill.followPlayer', args: { playerUuid: null, distance } }, "Okay, I'll follow you.", 30 * 60_000, replaceCurrent);
+  }
+
+  if (/^(?:come|come here|come to me)[.!?]*$/u.test(request)) {
+    return task('follow-player', { kind: 'skill.followPlayer', args: { playerUuid: null, distance: 3 } },
+      "Okay, I'm coming to you.", 30 * 60_000, replaceCurrent);
+  }
+
+  if (/^(?:jump|jump once)[.!?]*$/u.test(request)) {
+    return task('jump', { kind: 'direct.jump', args: {} }, "Okay.", 15_000, replaceCurrent);
   }
 
   const labeledNavigation = request.match(/^(?:go|walk|navigate|come)\s+to\s+(.+)$/u);
@@ -166,11 +176,15 @@ export class CompanionPhysicalTaskSupervisor {
     this.dispatchAction = options.dispatchAction;
     this.cancelAction = options.cancelAction;
     this.waitForActionActivation = options.waitForActionActivation ?? (async (action) => action);
-    this.waitForPhysicalIdle = options.waitForPhysicalIdle ?? (async () => {
-      const deadline = Date.now() + 3_000;
+    this.waitForPhysicalIdle = options.waitForPhysicalIdle ?? (async (actionId, waitOptions = {}) => {
+      const deadline = Date.now() + (waitOptions.timeoutMs ?? 15_000);
       while (this.sessionStatus()?.activeAction) {
         if (Date.now() >= deadline) throw Object.assign(new Error('The prior action did not stop in time'), { code: 'ACTION_STOP_TIMEOUT' });
         await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      const last = this.sessionStatus()?.lastAction ?? null;
+      if (last?.actionId === actionId && last.status !== 'succeeded') {
+        throw Object.assign(new Error('The prior action did not succeed'), { code: 'ACTION_STEP_FAILED' });
       }
     });
     this.sessionStatus = options.sessionStatus;
@@ -268,7 +282,8 @@ export class CompanionPhysicalTaskSupervisor {
       return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_CLARIFICATION', spoke });
     }
     if (plan.decision === 'cancel') return this.handle({ ...value, text: 'stop' });
-    if (plan.decision !== 'action' || !plan.action || typeof plan.action.kind !== 'string') {
+    if (plan.decision !== 'action' || !Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 3
+      || plan.actions.some((action) => !action || typeof action.kind !== 'string')) {
       return Object.freeze({ handled: false });
     }
     if (!PHYSICAL_ROLES.has(value?.role) || typeof value?.minecraftUuid !== 'string' || !UUID.test(value.minecraftUuid)) {
@@ -284,17 +299,30 @@ export class CompanionPhysicalTaskSupervisor {
         const spoke = await this.#speak("I'm already doing something. Tell me to stop first if you want me to switch.");
         return Object.freeze({ handled: true, ok: false, code: 'COMPANION_BUSY', spoke });
       }
-      const dispatched = await this.dispatchAction(plan.action, { timeoutMs: plan.timeoutMs ?? 60_000 });
-      await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
+      const dispatchedActions = [];
+      for (let index = 0; index < plan.actions.length; index += 1) {
+        const action = plan.actions[index];
+        const timeoutMs = action.kind === 'skill.followPlayer' ? 30 * 60_000
+          : action.kind === 'skill.gatherBlock' ? 15 * 60_000
+            : action.kind === 'skill.navigateTo' || action.kind === 'skill.explore' ? 10 * 60_000
+              : 15_000;
+        const dispatched = await this.dispatchAction(action, { timeoutMs });
+        await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
+        dispatchedActions.push(dispatched);
+        if (index < plan.actions.length - 1) {
+          await this.waitForPhysicalIdle(dispatched.actionId, { timeoutMs: 15_000 });
+        }
+      }
       this.accepted += 1;
-      this.last = { intent: 'planned-action', code: 'PHYSICAL_TASK_DISPATCHED', actionId: dispatched.actionId };
-      const spoke = await this.#speak("Okay, I'll try that now.");
-      return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', action: dispatched, spoke });
+      const lastAction = dispatchedActions.at(-1);
+      this.last = { intent: 'planned-action', code: 'PHYSICAL_TASK_DISPATCHED', actionId: lastAction.actionId };
+      const spoke = await this.#speak(plan.acknowledgement || "Okay, I'm doing that now.");
+      return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', actions: dispatchedActions, spoke });
     } catch (error) {
       this.failures += 1;
       const code = publicFailureCode(error);
       this.last = { intent: 'planned-action', code };
-      const spoke = await this.#speak("I couldn't execute that action.");
+      const spoke = await this.#speak("That didn't work, so I stopped there.");
       return Object.freeze({ handled: true, ok: false, code, spoke });
     }
   }

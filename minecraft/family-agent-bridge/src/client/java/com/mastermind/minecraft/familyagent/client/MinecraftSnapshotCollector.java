@@ -6,9 +6,12 @@ import com.mastermind.minecraft.familyagent.action.ActionRegistry;
 import com.mastermind.minecraft.familyagent.config.FamilyServerAddressPolicy;
 import com.mastermind.minecraft.familyagent.navigation.NavigationProvider;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.TreeMap;
 import java.util.UUID;
 
@@ -27,7 +30,8 @@ final class MinecraftSnapshotCollector {
     }
 
     static JsonObject snapshot(Minecraft minecraft, NavigationProvider navigation, ActionRegistry registry,
-                               long clientTick, boolean killSwitch, int familyServerPort, boolean includeInventory) {
+                               long clientTick, boolean killSwitch, int familyServerPort, boolean includeInventory,
+                               boolean includeAwareness) {
         var payload = new JsonObject();
         payload.addProperty("snapshotId", UUID.randomUUID().toString());
         payload.addProperty("clientTick", clientTick);
@@ -41,6 +45,9 @@ final class MinecraftSnapshotCollector {
         addWorld(payload, minecraft);
         if (includeInventory) {
             addInventory(payload, minecraft);
+        }
+        if (includeAwareness) {
+            addAwareness(payload, minecraft);
         }
         payload.add("baritone", navigation.snapshot());
         var active = registry.active();
@@ -82,7 +89,104 @@ final class MinecraftSnapshotCollector {
         });
         var inventory = new JsonObject();
         inventory.add("items", items);
+        var hotbar = new com.google.gson.JsonArray();
+        for (var slot = 0; slot < 9; slot += 1) {
+            var stack = player.getInventory().getItem(slot);
+            if (stack.isEmpty()) continue;
+            var entry = new JsonObject();
+            entry.addProperty("slot", slot);
+            entry.addProperty("itemId", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
+            entry.addProperty("count", Math.min(64, stack.getCount()));
+            hotbar.add(entry);
+        }
+        inventory.add("hotbar", hotbar);
+        inventory.addProperty("selectedSlot", player.getInventory().getSelectedSlot());
         payload.add("inventory", inventory);
+    }
+
+    private static void addAwareness(JsonObject payload, Minecraft minecraft) {
+        var player = minecraft.player;
+        var level = minecraft.level;
+        if (player == null || level == null) {
+            payload.add("awareness", JsonNull.INSTANCE);
+            return;
+        }
+        final int radius = 8;
+        var base = player.blockPosition();
+        var observations = new TreeMap<String, LocalBlock>();
+        for (var x = base.getX() - radius; x <= base.getX() + radius; x += 1) {
+            for (var y = base.getY() - 4; y <= base.getY() + 4; y += 1) {
+                for (var z = base.getZ() - radius; z <= base.getZ() + radius; z += 1) {
+                    var pos = new BlockPos(x, y, z);
+                    var state = level.getBlockState(pos);
+                    if (state.isAir()) continue;
+                    var blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString();
+                    var dx = x - base.getX();
+                    var dy = y - base.getY();
+                    var dz = z - base.getZ();
+                    var distanceSq = dx * dx + dy * dy + dz * dz;
+                    var current = observations.get(blockId);
+                    observations.put(blockId, current == null
+                        ? new LocalBlock(blockId, x, y, z, distanceSq, 1)
+                        : current.withObservation(x, y, z, distanceSq));
+                }
+            }
+        }
+        var blocks = new com.google.gson.JsonArray();
+        observations.values().stream()
+            .sorted(Comparator.comparingInt(LocalBlock::distanceSq).thenComparing(LocalBlock::blockId))
+            .limit(64)
+            .forEach(observation -> blocks.add(observation.json()));
+
+        var nearby = new ArrayList<NearbyPlayer>();
+        for (var other : level.players()) {
+            if (other == player) continue;
+            var distanceSq = player.distanceToSqr(other);
+            if (distanceSq > 4_096.0D) continue;
+            nearby.add(new NearbyPlayer(
+                other.getUUID().toString(), other.getName().getString(),
+                other.getX(), other.getY(), other.getZ(), distanceSq
+            ));
+        }
+        var players = new com.google.gson.JsonArray();
+        nearby.stream().sorted(Comparator.comparingDouble(NearbyPlayer::distanceSq)).limit(16)
+            .forEach(observation -> players.add(observation.json()));
+        var awareness = new JsonObject();
+        awareness.addProperty("radius", radius);
+        awareness.add("blocks", blocks);
+        awareness.add("players", players);
+        payload.add("awareness", awareness);
+    }
+
+    private record LocalBlock(String blockId, int x, int y, int z, int distanceSq, int count) {
+        LocalBlock withObservation(int nextX, int nextY, int nextZ, int nextDistanceSq) {
+            if (nextDistanceSq < distanceSq) return new LocalBlock(blockId, nextX, nextY, nextZ, nextDistanceSq, Math.min(4_096, count + 1));
+            return new LocalBlock(blockId, x, y, z, distanceSq, Math.min(4_096, count + 1));
+        }
+
+        JsonObject json() {
+            var value = new JsonObject();
+            value.addProperty("blockId", blockId);
+            value.addProperty("x", x);
+            value.addProperty("y", y);
+            value.addProperty("z", z);
+            value.addProperty("distanceSq", distanceSq);
+            value.addProperty("count", count);
+            return value;
+        }
+    }
+
+    private record NearbyPlayer(String minecraftUuid, String displayName, double x, double y, double z, double distanceSq) {
+        JsonObject json() {
+            var value = new JsonObject();
+            value.addProperty("minecraftUuid", minecraftUuid);
+            value.addProperty("displayName", displayName.substring(0, Math.min(64, displayName.length())));
+            value.addProperty("x", x);
+            value.addProperty("y", y);
+            value.addProperty("z", z);
+            value.addProperty("distanceSq", distanceSq);
+            return value;
+        }
     }
 
     static boolean isFamilyServer(Minecraft minecraft, int familyServerPort) {

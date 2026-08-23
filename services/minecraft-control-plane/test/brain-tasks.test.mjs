@@ -18,6 +18,9 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   assert.deepEqual(compileDeterministicCompanionTask('Okay, could you please follow me?').action, {
     kind: 'skill.followPlayer', args: { playerUuid: null, distance: 4 },
   });
+  assert.equal(compileDeterministicCompanionTask('follow me ?').action.kind, 'skill.followPlayer');
+  assert.equal(compileDeterministicCompanionTask('come').action.kind, 'skill.followPlayer');
+  assert.equal(compileDeterministicCompanionTask('can you jump ?').action.kind, 'direct.jump');
   assert.equal(compileDeterministicCompanionTask('stop and follow me').replaceCurrent, true);
   assert.equal(compileDeterministicCompanionTask('cancel that then explore 32 blocks').replaceCurrent, true);
   assert.deepEqual(compileDeterministicCompanionTask('go to 10 64 -20').action, {
@@ -85,6 +88,40 @@ test('physical task supervisor dispatches one typed action and narrates briefly'
     ['say', "Okay, I'll follow you."],
   ]);
   assert.equal(supervisor.status().accepted, 1);
+});
+
+test('planned physical tasks execute a bounded sequence and wait between steps', async () => {
+  const calls = [];
+  let sequence = 0;
+  const supervisor = new CompanionPhysicalTaskSupervisor({
+    dispatchAction: async (action, options) => {
+      sequence += 1;
+      const actionId = `11111111-1111-4111-8111-11111111111${sequence}`;
+      calls.push(['dispatch', action, options]);
+      return { actionId, kind: action.kind, status: 'dispatched' };
+    },
+    waitForActionActivation: async (actionId) => calls.push(['activated', actionId]),
+    waitForPhysicalIdle: async (actionId, options) => calls.push(['idle', actionId, options]),
+    cancelAction: async () => { throw new Error('must not cancel'); },
+    sessionStatus: () => ({ activeAction: null }),
+    sendChat: async (text) => calls.push(['say', text]),
+  });
+  const result = await supervisor.handlePlanned({ role: 'parent', minecraftUuid: PLAYER_UUID }, {
+    decision: 'action', acknowledgement: "Okay, I'll drop one.",
+    actions: [
+      { kind: 'direct.selectSlot', args: { slot: 0 } },
+      { kind: 'direct.dropItem', args: { all: false } },
+    ],
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, [
+    ['dispatch', { kind: 'direct.selectSlot', args: { slot: 0 } }, { timeoutMs: 15_000 }],
+    ['activated', '11111111-1111-4111-8111-111111111111'],
+    ['idle', '11111111-1111-4111-8111-111111111111', { timeoutMs: 15_000 }],
+    ['dispatch', { kind: 'direct.dropItem', args: { all: false } }, { timeoutMs: 15_000 }],
+    ['activated', '11111111-1111-4111-8111-111111111112'],
+    ['say', "Okay, I'll drop one."],
+  ]);
 });
 
 test('physical task supervisor never promises movement when body activation fails', async () => {

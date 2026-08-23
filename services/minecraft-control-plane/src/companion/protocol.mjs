@@ -8,6 +8,7 @@ export const FAMILY_BRIDGE_MAX_PAYLOAD_BYTES = 64 * 1024;
 export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'state.snapshot',
   'state.inventory',
+  'state.localAwareness',
   'action.cancel',
   'client.shutdown',
   'direct.say',
@@ -273,7 +274,7 @@ function validateWorld(value) {
 
 function validateInventory(value) {
   if (value === null) return null;
-  const inventory = exactObject(value, 'state.snapshot.payload.inventory', ['items']);
+  const inventory = exactObject(value, 'state.snapshot.payload.inventory', ['items'], ['hotbar', 'selectedSlot']);
   if (!Array.isArray(inventory.items) || inventory.items.length > MAX_INVENTORY_ITEM_TYPES) {
     fail('INVALID_MESSAGE', 'state.snapshot.payload.inventory.items must be a bounded list');
   }
@@ -287,7 +288,55 @@ function validateInventory(value) {
     if (seen.has(item.itemId)) fail('INVALID_MESSAGE', 'state.snapshot.payload.inventory contains a duplicate item ID');
     seen.add(item.itemId);
   }
+  if (Object.hasOwn(inventory, 'hotbar')) {
+    if (!Array.isArray(inventory.hotbar) || inventory.hotbar.length > 9) {
+      fail('INVALID_MESSAGE', 'inventory hotbar must be bounded');
+    }
+    const slots = new Set();
+    for (const entryValue of inventory.hotbar) {
+      const entry = exactObject(entryValue, 'inventory hotbar entry', ['slot', 'itemId', 'count']);
+      numberValue(entry.slot, 'inventory hotbar slot', 0, 8, { integer: true });
+      stringValue(entry.itemId, 'inventory hotbar itemId', { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(entry.count, 'inventory hotbar count', 1, 64, { integer: true });
+      if (slots.has(entry.slot)) fail('INVALID_MESSAGE', 'inventory hotbar contains a duplicate slot');
+      slots.add(entry.slot);
+    }
+  }
+  if (Object.hasOwn(inventory, 'selectedSlot')) numberValue(inventory.selectedSlot, 'inventory selectedSlot', 0, 8, { integer: true });
   return inventory;
+}
+
+function validateLocalAwareness(value) {
+  if (value === null) return null;
+  const awareness = exactObject(value, 'state.snapshot.payload.awareness', ['radius', 'blocks', 'players']);
+  numberValue(awareness.radius, 'awareness.radius', 1, 16, { integer: true });
+  if (!Array.isArray(awareness.blocks) || awareness.blocks.length > 64) fail('INVALID_MESSAGE', 'awareness blocks must be bounded');
+  const blockIds = new Set();
+  for (const blockValue of awareness.blocks) {
+    const block = exactObject(blockValue, 'awareness block', ['blockId', 'x', 'y', 'z', 'distanceSq', 'count']);
+    stringValue(block.blockId, 'awareness blockId', { min: 3, max: 128, pattern: REGISTRY_ID });
+    numberValue(block.x, 'awareness block x', -30_000_000, 30_000_000, { integer: true });
+    numberValue(block.y, 'awareness block y', -2_048, 2_048, { integer: true });
+    numberValue(block.z, 'awareness block z', -30_000_000, 30_000_000, { integer: true });
+    numberValue(block.distanceSq, 'awareness block distanceSq', 0, 1_024, { integer: true });
+    numberValue(block.count, 'awareness block count', 1, 4_096, { integer: true });
+    if (blockIds.has(block.blockId)) fail('INVALID_MESSAGE', 'awareness blocks contain a duplicate block ID');
+    blockIds.add(block.blockId);
+  }
+  if (!Array.isArray(awareness.players) || awareness.players.length > 16) fail('INVALID_MESSAGE', 'awareness players must be bounded');
+  const playerIds = new Set();
+  for (const playerValue of awareness.players) {
+    const player = exactObject(playerValue, 'awareness player', ['minecraftUuid', 'displayName', 'x', 'y', 'z', 'distanceSq']);
+    uuidValue(player.minecraftUuid, 'awareness player UUID');
+    stringValue(player.displayName, 'awareness player displayName', { min: 1, max: 64 });
+    numberValue(player.x, 'awareness player x', -30_000_000, 30_000_000);
+    numberValue(player.y, 'awareness player y', -2_048, 2_048);
+    numberValue(player.z, 'awareness player z', -30_000_000, 30_000_000);
+    numberValue(player.distanceSq, 'awareness player distanceSq', 0, 4_096);
+    if (playerIds.has(player.minecraftUuid)) fail('INVALID_MESSAGE', 'awareness players contain a duplicate UUID');
+    playerIds.add(player.minecraftUuid);
+  }
+  return awareness;
 }
 
 function validateBaritoneGoal(value) {
@@ -312,7 +361,7 @@ function validateBaritoneGoal(value) {
 function validateSnapshot(value) {
   const snapshot = exactObject(value, 'state.snapshot.payload', [
     'snapshotId', 'clientTick', 'phase', 'serverAlias', 'player', 'world', 'baritone', 'activeAction', 'safety',
-  ], ['inventory']);
+  ], ['inventory', 'awareness']);
   uuidValue(snapshot.snapshotId, 'state.snapshot.payload.snapshotId');
   numberValue(snapshot.clientTick, 'state.snapshot.payload.clientTick', 0, Number.MAX_SAFE_INTEGER, { integer: true });
   stringValue(snapshot.phase, 'state.snapshot.payload.phase', { min: 8, max: 12, values: CLIENT_PHASES });
@@ -322,6 +371,7 @@ function validateSnapshot(value) {
   validatePlayer(snapshot.player);
   validateWorld(snapshot.world);
   if (Object.hasOwn(snapshot, 'inventory')) validateInventory(snapshot.inventory);
+  if (Object.hasOwn(snapshot, 'awareness')) validateLocalAwareness(snapshot.awareness);
   const baritone = exactObject(snapshot.baritone, 'state.snapshot.payload.baritone', ['state', 'activeSkill', 'goal']);
   stringValue(baritone.state, 'baritone.state', { min: 4, max: 8, values: BARITONE_STATES });
   if (baritone.activeSkill !== null) stringValue(baritone.activeSkill, 'baritone.activeSkill', { min: 1, max: 64, values: ACTION_KIND_SET });

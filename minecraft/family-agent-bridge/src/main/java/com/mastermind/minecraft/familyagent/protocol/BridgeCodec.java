@@ -317,7 +317,7 @@ public final class BridgeCodec {
     private void validateSnapshot(JsonObject payload, String type) {
         var value = exactObject(payload, type + ".payload",
             Set.of("snapshotId", "clientTick", "phase", "serverAlias", "player", "world", "baritone", "activeAction", "safety"),
-            Set.of("inventory"));
+            Set.of("inventory", "awareness"));
         uuid(value, "snapshotId");
         integer(value, "clientTick", 0, BridgeProtocol.MAX_SAFE_INTEGER);
         enumString(value, "phase", PHASES);
@@ -326,6 +326,9 @@ public final class BridgeCodec {
         validateWorld(value.get("world"));
         if (value.has("inventory")) {
             validateInventory(value.get("inventory"));
+        }
+        if (value.has("awareness")) {
+            validateAwareness(value.get("awareness"));
         }
         validateBaritone(object(value.get("baritone"), "state.snapshot.payload.baritone"));
         validateActiveAction(value.get("activeAction"));
@@ -337,7 +340,8 @@ public final class BridgeCodec {
         if (isNull(element)) {
             return;
         }
-        var inventory = exactObject(element, "state.snapshot.payload.inventory", "items");
+        var inventory = exactObject(element, "state.snapshot.payload.inventory",
+            Set.of("items"), Set.of("hotbar", "selectedSlot"));
         var items = array(inventory, "items", 0, 64);
         var seen = new HashSet<String>();
         for (var itemElement : items) {
@@ -347,6 +351,48 @@ public final class BridgeCodec {
             if (!seen.add(itemId)) {
                 throw invalid("inventory contains a duplicate item ID");
             }
+        }
+        if (inventory.has("hotbar")) {
+            var hotbar = array(inventory, "hotbar", 0, 9);
+            var slots = new HashSet<Integer>();
+            for (var entryElement : hotbar) {
+                var entry = exactObject(entryElement, "inventory hotbar entry", "slot", "itemId", "count");
+                var slot = Math.toIntExact(integer(entry, "slot", 0, 8));
+                patternedString(entry, "itemId", 3, 128, REGISTRY_ID);
+                integer(entry, "count", 1, 64);
+                if (!slots.add(slot)) throw invalid("inventory hotbar contains a duplicate slot");
+            }
+        }
+        if (inventory.has("selectedSlot")) integer(inventory, "selectedSlot", 0, 8);
+    }
+
+    private void validateAwareness(JsonElement element) {
+        if (element.isJsonNull()) return;
+        var awareness = exactObject(element, "state.snapshot.payload.awareness", "radius", "blocks", "players");
+        integer(awareness, "radius", 1, 16);
+        var blocks = array(awareness, "blocks", 0, 64);
+        var blockIds = new HashSet<String>();
+        for (var blockElement : blocks) {
+            var block = exactObject(blockElement, "awareness block", "blockId", "x", "y", "z", "distanceSq", "count");
+            var blockId = patternedString(block, "blockId", 3, 128, REGISTRY_ID);
+            integer(block, "x", -30_000_000, 30_000_000);
+            integer(block, "y", -2_048, 2_048);
+            integer(block, "z", -30_000_000, 30_000_000);
+            integer(block, "distanceSq", 0, 1_024);
+            integer(block, "count", 1, 4_096);
+            if (!blockIds.add(blockId)) throw invalid("awareness blocks contain a duplicate block ID");
+        }
+        var players = array(awareness, "players", 0, 16);
+        var playerIds = new HashSet<String>();
+        for (var playerElement : players) {
+            var player = exactObject(playerElement, "awareness player", "minecraftUuid", "displayName", "x", "y", "z", "distanceSq");
+            var playerId = uuid(player, "minecraftUuid").toString();
+            string(player, "displayName", 1, 64);
+            number(player, "x", -30_000_000, 30_000_000);
+            number(player, "y", -2_048, 2_048);
+            number(player, "z", -30_000_000, 30_000_000);
+            number(player, "distanceSq", 0, 4_096);
+            if (!playerIds.add(playerId)) throw invalid("awareness players contain a duplicate UUID");
         }
     }
 

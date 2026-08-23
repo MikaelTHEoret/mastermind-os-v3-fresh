@@ -32,11 +32,11 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'stop the current physical task',
 ]);
 const PLANNABLE_ACTIONS = Object.freeze([
-  'direct.lookAt', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.attack', 'direct.swingHand',
+  'direct.lookAt', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.attack', 'direct.swingHand', 'direct.jump',
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
   'skill.navigateTo', 'skill.followPlayer', 'skill.gatherBlock', 'skill.explore',
 ]);
-const PHYSICAL_REQUEST_HINT = /\b(?:stop|cancel|follow|come|walk|go|navigate|look|explore|scout|gather|collect|mine|chop|get|place|put|drop|throw|select|choose|switch|use|open|press|interact|punch|hit|attack|inventory|find)\b/iu;
+const PHYSICAL_REQUEST_HINT = /\b(?:stop|cancel|follow|come|walk|go|navigate|look|explore|scout|gather|collect|mine|chop|get|place|put|drop|throw|toss|select|choose|switch|slot|use|open|press|interact|punch|hit|attack|jump|inventory|find|give|bring)\b/iu;
 const CAPABILITY_QUESTION = /^(?:what can you do|what are (?:your )?(?:abilities|capabilities)|what are you capable of(?: doing)?|what do you have access to)(?: now)?[?!.]*$/u;
 const PRIVATE_ENV_KEYS = Object.freeze([
   'OPENAI_API_KEY',
@@ -55,6 +55,7 @@ Do not introduce yourself unless asked, repeat your own name unnecessarily, or a
 Stay the same character while adapting vocabulary and detail to the named player's role. Use that role only to calibrate the reply; never mention or label the role.
 Safety and privacy rules are silent behavior constraints. Follow them without advertising them. Redirect or decline briefly only when a request actually requires it, and explain the boundary only if the player asks why.
 Never claim you performed, observed, remembered, or can perform an action unless the supplied context says so.
+Use recentTurns to maintain the conversational subject and resolve ordinary pronouns or corrections. Use currentGameState only as the companion's own observed state; never describe its inventory as the human player's inventory.
 The supplied capabilities object is authoritative. If physicalActions is true, you can move through the Minecraft world and perform exactly the listed enabledPhysicalSkills. Never broadly claim that you cannot move, follow, gather, or use Baritone when those skills are listed.
 Do not claim that a physical request started or succeeded merely because the player asked; deterministic task execution is handled outside this conversation lane.
 When asked what you are or what you can do, answer naturally as the embodied Minecraft companion using only the supplied identity and capability facts. Clearly distinguish enabled skills from listed limitations without mentioning internal architecture.
@@ -63,18 +64,24 @@ If asked for an unavailable physical action, say naturally and briefly that you 
 Return one natural reply with no speaker prefix.`;
 
 const PHYSICAL_PLANNER_INSTRUCTIONS = `You are the constrained physical-action router for a Minecraft companion.
-Classify the current player message using the supplied previous message, inventory totals, position, and authorized action kinds.
-Return decision "action" only when a single authorized typed action safely represents the request. Return "cancel" for stopping current work, "clarify" when required information is missing or contradictory, and "conversation" when no physical action is requested.
+Classify the current player message using the supplied recent turns, last physical plan, inventory totals, position, and authorized action kinds.
+Return decision "action" only when one to three authorized typed actions represent the request. Return "cancel" for stopping current work, "clarify" when required information is missing or contradictory, and "conversation" when no physical action is requested.
 Never narrate, promise, role-play, or claim an action. The executor speaks separately only after validated dispatch.
+Resolve short follow-ups such as "1", "first slot", "now", "it", "there", "try another place", and corrections from the recent turns and last plan. Do not discard the active task merely because the latest message is short.
+Authorization is already decided outside this planner. Never call an ordinary gameplay request unsafe. If perception or a required capability is absent, explain that concrete limitation in message.
 Use zero-based slots for direct.selectSlot: player-visible slot 1 is 0 and slot 9 is 8.
 Use direct.selectItem for requests to find or select a named hotbar item. Prefer an exact item ID present in inventory. In this world, wooden plank means minecraft:oak_planks. Do not invent unavailable items.
+Use direct.jump for a request to jump. Treat "come", "come here", and "come to me" as skill.followPlayer with distance 3.
 Use direct.swingHand for punching or swinging at air. Use direct.attack only for an entity under the crosshair.
 Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
 Use direct.dropItemById when the player names the item to throw or drop. Prefer an exact item ID present in inventory and set all true only for the whole stack.
+You may sequence direct.selectSlot or direct.selectItem followed by direct.dropItem. Every skill.* action must be the final action because it may run for a long time.
+For "throw it at me", use the requesting player's matching nearbyPlayers position: direct.lookAt with durationMs 250, then the appropriate drop action. If that player is absent from nearbyPlayers, clarify that they are outside local perception.
 Use direct.placeNearbyBlock when the player permits nearby, here, in front, on the floor/ground, or anywhere. Use direct.placeBlock only with explicit x/y/z.
+"Try another place" may repeat the last direct.placeNearbyBlock action. For "on top of" a named block, use the nearest matching nearbyBlocks coordinate with Y plus one as the direct.placeBlock target. If the named block is absent, clarify that it is outside the observed radius.
 For skill.followPlayer, argumentsJson must contain only distance; the trusted runtime binds the requesting player's UUID.
 For navigation, preserve labeled axes. If Y is outside -64 through 320 or axes appear swapped, clarify.
-argumentsJson must be a JSON object string containing exactly the fields required by the chosen action. message is used only for a short clarification and must otherwise be empty.`;
+actionsJson must be a JSON array string containing one to three objects with exactly kind and args. Each args object must contain exactly the fields required by that action. acknowledgement is one short natural sentence spoken only after dispatch. message is used only for a short clarification and must otherwise be empty.`;
 
 const PHYSICAL_PLAN_FORMAT = Object.freeze({
   type: 'json_schema',
@@ -85,11 +92,11 @@ const PHYSICAL_PLAN_FORMAT = Object.freeze({
     additionalProperties: false,
     properties: {
       decision: { enum: ['conversation', 'clarify', 'cancel', 'action'] },
-      actionKind: { enum: ['none', ...PLANNABLE_ACTIONS] },
-      argumentsJson: { type: 'string', minLength: 2, maxLength: 512 },
+      actionsJson: { type: 'string', minLength: 2, maxLength: 1_536 },
+      acknowledgement: { type: 'string', minLength: 0, maxLength: 120 },
       message: { type: 'string', minLength: 0, maxLength: 180 },
     },
-    required: ['decision', 'actionKind', 'argumentsJson', 'message'],
+    required: ['decision', 'actionsJson', 'acknowledgement', 'message'],
   },
 });
 
@@ -147,37 +154,47 @@ function validatedPhysicalPlan(output, authorizedTools, minecraftUuid) {
   if (!output || typeof output !== 'object' || Array.isArray(output)) {
     throw Object.assign(new Error('Physical plan was not an object'), { code: 'MODEL_OUTPUT_INVALID' });
   }
-  const { decision, actionKind, argumentsJson, message } = output;
+  const { decision, actionsJson, acknowledgement, message } = output;
   if (!['conversation', 'clarify', 'cancel', 'action'].includes(decision)
-    || typeof actionKind !== 'string' || typeof argumentsJson !== 'string' || typeof message !== 'string') {
+    || typeof actionsJson !== 'string' || typeof acknowledgement !== 'string' || typeof message !== 'string') {
     throw Object.assign(new Error('Physical plan fields are invalid'), { code: 'MODEL_OUTPUT_INVALID' });
   }
-  if (decision === 'conversation') return Object.freeze({ decision, action: null, message: '' });
-  if (decision === 'cancel') return Object.freeze({ decision, action: null, message: '' });
+  if (decision === 'conversation') return Object.freeze({ decision, actions: [], message: '', acknowledgement: '' });
+  if (decision === 'cancel') return Object.freeze({ decision, actions: [], message: '', acknowledgement: '' });
   if (decision === 'clarify') {
     const clarification = boundedReply(message);
-    return Object.freeze({ decision, action: null, message: clarification });
+    return Object.freeze({ decision, actions: [], message: clarification, acknowledgement: '' });
   }
-  if (actionKind === 'none' || !authorizedTools.includes(actionKind)) {
-    throw Object.assign(new Error('Physical plan selected an unauthorized action'), { code: 'MODEL_ACTION_UNAUTHORIZED' });
-  }
-  let args;
+  let candidates;
   try {
-    args = JSON.parse(argumentsJson);
+    candidates = JSON.parse(actionsJson);
   } catch {
-    throw Object.assign(new Error('Physical action arguments were not JSON'), { code: 'MODEL_OUTPUT_INVALID' });
+    throw Object.assign(new Error('Physical actions were not JSON'), { code: 'MODEL_OUTPUT_INVALID' });
   }
-  if (!args || typeof args !== 'object' || Array.isArray(args)) {
-    throw Object.assign(new Error('Physical action arguments were not an object'), { code: 'MODEL_OUTPUT_INVALID' });
+  if (!Array.isArray(candidates) || candidates.length < 1 || candidates.length > 3) {
+    throw Object.assign(new Error('Physical action sequence was not bounded'), { code: 'MODEL_OUTPUT_INVALID' });
   }
-  if (actionKind === 'skill.followPlayer') {
-    if (!UUID.test(minecraftUuid) || Object.keys(args).some((key) => key !== 'distance')) {
-      throw Object.assign(new Error('Follow plan crossed the trusted identity boundary'), { code: 'MODEL_OUTPUT_INVALID' });
+  const actions = candidates.map((candidate, index) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
+      || Object.keys(candidate).length !== 2 || !Object.hasOwn(candidate, 'kind') || !Object.hasOwn(candidate, 'args')
+      || typeof candidate.kind !== 'string' || !authorizedTools.includes(candidate.kind)) {
+      throw Object.assign(new Error('Physical plan selected an unauthorized action'), { code: 'MODEL_ACTION_UNAUTHORIZED' });
     }
-    args = { ...args, playerUuid: minecraftUuid };
-  }
-  const action = validateFamilyBridgeAction({ kind: actionKind, args });
-  return Object.freeze({ decision, action, message: '' });
+    let args = candidate.args;
+    if (candidate.kind === 'skill.followPlayer') {
+      if (!UUID.test(minecraftUuid) || !args || typeof args !== 'object' || Array.isArray(args)
+        || Object.keys(args).some((key) => key !== 'distance')) {
+        throw Object.assign(new Error('Follow plan crossed the trusted identity boundary'), { code: 'MODEL_OUTPUT_INVALID' });
+      }
+      args = { ...args, playerUuid: minecraftUuid };
+    }
+    if (candidate.kind.startsWith('skill.') && index !== candidates.length - 1) {
+      throw Object.assign(new Error('Long-running skill was not the final action'), { code: 'MODEL_OUTPUT_INVALID' });
+    }
+    return validateFamilyBridgeAction({ kind: candidate.kind, args });
+  });
+  const spoken = acknowledgement === '' ? '' : boundedReply(acknowledgement);
+  return Object.freeze({ decision, actions, message: '', acknowledgement: spoken });
 }
 
 function selectedEnvValue(contents, key) {
@@ -379,7 +396,7 @@ export class CompanionConversationCoordinator {
     this.replies = 0;
     this.failures = 0;
     this.lastModel = null;
-    this.recentMessages = new Map();
+    this.taskContexts = new Map();
   }
 
   async ingest(value) {
@@ -394,22 +411,24 @@ export class CompanionConversationCoordinator {
     }
     const intake = this.intake.ingest(value);
     if (intake.actor !== 'COMPANION' || intake.authorization?.allowed !== true) return intake;
+    const context = this.#taskContext(value.minecraftUuid);
+    this.#appendContextTurn(context, 'player', value.text);
     if (this.flags.physicalTaskPlanning && this.taskSupervisor) {
       const task = await this.taskSupervisor.handle(value);
       if (task.handled) {
+        context.lastResult = { code: task.code, request: value.text };
         this.intake.markExecution(task.code, value.occurredAt);
         if (task.spoke === true) this.#markCompanionResponse(value);
         return { ...intake, execution: { ok: task.ok, code: task.code } };
       }
-      const previous = this.recentMessages.get(value.minecraftUuid);
-      const previousIsRecent = previous && Date.now() - previous.receivedAt < 90_000;
+      const recentPlayerTurns = context.turns.filter((turn) => turn.role === 'player').slice(-6);
       const shouldPlan = this.flags.modelReasoning && (PHYSICAL_REQUEST_HINT.test(value.text)
-        || (previousIsRecent && PHYSICAL_REQUEST_HINT.test(previous.text)));
-      this.recentMessages.set(value.minecraftUuid, { text: value.text, receivedAt: Date.now() });
-      if (this.recentMessages.size > 32) this.recentMessages.delete(this.recentMessages.keys().next().value);
+        || recentPlayerTurns.some((turn) => PHYSICAL_REQUEST_HINT.test(turn.text)));
       if (shouldPlan) {
-        const planned = await this.#planPhysical(value, previousIsRecent ? previous.text : null);
+        const planned = await this.#planPhysical(value, context);
         if (planned.handled) {
+          if (planned.plan) context.lastPlan = planned.plan;
+          context.lastResult = { code: planned.code, request: value.text };
           this.intake.markExecution(planned.code, value.occurredAt);
           if (planned.spoke === true) this.#markCompanionResponse(value);
           return { ...intake, execution: { ok: planned.ok, code: planned.code } };
@@ -452,6 +471,7 @@ export class CompanionConversationCoordinator {
         input: {
           player: { displayName: value.displayName, role: value.role },
           message: value.text,
+          recentTurns: context.turns.slice(-8),
           channel: value.channel,
           identity: {
             character: 'The_AlChemist___',
@@ -465,6 +485,18 @@ export class CompanionConversationCoordinator {
             persistentMemory: false,
             limitations: ['sleeping', 'container management', 'crafting', 'building', 'item delivery'],
           },
+          currentGameState: (() => {
+            const snapshot = this.sessionStatus()?.latestSnapshot ?? null;
+            return {
+              position: snapshot?.player?.position ?? null,
+              inventory: snapshot?.inventory?.items ?? [],
+              hotbar: snapshot?.inventory?.hotbar ?? [],
+              selectedHotbarSlot: snapshot?.inventory?.selectedSlot ?? null,
+              nearbyBlocks: snapshot?.awareness?.blocks ?? [],
+              nearbyPlayers: snapshot?.awareness?.players ?? [],
+              baritone: snapshot?.baritone ?? null,
+            };
+          })(),
         },
         authorizedTools: [],
         deadlineAt: new Date(Date.now() + 20_000).toISOString(),
@@ -478,6 +510,7 @@ export class CompanionConversationCoordinator {
       }
       const text = boundedReply(result.output?.text);
       await this.sendChat(text);
+      this.#appendContextTurn(context, 'companion', text);
       this.replies += 1;
       this.intake.markExecution('REPLY_DISPATCHED', value.occurredAt);
       this.#markCompanionResponse(value);
@@ -492,24 +525,33 @@ export class CompanionConversationCoordinator {
     }
   }
 
-  async #planPhysical(value, previousMessage) {
+  async #planPhysical(value, context) {
     if (!this.canSendChat()) return { handled: true, ok: false, code: 'COMPANION_OUTPUT_UNAVAILABLE' };
     const leaseId = this.governor.acquire();
     if (!leaseId) return { handled: true, ok: false, code: 'MODEL_CONCURRENCY_LIMIT' };
     try {
       this.modelCalls += 1;
-      const snapshot = this.sessionStatus()?.latestSnapshot ?? null;
+      const session = this.sessionStatus() ?? null;
+      const snapshot = session?.latestSnapshot ?? null;
       const result = await this.provider.reason({
         requestId: crypto.randomUUID(), kind: 'plan', actor: 'COMPANION',
         playerId: typeof value.playerId === 'string' && UUID.test(value.playerId) ? value.playerId : null,
         input: {
           currentMessage: value.text,
-          previousMessage,
+          recentTurns: context.turns.slice(-8),
+          lastPlan: context.lastPlan,
+          lastResult: context.lastResult,
           player: { displayName: value.displayName, role: value.role },
           companionState: {
             position: snapshot?.player?.position ?? null,
             inventory: snapshot?.inventory?.items ?? [],
-            selectedHotbarSlot: snapshot?.player?.selectedHotbarSlot ?? null,
+            hotbar: snapshot?.inventory?.hotbar ?? [],
+            selectedHotbarSlot: snapshot?.inventory?.selectedSlot ?? null,
+            nearbyBlocks: snapshot?.awareness?.blocks ?? [],
+            nearbyPlayers: snapshot?.awareness?.players ?? [],
+            activeAction: session?.activeAction ?? null,
+            lastAction: session?.lastAction ?? null,
+            baritone: snapshot?.baritone ?? null,
           },
         },
         authorizedTools: [...PLANNABLE_ACTIONS],
@@ -522,23 +564,44 @@ export class CompanionConversationCoordinator {
       }
       const plan = validatedPhysicalPlan(result.output, PLANNABLE_ACTIONS, value.minecraftUuid);
       if (plan.decision === 'conversation') {
-        const spoke = await this.#speakPlanningFailure("I couldn't map that to an action yet, so I didn't do anything.");
-        return { handled: true, ok: false, code: 'PHYSICAL_REQUEST_NOT_UNDERSTOOD', spoke };
+        const spoke = await this.#speakPlanningFailure("I lost track of which game action that referred to. Tell me the item, slot, or target again.");
+        return { handled: true, ok: false, code: 'PHYSICAL_REQUEST_NOT_UNDERSTOOD', spoke, plan };
       }
-      return this.taskSupervisor.handlePlanned(value, plan);
+      const handled = await this.taskSupervisor.handlePlanned(value, plan);
+      if (plan.decision === 'clarify') this.#appendContextTurn(context, 'companion', plan.message);
+      else if (handled.spoke && plan.acknowledgement) this.#appendContextTurn(context, 'companion', plan.acknowledgement);
+      return { ...handled, plan };
     } catch (error) {
       this.failures += 1;
-      const spoke = await this.#speakPlanningFailure("I couldn't turn that into a safe action, so I didn't do anything.");
+      const spoke = await this.#speakPlanningFailure("I couldn't understand that as a game action, so I didn't do anything.");
       return { handled: true, ok: false, code: publicFailure(error, 'PHYSICAL_PLAN_FAILED').code, spoke };
     } finally {
       this.governor.release(leaseId);
     }
   }
 
+  #taskContext(minecraftUuid) {
+    const now = Date.now();
+    let context = this.taskContexts.get(minecraftUuid);
+    if (!context || now - context.updatedAt > 10 * 60_000) {
+      context = { turns: [], lastPlan: null, lastResult: null, updatedAt: now };
+      this.taskContexts.set(minecraftUuid, context);
+    }
+    context.updatedAt = now;
+    if (this.taskContexts.size > 32) this.taskContexts.delete(this.taskContexts.keys().next().value);
+    return context;
+  }
+
+  #appendContextTurn(context, role, text) {
+    if (!context || !['player', 'companion'].includes(role) || typeof text !== 'string') return;
+    context.turns.push({ role, text: text.slice(0, 512) });
+    if (context.turns.length > 8) context.turns.splice(0, context.turns.length - 8);
+    context.updatedAt = Date.now();
+  }
+
   async #speakPlanningFailure(text) {
     try {
       await this.sendChat(text);
-      this.replies += 1;
       return true;
     } catch {
       return false;

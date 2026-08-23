@@ -99,7 +99,7 @@ test('OpenAI provider requests a strict physical plan without exposing executabl
         ok: true,
         async json() {
           return { output: [{ content: [{ type: 'output_text', text: JSON.stringify({
-            decision: 'action', actionKind: 'direct.swingHand', argumentsJson: '{"hand":"main"}', message: '',
+            decision: 'action', actionsJson: '[{"kind":"direct.swingHand","args":{"hand":"main"}}]', acknowledgement: 'Okay.', message: '',
           }) }] }] };
         },
       };
@@ -111,7 +111,7 @@ test('OpenAI provider requests a strict physical plan without exposing executabl
     deadlineAt: new Date(Date.now() + 10_000).toISOString(),
   });
   assert.equal(result.status, 'succeeded');
-  assert.equal(result.output.actionKind, 'direct.swingHand');
+  assert.match(result.output.actionsJson, /direct\.swingHand/u);
   const body = JSON.parse(captured.init.body);
   assert.equal(body.text.format.name, 'minecraft_physical_plan');
   assert.equal(body.text.format.strict, true);
@@ -281,7 +281,7 @@ test('unmatched natural physical requests become validated typed actions instead
         requests.push(request);
         return {
           requestId: request.requestId, status: 'succeeded', model: 'fixture', completedAt: new Date().toISOString(),
-          output: { decision: 'action', actionKind: 'direct.selectItem', argumentsJson: '{"itemId":"minecraft:oak_planks"}', message: '' },
+          output: { decision: 'action', actionsJson: '[{"kind":"direct.selectItem","args":{"itemId":"minecraft:oak_planks"}}]', acknowledgement: 'Okay.', message: '' },
         };
       },
     },
@@ -301,7 +301,81 @@ test('unmatched natural physical requests become validated typed actions instead
   assert.equal(requests.length, 1);
   assert.equal(requests[0].kind, 'plan');
   assert.deepEqual(requests[0].input.companionState.inventory, [{ itemId: 'minecraft:oak_planks', count: 12 }]);
-  assert.deepEqual(planned[0][1].action, { kind: 'direct.selectItem', args: { itemId: 'minecraft:oak_planks' } });
+  assert.deepEqual(planned[0][1].actions, [{ kind: 'direct.selectItem', args: { itemId: 'minecraft:oak_planks' } }]);
+});
+
+test('short follow-ups retain dialogue and game awareness for bounded multi-step actions', async () => {
+  const requests = [];
+  const planned = [];
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
+    provider: {
+      async reason(request) {
+        requests.push(request);
+        const output = requests.length === 1
+          ? { decision: 'clarify', actionsJson: '[]', acknowledgement: '', message: 'Which hotbar slot?' }
+          : {
+              decision: 'action',
+              actionsJson: '[{"kind":"direct.selectSlot","args":{"slot":0}},{"kind":"direct.dropItem","args":{"all":false}}]',
+              acknowledgement: 'Here you go.', message: '',
+            };
+        return {
+          requestId: request.requestId, status: 'succeeded', model: 'fixture', completedAt: new Date().toISOString(), output,
+        };
+      },
+    },
+    taskSupervisor: {
+      async handle() { return { handled: false }; },
+      async handlePlanned(value, plan) {
+        planned.push([value.text, plan]);
+        return {
+          handled: true, ok: plan.decision === 'action',
+          code: plan.decision === 'action' ? 'PHYSICAL_TASK_DISPATCHED' : 'PHYSICAL_TASK_CLARIFICATION',
+          spoke: true,
+        };
+      },
+    },
+    sessionStatus: () => ({
+      latestSnapshot: {
+        player: { position: { x: 10, y: 64, z: 20 } },
+        inventory: {
+          items: [{ itemId: 'minecraft:cooked_mutton', count: 2 }],
+          hotbar: [{ slot: 0, itemId: 'minecraft:cooked_mutton', count: 2 }], selectedSlot: 2,
+        },
+        awareness: {
+          blocks: [{ blockId: 'minecraft:lodestone', x: 11, y: 64, z: 20, distanceSq: 1, count: 1 }],
+          players: [{ minecraftUuid: PLAYER, displayName: 'Mik', x: 12, y: 64, z: 20, distanceSq: 4 }],
+        },
+        baritone: { state: 'idle', activeSkill: null, goal: null },
+      },
+      activeAction: null, lastAction: null,
+    }),
+    canSendChat: () => true,
+    sendChat: async () => {},
+  });
+
+  const first = await coordinator.ingest(chat({ text: 'Alchemist, throw the item from a hotbar slot at me' }));
+  assert.equal(first.execution.code, 'PHYSICAL_TASK_CLARIFICATION');
+  const second = await coordinator.ingest(chat({
+    messageId: '01919a62-8e84-7c6b-8eb0-4f79592f3ab1',
+    occurredAt: '2026-08-22T12:00:01.000Z', text: '1',
+  }));
+  assert.equal(second.execution.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1].input.recentTurns, [
+    { role: 'player', text: 'Alchemist, throw the item from a hotbar slot at me' },
+    { role: 'companion', text: 'Which hotbar slot?' },
+    { role: 'player', text: '1' },
+  ]);
+  assert.equal(requests[1].input.lastPlan.decision, 'clarify');
+  assert.deepEqual(requests[1].input.companionState.hotbar, [
+    { slot: 0, itemId: 'minecraft:cooked_mutton', count: 2 },
+  ]);
+  assert.equal(requests[1].input.companionState.nearbyPlayers[0].minecraftUuid, PLAYER);
+  assert.deepEqual(planned[1][1].actions, [
+    { kind: 'direct.selectSlot', args: { slot: 0 } },
+    { kind: 'direct.dropItem', args: { all: false } },
+  ]);
 });
 
 test('invalid planned actions are blocked and never fall through to conversational role-play', async () => {
@@ -313,7 +387,7 @@ test('invalid planned actions are blocked and never fall through to conversation
       async reason(request) {
         return {
           requestId: request.requestId, status: 'succeeded', model: 'fixture', completedAt: new Date().toISOString(),
-          output: { decision: 'action', actionKind: 'direct.say', argumentsJson: '{"text":"I did it"}', message: '' },
+          output: { decision: 'action', actionsJson: '[{"kind":"direct.say","args":{"text":"I did it"}}]', acknowledgement: '', message: '' },
         };
       },
     },
@@ -329,6 +403,7 @@ test('invalid planned actions are blocked and never fall through to conversation
   assert.equal(result.execution.code, 'MODEL_ACTION_UNAUTHORIZED');
   assert.equal(plannedCalls, 0);
   assert.equal(chatDispatches, 1);
+  assert.ok(coordinator.status().replies + coordinator.status().failures <= coordinator.status().addressed);
 });
 
 test('deterministic physical tasks remain available without conversation or a model provider', async () => {
