@@ -85,6 +85,16 @@ final class BridgeCodecTest {
     }
 
     @Test
+    void decodesAdvertisedRespawnWithExactEmptyArguments() {
+        var message = assertInstanceOf(
+            ControlMessage.Execute.class,
+            codec.decodeControl(execute("direct.respawn", new JsonObject(), 2), SESSION, 1)
+        );
+        assertEquals("direct.respawn", message.action().kind());
+        assertTrue(message.action().arguments().isEmpty());
+    }
+
+    @Test
     void rejectsCommandsUnsafeFlagsUnknownFieldsReplaysAndDuplicateKeys() {
         var sayArgs = new JsonObject();
         sayArgs.addProperty("text", "/op somebody");

@@ -196,7 +196,7 @@ public final class BridgeCodec {
                     throw invalid("direct.moveFor cannot sprint and sneak together");
                 }
             }
-            case "direct.jump", "direct.attack", "skill.escapeDanger" -> exactObject(args, kind + ".args");
+            case "direct.jump", "direct.attack", "direct.respawn", "skill.escapeDanger" -> exactObject(args, kind + ".args");
             case "skill.navigateTo" -> {
                 exactObject(args, kind + ".args", "x", "y", "z", "tolerance");
                 integer(args, "x", -30_000_000, 30_000_000);

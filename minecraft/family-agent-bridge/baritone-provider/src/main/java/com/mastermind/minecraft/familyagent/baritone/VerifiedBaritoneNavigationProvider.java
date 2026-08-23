@@ -15,6 +15,7 @@ import com.google.gson.JsonObject;
 import com.mastermind.minecraft.familyagent.action.ActionCommand;
 import com.mastermind.minecraft.familyagent.navigation.NavigationProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 import java.util.Comparator;
 import java.util.Objects;
@@ -53,6 +54,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         private final BlockPos origin;
         private final int radius;
         private final BlockOptionalMetaLookup gatherFilter;
+        private final String gatherItemId;
         private final int gatherInitialCount;
         private final int gatherTargetCount;
         private final Runnable restoreSettings;
@@ -61,7 +63,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         private int gatherRecoveryAttempts;
 
         private Active(ActionCommand command, Completion completion, Mode mode, JsonObject goal, Goal fixedGoal,
-                       BlockPos origin, int radius, BlockOptionalMetaLookup gatherFilter,
+                       BlockPos origin, int radius, BlockOptionalMetaLookup gatherFilter, String gatherItemId,
                        int gatherInitialCount, int gatherTargetCount, Runnable restoreSettings) {
             this.command = command;
             this.completion = completion;
@@ -71,6 +73,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             this.origin = origin;
             this.radius = radius;
             this.gatherFilter = gatherFilter;
+            this.gatherItemId = gatherItemId;
             this.gatherInitialCount = gatherInitialCount;
             this.gatherTargetCount = gatherTargetCount;
             this.restoreSettings = restoreSettings;
@@ -234,7 +237,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         var goal = new JsonObject();
         goal.addProperty("kind", "follow-player");
         goal.addProperty("playerUuid", targetUuid.toString());
-        active = new Active(command, completion, Mode.FOLLOW, goal, null, null, 0, null, 0, 0,
+        active = new Active(command, completion, Mode.FOLLOW, goal, null, null, 0, null, null, 0, 0,
             () -> settings.followRadius.value = previousRadius);
         try {
             baritone.getFollowProcess().follow(entity -> entity.getUUID().equals(targetUuid));
@@ -252,6 +255,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         }
         var requestedCount = args.get("count").getAsInt();
         var maxDistance = args.get("maxDistance").getAsInt();
+        var gatherItemId = GatherTargetResolver.expectedItemId(args.get("blockId").getAsString());
         var context = baritone.getPlayerContext();
         var origin = context.playerFeet();
         var chunkRadius = Math.max(1, (maxDistance + 15) / 16);
@@ -263,7 +267,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             throw new IllegalArgumentException("No matching block is known inside the requested gather radius");
         }
 
-        var initialCount = inventoryCount(filter);
+        var initialCount = inventoryCount(gatherItemId);
         var targetCount = initialCount + requestedCount;
         var settings = BaritoneAPI.getSettings();
         var previousExploreForBlocks = settings.exploreForBlocks.value;
@@ -274,7 +278,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         settings.maxCachedWorldScanCount.value = 0;
         settings.extendCacheOnThreshold.value = false;
         settings.mineScanDroppedItems.value = false;
-        active = new Active(command, completion, Mode.GATHER, null, null, origin, maxDistance, filter,
+        active = new Active(command, completion, Mode.GATHER, null, null, origin, maxDistance, filter, gatherItemId,
             initialCount, targetCount, () -> {
             settings.exploreForBlocks.value = previousExploreForBlocks;
             settings.maxCachedWorldScanCount.value = previousCachedScanCount;
@@ -282,7 +286,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             settings.mineScanDroppedItems.value = previousDroppedItems;
         });
         try {
-            baritone.getMineProcess().mine(targetCount, filter);
+            baritone.getMineProcess().mine(0, filter);
         } catch (RuntimeException error) {
             rollbackStart();
             throw error;
@@ -298,7 +302,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         var goal = new JsonObject();
         goal.addProperty("kind", "explore");
         goal.addProperty("radius", radius);
-        active = new Active(command, completion, Mode.EXPLORE, goal, null, origin, radius, null, 0, 0,
+        active = new Active(command, completion, Mode.EXPLORE, goal, null, origin, radius, null, null, 0, 0,
             () -> settings.disableCompletionCheck.value = previousDisableCompletion);
         try {
             baritone.getExploreProcess().explore(origin.getX(), origin.getZ());
@@ -328,7 +332,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
     }
 
     private void startFixedGoal(ActionCommand command, Completion completion, Goal target, JsonObject snapshotGoal) {
-        active = new Active(command, completion, Mode.FIXED_GOAL, snapshotGoal, target, null, 0, null, 0, 0, () -> { });
+        active = new Active(command, completion, Mode.FIXED_GOAL, snapshotGoal, target, null, 0, null, null, 0, 0, () -> { });
         try {
             baritone.getCustomGoalProcess().setGoalAndPath(target);
         } catch (RuntimeException error) {
@@ -343,14 +347,16 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             fail(current, "gather-radius-exceeded", "Baritone reached the hard travel boundary for this gather action");
             return;
         }
+        var inventory = inventoryCount(current.gatherItemId);
+        if (inventory >= current.gatherTargetCount) {
+            succeed(current, "gathered");
+            return;
+        }
         if (!baritone.getMineProcess().isActive()) {
-            var inventory = inventoryCount(current.gatherFilter);
-            if (inventory >= current.gatherTargetCount) {
-                succeed(current, "gathered");
-            } else if (inventory > current.gatherInitialCount && current.gatherRecoveryAttempts == 0) {
+            if (inventory > current.gatherInitialCount && current.gatherRecoveryAttempts == 0) {
                 current.gatherRecoveryAttempts = 1;
                 try {
-                    baritone.getMineProcess().mine(current.gatherTargetCount, current.gatherFilter);
+                    baritone.getMineProcess().mine(0, current.gatherFilter);
                 } catch (RuntimeException error) {
                     fail(current, "gather-retry-failed", "The bounded gather retry could not be started");
                 }
@@ -401,9 +407,9 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         return current.fixedGoal != null && current.fixedGoal.isInGoal(position.getX(), position.getY(), position.getZ());
     }
 
-    private int inventoryCount(BlockOptionalMetaLookup filter) {
+    private int inventoryCount(String itemId) {
         return baritone.getPlayerContext().player().getInventory().getNonEquipmentItems().stream()
-            .filter(filter::has)
+            .filter(stack -> itemId.equals(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString()))
             .mapToInt(stack -> stack.getCount())
             .sum();
     }
