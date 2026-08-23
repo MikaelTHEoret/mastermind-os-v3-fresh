@@ -389,6 +389,7 @@ function publicCompanionBridge(value) {
     capabilities: Array.isArray(value?.client?.capabilities) ? [...value.client.capabilities] : [],
     killSwitch: value?.killSwitch === true,
     activeAction: value?.activeAction ?? null,
+    lastAction: value?.lastAction ?? null,
     snapshot: value?.latestSnapshot ?? null,
     pendingShutdown: value?.pendingShutdown ?? null,
     lastDisconnect: value?.lastDisconnect ?? null,

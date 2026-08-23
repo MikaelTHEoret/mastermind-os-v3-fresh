@@ -53,14 +53,16 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         private final BlockPos origin;
         private final int radius;
         private final BlockOptionalMetaLookup gatherFilter;
+        private final int gatherInitialCount;
         private final int gatherTargetCount;
         private final Runnable restoreSettings;
         private BlockPos lastProgressPosition;
         private long lastProgressNanos;
+        private int gatherRecoveryAttempts;
 
         private Active(ActionCommand command, Completion completion, Mode mode, JsonObject goal, Goal fixedGoal,
                        BlockPos origin, int radius, BlockOptionalMetaLookup gatherFilter,
-                       int gatherTargetCount, Runnable restoreSettings) {
+                       int gatherInitialCount, int gatherTargetCount, Runnable restoreSettings) {
             this.command = command;
             this.completion = completion;
             this.mode = mode;
@@ -69,6 +71,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             this.origin = origin;
             this.radius = radius;
             this.gatherFilter = gatherFilter;
+            this.gatherInitialCount = gatherInitialCount;
             this.gatherTargetCount = gatherTargetCount;
             this.restoreSettings = restoreSettings;
             this.lastProgressPosition = origin;
@@ -231,7 +234,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         var goal = new JsonObject();
         goal.addProperty("kind", "follow-player");
         goal.addProperty("playerUuid", targetUuid.toString());
-        active = new Active(command, completion, Mode.FOLLOW, goal, null, null, 0, null, 0,
+        active = new Active(command, completion, Mode.FOLLOW, goal, null, null, 0, null, 0, 0,
             () -> settings.followRadius.value = previousRadius);
         try {
             baritone.getFollowProcess().follow(entity -> entity.getUUID().equals(targetUuid));
@@ -260,7 +263,8 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             throw new IllegalArgumentException("No matching block is known inside the requested gather radius");
         }
 
-        var targetCount = inventoryCount(filter) + requestedCount;
+        var initialCount = inventoryCount(filter);
+        var targetCount = initialCount + requestedCount;
         var settings = BaritoneAPI.getSettings();
         var previousExploreForBlocks = settings.exploreForBlocks.value;
         var previousCachedScanCount = settings.maxCachedWorldScanCount.value;
@@ -270,7 +274,8 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         settings.maxCachedWorldScanCount.value = 0;
         settings.extendCacheOnThreshold.value = false;
         settings.mineScanDroppedItems.value = false;
-        active = new Active(command, completion, Mode.GATHER, null, null, origin, maxDistance, filter, targetCount, () -> {
+        active = new Active(command, completion, Mode.GATHER, null, null, origin, maxDistance, filter,
+            initialCount, targetCount, () -> {
             settings.exploreForBlocks.value = previousExploreForBlocks;
             settings.maxCachedWorldScanCount.value = previousCachedScanCount;
             settings.extendCacheOnThreshold.value = previousExtendCache;
@@ -293,7 +298,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         var goal = new JsonObject();
         goal.addProperty("kind", "explore");
         goal.addProperty("radius", radius);
-        active = new Active(command, completion, Mode.EXPLORE, goal, null, origin, radius, null, 0,
+        active = new Active(command, completion, Mode.EXPLORE, goal, null, origin, radius, null, 0, 0,
             () -> settings.disableCompletionCheck.value = previousDisableCompletion);
         try {
             baritone.getExploreProcess().explore(origin.getX(), origin.getZ());
@@ -323,7 +328,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
     }
 
     private void startFixedGoal(ActionCommand command, Completion completion, Goal target, JsonObject snapshotGoal) {
-        active = new Active(command, completion, Mode.FIXED_GOAL, snapshotGoal, target, null, 0, null, 0, () -> { });
+        active = new Active(command, completion, Mode.FIXED_GOAL, snapshotGoal, target, null, 0, null, 0, 0, () -> { });
         try {
             baritone.getCustomGoalProcess().setGoalAndPath(target);
         } catch (RuntimeException error) {
@@ -339,10 +344,22 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             return;
         }
         if (!baritone.getMineProcess().isActive()) {
-            if (inventoryCount(current.gatherFilter) >= current.gatherTargetCount) {
+            var inventory = inventoryCount(current.gatherFilter);
+            if (inventory >= current.gatherTargetCount) {
                 succeed(current, "gathered");
+            } else if (inventory > current.gatherInitialCount && current.gatherRecoveryAttempts == 0) {
+                current.gatherRecoveryAttempts = 1;
+                try {
+                    baritone.getMineProcess().mine(current.gatherTargetCount, current.gatherFilter);
+                } catch (RuntimeException error) {
+                    fail(current, "gather-retry-failed", "The bounded gather retry could not be started");
+                }
+            } else if (inventory == current.gatherInitialCount) {
+                fail(current, "gather-unreachable", "Baritone found no reachable matching block inside the bounded gather action");
             } else {
-                fail(current, "gather-incomplete", "Baritone exhausted known matching blocks inside the bounded gather action");
+                var gathered = inventory - current.gatherInitialCount;
+                var requested = current.gatherTargetCount - current.gatherInitialCount;
+                fail(current, "gather-partial", "Gathered " + gathered + " of " + requested + " requested items after one bounded retry");
             }
         }
     }

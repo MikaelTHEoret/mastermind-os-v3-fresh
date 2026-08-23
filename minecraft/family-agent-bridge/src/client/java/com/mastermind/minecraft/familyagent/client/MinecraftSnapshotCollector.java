@@ -6,8 +6,10 @@ import com.mastermind.minecraft.familyagent.action.ActionRegistry;
 import com.mastermind.minecraft.familyagent.config.FamilyServerAddressPolicy;
 import com.mastermind.minecraft.familyagent.navigation.NavigationProvider;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.TreeMap;
 import java.util.UUID;
 
 final class MinecraftSnapshotCollector {
@@ -25,7 +27,7 @@ final class MinecraftSnapshotCollector {
     }
 
     static JsonObject snapshot(Minecraft minecraft, NavigationProvider navigation, ActionRegistry registry,
-                               long clientTick, boolean killSwitch, int familyServerPort) {
+                               long clientTick, boolean killSwitch, int familyServerPort, boolean includeInventory) {
         var payload = new JsonObject();
         payload.addProperty("snapshotId", UUID.randomUUID().toString());
         payload.addProperty("clientTick", clientTick);
@@ -37,6 +39,9 @@ final class MinecraftSnapshotCollector {
         }
         addPlayer(payload, minecraft);
         addWorld(payload, minecraft);
+        if (includeInventory) {
+            addInventory(payload, minecraft);
+        }
         payload.add("baritone", navigation.snapshot());
         var active = registry.active();
         if (active.isPresent()) {
@@ -52,6 +57,32 @@ final class MinecraftSnapshotCollector {
         safety.addProperty("killSwitch", killSwitch);
         payload.add("safety", safety);
         return payload;
+    }
+
+    private static void addInventory(JsonObject payload, Minecraft minecraft) {
+        var player = minecraft.player;
+        if (player == null || minecraft.level == null) {
+            payload.add("inventory", JsonNull.INSTANCE);
+            return;
+        }
+        var totals = new TreeMap<String, Integer>();
+        player.getInventory().getNonEquipmentItems().stream()
+            .filter(stack -> !stack.isEmpty())
+            .forEach(stack -> totals.merge(
+                BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(),
+                stack.getCount(),
+                (left, right) -> Math.min(4_096, left + right)
+            ));
+        var items = new com.google.gson.JsonArray();
+        totals.forEach((itemId, count) -> {
+            var item = new JsonObject();
+            item.addProperty("itemId", itemId);
+            item.addProperty("count", count);
+            items.add(item);
+        });
+        var inventory = new JsonObject();
+        inventory.add("items", items);
+        payload.add("inventory", inventory);
     }
 
     static boolean isFamilyServer(Minecraft minecraft, int familyServerPort) {

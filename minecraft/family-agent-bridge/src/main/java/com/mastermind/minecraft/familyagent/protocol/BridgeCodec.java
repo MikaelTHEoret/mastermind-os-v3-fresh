@@ -279,17 +279,39 @@ public final class BridgeCodec {
     }
 
     private void validateSnapshot(JsonObject payload, String type) {
-        var value = exactObject(payload, type + ".payload", "snapshotId", "clientTick", "phase", "serverAlias", "player", "world", "baritone", "activeAction", "safety");
+        var value = exactObject(payload, type + ".payload",
+            Set.of("snapshotId", "clientTick", "phase", "serverAlias", "player", "world", "baritone", "activeAction", "safety"),
+            Set.of("inventory"));
         uuid(value, "snapshotId");
         integer(value, "clientTick", 0, BridgeProtocol.MAX_SAFE_INTEGER);
         enumString(value, "phase", PHASES);
         nullableConstant(value, "serverAlias", "family-server");
         validatePlayer(value.get("player"));
         validateWorld(value.get("world"));
+        if (value.has("inventory")) {
+            validateInventory(value.get("inventory"));
+        }
         validateBaritone(object(value.get("baritone"), "state.snapshot.payload.baritone"));
         validateActiveAction(value.get("activeAction"));
         var safety = exactObject(value.get("safety"), "state.snapshot.payload.safety", "killSwitch");
         bool(safety, "killSwitch");
+    }
+
+    private void validateInventory(JsonElement element) {
+        if (isNull(element)) {
+            return;
+        }
+        var inventory = exactObject(element, "state.snapshot.payload.inventory", "items");
+        var items = array(inventory, "items", 0, 64);
+        var seen = new HashSet<String>();
+        for (var itemElement : items) {
+            var item = exactObject(itemElement, "state.snapshot.payload.inventory.items entry", "itemId", "count");
+            var itemId = patternedString(item, "itemId", 3, 128, REGISTRY_ID);
+            integer(item, "count", 1, 4_096);
+            if (!seen.add(itemId)) {
+                throw invalid("inventory contains a duplicate item ID");
+            }
+        }
     }
 
     private void validatePlayer(JsonElement element) {

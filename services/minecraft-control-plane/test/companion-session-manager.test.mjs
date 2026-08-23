@@ -53,7 +53,7 @@ function hello(seq = 1, overrides = {}) {
       minecraftVersion: '26.2',
       loaderVersion: '0.19.3',
       baritoneVersion: '1.12.0',
-      capabilities: [...FAMILY_BRIDGE_CAPABILITIES],
+      capabilities: FAMILY_BRIDGE_CAPABILITIES.filter((value) => value !== 'state.inventory'),
       ...overrides,
     },
   });
@@ -72,9 +72,92 @@ async function readyManager(options = {}) {
   });
   const socket = new FakeSocket();
   manager.attachConnection(socket, { sessionId, expectedPid: 4242 });
-  await manager.receive(hello());
+  await manager.receive(hello(1, options.helloOverrides));
   return { manager, socket, setNow(value) { now = value; } };
 }
+
+test('inventory telemetry is optional for legacy clients and exact when negotiated', async () => {
+  const inventoryCapabilities = [...FAMILY_BRIDGE_CAPABILITIES];
+  const negotiated = await readyManager({ helloOverrides: { capabilities: inventoryCapabilities } });
+  const baseSnapshot = {
+    snapshotId: '25252525-2525-4525-8525-252525252525', clientTick: 1, phase: 'in-world',
+    serverAlias: 'family-server',
+    player: {
+      position: { x: 1, y: 64, z: 2 }, velocity: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0,
+      health: 20, maxHealth: 20, hunger: 20, armor: 0, dimension: 'minecraft:overworld',
+    },
+    world: { timeOfDay: 1_000, weather: 'clear' },
+    baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
+    safety: { killSwitch: false },
+  };
+  await assert.rejects(negotiated.manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 2, messageId: '26262626-2626-4626-8626-262626262626', payload: baseSnapshot,
+  })), (error) => error.code === 'CAPABILITY_MISMATCH');
+
+  const accepted = await readyManager({ helloOverrides: { capabilities: inventoryCapabilities } });
+  await accepted.manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 2, messageId: '27272727-2727-4727-8727-272727272727',
+    payload: { ...baseSnapshot, inventory: { items: [{ itemId: 'minecraft:oak_log', count: 3 }] } },
+  }));
+  assert.deepEqual(accepted.manager.status().latestSnapshot.inventory, {
+    items: [{ itemId: 'minecraft:oak_log', count: 3 }],
+  });
+
+  const legacy = await readyManager();
+  await assert.rejects(legacy.manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 2, messageId: '28282828-2828-4828-8828-282828282828',
+    payload: { ...baseSnapshot, inventory: { items: [] } },
+  })), (error) => error.code === 'CAPABILITY_MISMATCH');
+});
+
+test('gather actions retain terminal inventory-delta evidence for later verification', async () => {
+  const { manager } = await readyManager({ helloOverrides: { capabilities: [...FAMILY_BRIDGE_CAPABILITIES] } });
+  await manager.receive(clientMessage({
+    type: 'bridge.heartbeat', seq: 2, messageId: '29292929-2929-4929-8929-292929292929',
+    payload: { clientTick: 1, phase: 'in-world', activeActionId: null, killSwitch: false },
+  }));
+  const snapshot = (snapshotId, tick, count) => ({
+    snapshotId, clientTick: tick, phase: 'in-world', serverAlias: 'family-server',
+    player: {
+      position: { x: 1, y: 64, z: 2 }, velocity: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0,
+      health: 20, maxHealth: 20, hunger: 20, armor: 0, dimension: 'minecraft:overworld',
+    },
+    world: { timeOfDay: 1_000, weather: 'clear' },
+    inventory: { items: [{ itemId: 'minecraft:oak_log', count }] },
+    baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
+    safety: { killSwitch: false },
+  });
+  await manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 3, messageId: '30303030-3030-4030-8030-303030303030',
+    payload: snapshot('31313131-3131-4131-8131-313131313131', 1, 2),
+  }));
+  const action = manager.dispatchAction({
+    kind: 'skill.gatherBlock', args: { blockId: 'minecraft:oak_log', count: 2, maxDistance: 16 },
+  });
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 4, messageId: '32323232-3232-4232-8232-323232323232',
+    payload: { actionId: action.actionId, status: 'started' },
+  }));
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 5, messageId: '33333333-3333-4333-8333-333333333334',
+    payload: { actionId: action.actionId, status: 'succeeded', result: { code: 'gathered' } },
+  }));
+  await manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 6, messageId: '34343434-3434-4434-8434-343434343434',
+    payload: snapshot('35353535-3535-4535-8535-353535353535', 2, 3),
+  }));
+  assert.deepEqual(manager.status().lastAction.evidence, {
+    kind: 'inventory-delta', itemId: 'minecraft:oak_log', requestedDelta: 2,
+    beforeCount: 2, latestCount: 3, highestCount: 3, observedDelta: 1,
+    verified: false, observedAt: '2026-08-13T12:00:00.000Z',
+  });
+  await manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 7, messageId: '36363636-3636-4636-8636-363636363636',
+    payload: snapshot('37373737-3737-4737-8737-373737373737', 3, 4),
+  }));
+  assert.equal(manager.status().lastAction.evidence.verified, true);
+  assert.equal(manager.status().lastAction.evidence.observedDelta, 2);
+});
 
 function controlMessages(socket) {
   return socket.sent.map((value) => parseFamilyBridgeMessage(value, { direction: 'control', expectedSessionId: sessionId }));

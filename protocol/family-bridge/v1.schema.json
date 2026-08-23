@@ -39,7 +39,7 @@
     },
     "capability": {
       "enum": [
-        "state.snapshot", "action.cancel", "client.shutdown",
+        "state.snapshot", "state.inventory", "action.cancel", "client.shutdown",
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
@@ -55,7 +55,7 @@
     "capabilities": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 16,
+      "maxItems": 17,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
     },
@@ -251,6 +251,26 @@
               "properties": {
                 "timeOfDay": { "type": "integer", "minimum": 0, "maximum": 23999 },
                 "weather": { "enum": ["clear", "rain", "thunder"] }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "inventory": {
+          "oneOf": [
+            {
+              "type": "object", "additionalProperties": false, "required": ["items"],
+              "properties": {
+                "items": {
+                  "type": "array", "maxItems": 64,
+                  "items": {
+                    "type": "object", "additionalProperties": false, "required": ["itemId", "count"],
+                    "properties": {
+                      "itemId": { "$ref": "#/$defs/registryId" },
+                      "count": { "type": "integer", "minimum": 1, "maximum": 4096 }
+                    }
+                  }
+                }
               }
             },
             { "type": "null" }

@@ -60,7 +60,14 @@ function publicAction(record) {
     cancelRequestedAt: record.cancelRequestedAt ?? null,
     cancelReason: record.cancelReason ?? null,
     terminal: record.terminal ?? null,
+    evidence: record.evidence ?? null,
   });
+}
+
+function inventoryCount(snapshot, itemId) {
+  const items = snapshot?.inventory?.items;
+  if (!Array.isArray(items)) return null;
+  return items.find((entry) => entry.itemId === itemId)?.count ?? 0;
 }
 
 export class CompanionSessionManager extends EventEmitter {
@@ -101,6 +108,7 @@ export class CompanionSessionManager extends EventEmitter {
     this.lastDisconnect = null;
     this.actionHistory = new Map();
     this.activeAction = null;
+    this.lastAction = null;
     this.respawnTransitionUntilMs = null;
     this.pendingShutdown = null;
     this.receiveQueue = Promise.resolve();
@@ -124,6 +132,7 @@ export class CompanionSessionManager extends EventEmitter {
       this.latestSnapshot = null;
       this.actionHistory.clear();
       this.activeAction = null;
+      this.lastAction = null;
       this.respawnTransitionUntilMs = null;
       this.pendingShutdown = null;
     }
@@ -225,7 +234,9 @@ export class CompanionSessionManager extends EventEmitter {
         this.#acceptHeartbeat(message.payload);
         break;
       case 'state.snapshot':
+        this.#validateNegotiatedSnapshot(message.payload, connection);
         this.latestSnapshot = clone(message.payload);
+        this.#updateGatherEvidence(message.payload);
         connection.hasSnapshot = true;
         connection.lastSnapshotMs = this.now();
         connection.killSwitch = message.payload.safety.killSwitch;
@@ -269,6 +280,30 @@ export class CompanionSessionManager extends EventEmitter {
     this.emit('heartbeat', clone(payload));
   }
 
+  #validateNegotiatedSnapshot(payload, connection) {
+    const inventoryNegotiated = connection.capabilities.has('state.inventory');
+    const inventoryPresent = Object.hasOwn(payload, 'inventory');
+    if (inventoryNegotiated !== inventoryPresent) {
+      throw new FamilyBridgeProtocolError(
+        'CAPABILITY_MISMATCH',
+        inventoryNegotiated
+          ? 'Snapshot omitted negotiated inventory telemetry'
+          : 'Snapshot included inventory telemetry that was not negotiated',
+        4406,
+      );
+    }
+    if (inventoryNegotiated) {
+      const inWorld = payload.phase === 'in-world';
+      if (inWorld !== (payload.inventory !== null)) {
+        throw new FamilyBridgeProtocolError(
+          'ACTION_STATE_MISMATCH',
+          'Inventory availability did not match the client world phase',
+          4400,
+        );
+      }
+    }
+  }
+
   #acceptActionStatus(payload) {
     const record = this.actionHistory.get(payload.actionId);
     if (!record) throw new FamilyBridgeProtocolError('UNKNOWN_ACTION', 'Action status referenced an unknown action', 4400);
@@ -298,10 +333,25 @@ export class CompanionSessionManager extends EventEmitter {
       record.terminal = clone(payload);
       record.finishedAt = record.lastStatusAt;
       if (this.activeAction?.actionId === record.actionId) this.activeAction = null;
+      this.lastAction = record;
       if (record.kind === 'direct.respawn' && next !== 'succeeded') this.respawnTransitionUntilMs = null;
       this.#trimActionHistory();
     }
     this.emit('actionStatus', clone(payload), publicAction(record));
+  }
+
+  #updateGatherEvidence(snapshot) {
+    for (const record of this.actionHistory.values()) {
+      const evidence = record.evidence;
+      if (!evidence || evidence.kind !== 'inventory-delta') continue;
+      const observed = inventoryCount(snapshot, evidence.itemId);
+      if (observed === null) continue;
+      evidence.latestCount = observed;
+      evidence.highestCount = Math.max(evidence.highestCount, observed);
+      evidence.observedDelta = Math.max(0, evidence.highestCount - evidence.beforeCount);
+      evidence.verified = evidence.observedDelta >= evidence.requestedDelta;
+      evidence.observedAt = new Date(this.now()).toISOString();
+    }
   }
 
   waitForActionActivation(actionId, options = {}) {
@@ -380,6 +430,22 @@ export class CompanionSessionManager extends EventEmitter {
       dispatchedAt: new Date(now).toISOString(),
       deadlineAt: new Date(now + timeoutMs).toISOString(),
     };
+    if (action.kind === 'skill.gatherBlock' && connection.capabilities.has('state.inventory')) {
+      const beforeCount = inventoryCount(this.latestSnapshot, action.args.blockId);
+      if (beforeCount !== null) {
+        record.evidence = {
+          kind: 'inventory-delta',
+          itemId: action.args.blockId,
+          requestedDelta: action.args.count,
+          beforeCount,
+          latestCount: beforeCount,
+          highestCount: beforeCount,
+          observedDelta: 0,
+          verified: false,
+          observedAt: new Date(now).toISOString(),
+        };
+      }
+    }
     this.actionHistory.set(record.actionId, record);
     if (physical) this.activeAction = record;
     try {
@@ -493,6 +559,7 @@ export class CompanionSessionManager extends EventEmitter {
         status: 'cancelled',
         cancellation: { reason: 'connection-lost' },
       };
+      this.lastAction = this.activeAction;
       this.emit('actionStatus', clone(this.activeAction.terminal), publicAction(this.activeAction));
       this.#trimActionHistory();
       this.activeAction = null;
@@ -522,6 +589,7 @@ export class CompanionSessionManager extends EventEmitter {
       client: connection?.client ?? null,
       killSwitch: connection?.killSwitch ?? false,
       activeAction: publicAction(this.activeAction),
+      lastAction: publicAction(this.lastAction),
       latestSnapshot: this.latestSnapshot,
       pendingShutdown: this.pendingShutdown,
       lastDisconnect: this.lastDisconnect,

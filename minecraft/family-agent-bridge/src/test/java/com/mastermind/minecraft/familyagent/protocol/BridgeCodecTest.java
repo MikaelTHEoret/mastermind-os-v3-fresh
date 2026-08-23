@@ -161,6 +161,23 @@ final class BridgeCodecTest {
         assertThrows(ProtocolException.class, () -> codec.encodeClient(SESSION, 6, "client.shutdownAck", ack));
     }
 
+    @Test
+    void validatesBoundedInventoryTelemetry() {
+        var snapshot = StrictJsonParser.parse("""
+            {"snapshotId":"44444444-4444-4444-8444-444444444444","clientTick":1,"phase":"in-world",
+             "serverAlias":"family-server","player":{"position":{"x":1,"y":64,"z":2},"velocity":{"x":0,"y":0,"z":0},
+             "yaw":0,"pitch":0,"health":20,"maxHealth":20,"hunger":20,"armor":0,"dimension":"minecraft:overworld"},
+             "world":{"timeOfDay":1000,"weather":"clear"},"inventory":{"items":[{"itemId":"minecraft:oak_log","count":3}]},
+             "baritone":{"state":"idle","activeSkill":null,"goal":null},"activeAction":null,"safety":{"killSwitch":false}}
+            """).getAsJsonObject();
+        codec.encodeClient(SESSION, 1, "state.snapshot", snapshot);
+
+        snapshot.getAsJsonObject("inventory").getAsJsonArray("items").add(
+            StrictJsonParser.parse("{\"itemId\":\"minecraft:oak_log\",\"count\":1}")
+        );
+        assertThrows(ProtocolException.class, () -> codec.encodeClient(SESSION, 2, "state.snapshot", snapshot));
+    }
+
     private String execute(String kind, JsonObject args, long sequence) {
         var action = new JsonObject();
         action.addProperty("kind", kind);

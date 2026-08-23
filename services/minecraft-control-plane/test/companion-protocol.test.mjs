@@ -119,6 +119,37 @@ test('action status variants are exact and terminal payloads cannot be ambiguous
   }, { direction: 'client' }), 'UNKNOWN_FIELD');
 });
 
+test('inventory snapshots accept bounded totals and reject duplicates or excess entries', async () => {
+  const source = await fixture('state-snapshot.v1.json');
+  const withInventory = {
+    ...source,
+    payload: {
+      ...source.payload,
+      inventory: { items: [{ itemId: 'minecraft:oak_log', count: 4 }] },
+    },
+  };
+  assert.equal(validateFamilyBridgeMessage(withInventory, {
+    direction: 'client', expectedSessionId: sessionId,
+  }).payload.inventory.items[0].count, 4);
+  expectProtocolError(() => validateFamilyBridgeMessage({
+    ...withInventory,
+    payload: {
+      ...withInventory.payload,
+      inventory: { items: [
+        { itemId: 'minecraft:oak_log', count: 1 },
+        { itemId: 'minecraft:oak_log', count: 2 },
+      ] },
+    },
+  }, { direction: 'client', expectedSessionId: sessionId }), 'INVALID_MESSAGE');
+  expectProtocolError(() => validateFamilyBridgeMessage({
+    ...withInventory,
+    payload: {
+      ...withInventory.payload,
+      inventory: { items: Array.from({ length: 65 }, (_, index) => ({ itemId: `test:item_${index}`, count: 1 })) },
+    },
+  }, { direction: 'client', expectedSessionId: sessionId }), 'INVALID_MESSAGE');
+});
+
 test('control-plane messages are generated with validated strict payloads', () => {
   const message = createFamilyBridgeMessage({
     sessionId,

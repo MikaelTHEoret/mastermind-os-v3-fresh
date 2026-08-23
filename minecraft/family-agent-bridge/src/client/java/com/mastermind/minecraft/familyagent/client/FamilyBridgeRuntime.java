@@ -96,7 +96,8 @@ final class FamilyBridgeRuntime implements LocalBridgeWebSocket.Listener, AutoCl
         if (transport.supports("state.snapshot")
             && nowNanos - lastSnapshotNanos >= TimeUnit.MILLISECONDS.toNanos(transport.snapshotIntervalMs())) {
             transport.sendSnapshot(MinecraftSnapshotCollector.snapshot(
-                minecraft, navigation, actions.registry(), clientTick, killSwitch.isEngaged(), familyServerPort
+                minecraft, navigation, actions.registry(), clientTick, killSwitch.isEngaged(), familyServerPort,
+                transport.supports("state.inventory")
             ));
             lastSnapshotNanos = nowNanos;
         }

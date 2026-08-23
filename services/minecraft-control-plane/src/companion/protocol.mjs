@@ -7,6 +7,7 @@ export const FAMILY_BRIDGE_MAX_PAYLOAD_BYTES = 64 * 1024;
 
 export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'state.snapshot',
+  'state.inventory',
   'action.cancel',
   'client.shutdown',
   'direct.say',
@@ -43,6 +44,7 @@ const BARITONE_STATES = new Set(['idle', 'planning', 'pathing', 'paused', 'faile
 const ACTION_STATUSES = new Set(['started', 'progress', 'succeeded', 'failed', 'cancelled']);
 const ACTIVE_ACTION_STATUSES = new Set(['started', 'progress']);
 const WEATHER_STATES = new Set(['clear', 'rain', 'thunder']);
+const MAX_INVENTORY_ITEM_TYPES = 64;
 
 export class FamilyBridgeProtocolError extends Error {
   constructor(code, message, closeCode = 4400) {
@@ -225,6 +227,25 @@ function validateWorld(value) {
   return world;
 }
 
+function validateInventory(value) {
+  if (value === null) return null;
+  const inventory = exactObject(value, 'state.snapshot.payload.inventory', ['items']);
+  if (!Array.isArray(inventory.items) || inventory.items.length > MAX_INVENTORY_ITEM_TYPES) {
+    fail('INVALID_MESSAGE', 'state.snapshot.payload.inventory.items must be a bounded list');
+  }
+  const seen = new Set();
+  for (const [index, entry] of inventory.items.entries()) {
+    const item = exactObject(entry, `state.snapshot.payload.inventory.items[${index}]`, ['itemId', 'count']);
+    stringValue(item.itemId, `state.snapshot.payload.inventory.items[${index}].itemId`, {
+      min: 3, max: 128, pattern: REGISTRY_ID,
+    });
+    numberValue(item.count, `state.snapshot.payload.inventory.items[${index}].count`, 1, 4_096, { integer: true });
+    if (seen.has(item.itemId)) fail('INVALID_MESSAGE', 'state.snapshot.payload.inventory contains a duplicate item ID');
+    seen.add(item.itemId);
+  }
+  return inventory;
+}
+
 function validateBaritoneGoal(value) {
   if (value === null) return null;
   const base = exactObject(value, 'baritone.goal', ['kind'], ['x', 'y', 'z', 'playerUuid', 'radius']);
@@ -247,7 +268,7 @@ function validateBaritoneGoal(value) {
 function validateSnapshot(value) {
   const snapshot = exactObject(value, 'state.snapshot.payload', [
     'snapshotId', 'clientTick', 'phase', 'serverAlias', 'player', 'world', 'baritone', 'activeAction', 'safety',
-  ]);
+  ], ['inventory']);
   uuidValue(snapshot.snapshotId, 'state.snapshot.payload.snapshotId');
   numberValue(snapshot.clientTick, 'state.snapshot.payload.clientTick', 0, Number.MAX_SAFE_INTEGER, { integer: true });
   stringValue(snapshot.phase, 'state.snapshot.payload.phase', { min: 8, max: 12, values: CLIENT_PHASES });
@@ -256,6 +277,7 @@ function validateSnapshot(value) {
   }
   validatePlayer(snapshot.player);
   validateWorld(snapshot.world);
+  if (Object.hasOwn(snapshot, 'inventory')) validateInventory(snapshot.inventory);
   const baritone = exactObject(snapshot.baritone, 'state.snapshot.payload.baritone', ['state', 'activeSkill', 'goal']);
   stringValue(baritone.state, 'baritone.state', { min: 4, max: 8, values: BARITONE_STATES });
   if (baritone.activeSkill !== null) stringValue(baritone.activeSkill, 'baritone.activeSkill', { min: 1, max: 64, values: ACTION_KIND_SET });

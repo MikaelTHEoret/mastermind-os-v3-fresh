@@ -18,6 +18,7 @@ public final class BridgeProtocol {
 
     public static final List<String> BASE_CAPABILITIES = List.of(
         "state.snapshot",
+        "state.inventory",
         "action.cancel",
         "client.shutdown",
         "direct.say",
@@ -30,7 +31,7 @@ public final class BridgeProtocol {
     );
 
     public static final Set<String> ALL_CAPABILITIES = Set.of(
-        "state.snapshot", "action.cancel", "client.shutdown",
+        "state.snapshot", "state.inventory", "action.cancel", "client.shutdown",
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
