@@ -49,6 +49,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         private final Completion completion;
         private final Mode mode;
         private final JsonObject goal;
+        private final Goal fixedGoal;
         private final BlockPos origin;
         private final int radius;
         private final BlockOptionalMetaLookup gatherFilter;
@@ -57,13 +58,14 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         private BlockPos lastProgressPosition;
         private long lastProgressNanos;
 
-        private Active(ActionCommand command, Completion completion, Mode mode, JsonObject goal,
+        private Active(ActionCommand command, Completion completion, Mode mode, JsonObject goal, Goal fixedGoal,
                        BlockPos origin, int radius, BlockOptionalMetaLookup gatherFilter,
                        int gatherTargetCount, Runnable restoreSettings) {
             this.command = command;
             this.completion = completion;
             this.mode = mode;
             this.goal = goal;
+            this.fixedGoal = fixedGoal;
             this.origin = origin;
             this.radius = radius;
             this.gatherFilter = gatherFilter;
@@ -160,12 +162,8 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         if (current == null || current.mode != Mode.FIXED_GOAL) {
             return;
         }
-        if (event == PathEvent.AT_GOAL) {
+        if (event == PathEvent.AT_GOAL && isAtFixedGoal(current)) {
             succeed(current, "arrived");
-        } else if (event == PathEvent.CALC_FAILED) {
-            fail(current, "path-failed", "Baritone could not calculate a path to the typed goal");
-        } else if (event == PathEvent.CANCELED) {
-            fail(current, "path-cancelled", "Baritone stopped before reaching the typed goal");
         }
     }
 
@@ -194,7 +192,11 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
                 if (!custom.isActive()
                     && !baritone.getPathingBehavior().isPathing()
                     && baritone.getPathingBehavior().getInProgress().isEmpty()) {
-                    fail(current, "path-stopped", "Baritone stopped before reaching the typed goal");
+                    if (isAtFixedGoal(current)) {
+                        succeed(current, "arrived");
+                    } else {
+                        fail(current, "path-stopped", "Baritone stopped before reaching the typed goal");
+                    }
                 }
             }
             case FOLLOW -> {
@@ -229,7 +231,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         var goal = new JsonObject();
         goal.addProperty("kind", "follow-player");
         goal.addProperty("playerUuid", targetUuid.toString());
-        active = new Active(command, completion, Mode.FOLLOW, goal, null, 0, null, 0,
+        active = new Active(command, completion, Mode.FOLLOW, goal, null, null, 0, null, 0,
             () -> settings.followRadius.value = previousRadius);
         try {
             baritone.getFollowProcess().follow(entity -> entity.getUUID().equals(targetUuid));
@@ -268,7 +270,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         settings.maxCachedWorldScanCount.value = 0;
         settings.extendCacheOnThreshold.value = false;
         settings.mineScanDroppedItems.value = false;
-        active = new Active(command, completion, Mode.GATHER, null, origin, maxDistance, filter, targetCount, () -> {
+        active = new Active(command, completion, Mode.GATHER, null, null, origin, maxDistance, filter, targetCount, () -> {
             settings.exploreForBlocks.value = previousExploreForBlocks;
             settings.maxCachedWorldScanCount.value = previousCachedScanCount;
             settings.extendCacheOnThreshold.value = previousExtendCache;
@@ -291,7 +293,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
         var goal = new JsonObject();
         goal.addProperty("kind", "explore");
         goal.addProperty("radius", radius);
-        active = new Active(command, completion, Mode.EXPLORE, goal, origin, radius, null, 0,
+        active = new Active(command, completion, Mode.EXPLORE, goal, null, origin, radius, null, 0,
             () -> settings.disableCompletionCheck.value = previousDisableCompletion);
         try {
             baritone.getExploreProcess().explore(origin.getX(), origin.getZ());
@@ -321,7 +323,7 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
     }
 
     private void startFixedGoal(ActionCommand command, Completion completion, Goal target, JsonObject snapshotGoal) {
-        active = new Active(command, completion, Mode.FIXED_GOAL, snapshotGoal, null, 0, null, 0, () -> { });
+        active = new Active(command, completion, Mode.FIXED_GOAL, snapshotGoal, target, null, 0, null, 0, () -> { });
         try {
             baritone.getCustomGoalProcess().setGoalAndPath(target);
         } catch (RuntimeException error) {
@@ -375,6 +377,11 @@ public final class VerifiedBaritoneNavigationProvider implements NavigationProvi
             }
             return now - current.lastProgressNanos >= EXPLORE_STALL_NANOS;
         }
+    }
+
+    private boolean isAtFixedGoal(Active current) {
+        var position = baritone.getPlayerContext().playerFeet();
+        return current.fixedGoal != null && current.fixedGoal.isInGoal(position.getX(), position.getY(), position.getZ());
     }
 
     private int inventoryCount(BlockOptionalMetaLookup filter) {

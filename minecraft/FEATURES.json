@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-22T22:40:15.000-04:00",
+  "updatedAt": "2026-08-22T23:00:00.000-04:00",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -9,7 +9,7 @@
     "companion.launch": "live-verified",
     "companion.bridgeReady": "live-verified",
     "companion.directSay": "live-verified",
-    "companion.navigate": "implemented",
+    "companion.navigate": "live-verified",
     "companion.follow": "live-verified",
     "companion.gather": "implemented",
     "companion.cancel": "live-verified",

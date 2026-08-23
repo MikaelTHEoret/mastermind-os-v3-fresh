@@ -144,8 +144,8 @@
         "version": "0.1.0",
         "fileName": "family-agent-baritone-provider-0.1.0.jar",
         "source": "family-agent-bridge/baritone-provider/build/libs/family-agent-baritone-provider-0.1.0.jar",
-        "size": 22503,
-        "sha256": "1c3697ebc45aa55b4a6155120dda7b201ee7661cd2b13cbd4f5b2c36b4bbb031"
+        "size": 22606,
+        "sha256": "b99f4909f1d81f0bf0156242b3ee16cde600a482be39c19b9df9b4a76c66e3b0"
       },
       {
         "id": "baritone",
