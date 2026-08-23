@@ -202,24 +202,43 @@ final class MinecraftActionController {
             return;
         }
         if (killSwitch) {
-            sendTerminal(command.actionId(), ClientPayloads.actionFailed(command.actionId(), "kill-switch-engaged", "The local emergency stop is latched until the client restarts"));
+            reject(command, "kill-switch-engaged", "The local emergency stop is latched until the client restarts");
             return;
         }
         if (Instant.now().isAfter(command.deadlineAt())) {
-            sendTerminal(command.actionId(), ClientPayloads.actionFailed(command.actionId(), "deadline-expired", "The action deadline elapsed before execution"));
+            reject(command, "deadline-expired", "The action deadline elapsed before execution");
             return;
         }
         if (!isFamilyWorld()) {
-            sendTerminal(command.actionId(), ClientPayloads.actionFailed(command.actionId(), "wrong-server", "Direct actions are restricted to the local Family Server"));
+            reject(command, "wrong-server", "Direct actions are restricted to the local Family Server");
+            return;
+        }
+        if (command.kind().equals("direct.say")) {
+            executeSpeech(command);
             return;
         }
         var begin = registry.begin(command, reason -> cancelRunning(command.actionId(), reason));
         switch (begin) {
             case ALREADY_ACTIVE -> send("action.status", ClientPayloads.actionStarted(command.actionId()));
             case ALREADY_TERMINAL -> replayTerminal(command.actionId());
-            case BUSY -> sendTerminal(command.actionId(), ClientPayloads.actionFailed(command.actionId(), "agent-busy", "Another foreground action is active"));
+            case BUSY -> reject(command, "agent-busy", "Another foreground action is active");
             case STARTED -> start(command, nowNanos);
         }
+    }
+
+    private void executeSpeech(ActionCommand command) {
+        send("action.status", ClientPayloads.actionStarted(command.actionId()));
+        try {
+            requireConnection().sendChat(command.arguments().get("text").getAsString());
+            sendTerminal(command.actionId(), ClientPayloads.actionSucceeded(command.actionId(), "sent"));
+        } catch (RuntimeException error) {
+            sendTerminal(command.actionId(), ClientPayloads.actionFailed(command.actionId(), "action-failed", safeMessage(error)));
+        }
+    }
+
+    private void reject(ActionCommand command, String code, String message) {
+        send("action.status", ClientPayloads.actionStarted(command.actionId()));
+        sendTerminal(command.actionId(), ClientPayloads.actionFailed(command.actionId(), code, message));
     }
 
     void cancel(UUID actionId, String reason) {
@@ -259,10 +278,6 @@ final class MinecraftActionController {
         send("action.status", ClientPayloads.actionStarted(command.actionId()));
         try {
             switch (command.kind()) {
-                case "direct.say" -> {
-                    requireConnection().sendChat(command.arguments().get("text").getAsString());
-                    finishSucceeded(command.actionId(), "sent");
-                }
                 case "direct.respawn" -> respawn(command);
                 case "direct.lookAt", "direct.lookDelta" -> running = new TimedLook(command, nowNanos);
                 case "direct.moveFor" -> running = new TimedMove(command, nowNanos);

@@ -1196,7 +1196,7 @@ test('exposes only authenticated bounded first-party core status', async (t) => 
     ['initialize'],
     ['status', 'family-server'],
     ['promote', {
-      instanceId: 'family-server', sourcePath: 'family-core-0.2.0.jar', expectedSha256: 'b'.repeat(64),
+      instanceId: 'family-server', sourcePath: 'family-core-0.5.0.jar', expectedSha256: 'b'.repeat(64),
       expectedSize: 18_481, backupId: 'bkp-0123456789abcdef0123456789abcdef', confirmation: 'PROMOTE FIRST-PARTY FAMILY CORE',
     }],
     ['rollback', {

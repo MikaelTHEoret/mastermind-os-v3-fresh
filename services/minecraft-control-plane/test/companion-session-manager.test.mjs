@@ -389,6 +389,57 @@ test('one action runs at a time with strict started, progress, terminal, and can
   assert.equal(manager.dispatchAction({ kind: 'direct.jump', args: {} }).kind, 'direct.jump');
 });
 
+test('action activation waits for a stable start and reports an immediate provider failure', async () => {
+  const first = await readyManager();
+  await synchronizeInWorld(first.manager);
+  const started = first.manager.dispatchAction({ kind: 'skill.followPlayer', args: {
+    playerUuid: '33333333-3333-4333-8333-333333333333', distance: 4,
+  } });
+  const activated = first.manager.waitForActionActivation(started.actionId, { timeoutMs: 500, settleMs: 0 });
+  await first.manager.receive(clientMessage({
+    type: 'action.status', seq: 4, messageId: '91919191-9191-4191-8191-919191919191',
+    payload: { actionId: started.actionId, status: 'started' },
+  }));
+  assert.equal((await activated).status, 'started');
+
+  const second = await readyManager();
+  await synchronizeInWorld(second.manager);
+  const failed = second.manager.dispatchAction({ kind: 'skill.followPlayer', args: {
+    playerUuid: '33333333-3333-4333-8333-333333333333', distance: 4,
+  } });
+  const rejected = second.manager.waitForActionActivation(failed.actionId, { timeoutMs: 500, settleMs: 25 });
+  await second.manager.receive(clientMessage({
+    type: 'action.status', seq: 4, messageId: '92929292-9292-4292-8292-929292929292',
+    payload: { actionId: failed.actionId, status: 'started' },
+  }));
+  await second.manager.receive(clientMessage({
+    type: 'action.status', seq: 5, messageId: '93939393-9393-4393-8393-939393939393',
+    payload: { actionId: failed.actionId, status: 'failed', error: { code: 'target-absent', message: 'Target absent' } },
+  }));
+  await assert.rejects(rejected, (error) => error instanceof CompanionSessionError && error.code === 'ACTION_START_FAILED');
+});
+
+test('started and identical terminal replays are idempotent without weakening transitions', async () => {
+  const { manager } = await readyManager();
+  await synchronizeInWorld(manager);
+  const action = manager.dispatchAction({ kind: 'direct.jump', args: {} });
+  const started = { actionId: action.actionId, status: 'started' };
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 4, messageId: '94949494-9494-4494-8494-949494949494', payload: started,
+  }));
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 5, messageId: '95959595-9595-4595-8595-959595959595', payload: started,
+  }));
+  const terminal = { actionId: action.actionId, status: 'succeeded', result: { code: 'jumped' } };
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 6, messageId: '96969696-9696-4696-8696-969696969696', payload: terminal,
+  }));
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 7, messageId: '97979797-9797-4797-8797-979797979797', payload: terminal,
+  }));
+  assert.equal(manager.status().activeAction, null);
+});
+
 test('action progress cannot reverse and terminal actions cannot transition twice', async () => {
   const { manager } = await readyManager();
   await synchronizeInWorld(manager);

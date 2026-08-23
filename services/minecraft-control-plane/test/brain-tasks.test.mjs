@@ -34,6 +34,7 @@ test('physical task supervisor dispatches one typed action and narrates briefly'
       calls.push(['dispatch', action, options]);
       return { actionId: '11111111-1111-4111-8111-111111111111', kind: action.kind, status: 'dispatched' };
     },
+    waitForActionActivation: async (actionId, options) => calls.push(['activated', actionId, options]),
     cancelAction: async () => { throw new Error('must not cancel'); },
     sessionStatus: () => ({ activeAction: null }),
     sendChat: async (text) => calls.push(['say', text]),
@@ -42,9 +43,30 @@ test('physical task supervisor dispatches one typed action and narrates briefly'
   assert.equal(result.code, 'PHYSICAL_TASK_DISPATCHED');
   assert.deepEqual(calls, [
     ['dispatch', { kind: 'skill.followPlayer', args: { playerUuid: PLAYER_UUID, distance: 4 } }, { timeoutMs: 1_800_000 }],
+    ['activated', '11111111-1111-4111-8111-111111111111', { timeoutMs: 3_000, settleMs: 100 }],
     ['say', "Okay, I'll follow you."],
   ]);
   assert.equal(supervisor.status().accepted, 1);
+});
+
+test('physical task supervisor never promises movement when body activation fails', async () => {
+  const speech = [];
+  const supervisor = new CompanionPhysicalTaskSupervisor({
+    dispatchAction: async (action) => ({
+      actionId: '55555555-5555-4555-8555-555555555555', kind: action.kind, status: 'dispatched',
+    }),
+    waitForActionActivation: async () => {
+      throw Object.assign(new Error('target absent'), { code: 'ACTION_START_FAILED' });
+    },
+    cancelAction: async () => { throw new Error('must not cancel'); },
+    sessionStatus: () => ({ activeAction: null }),
+    sendChat: async (text) => speech.push(text),
+  });
+  const result = await supervisor.handle({ role: 'parent', minecraftUuid: PLAYER_UUID, text: 'follow me' });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'ACTION_START_FAILED');
+  assert.deepEqual(speech, ["I couldn't start that just now."]);
+  assert.equal(supervisor.status().accepted, 0);
 });
 
 test('physical task supervisor enforces role authority before dispatch', async () => {

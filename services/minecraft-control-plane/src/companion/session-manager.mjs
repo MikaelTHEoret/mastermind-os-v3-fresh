@@ -273,9 +273,11 @@ export class CompanionSessionManager extends EventEmitter {
     const record = this.actionHistory.get(payload.actionId);
     if (!record) throw new FamilyBridgeProtocolError('UNKNOWN_ACTION', 'Action status referenced an unknown action', 4400);
     if (isTerminalActionStatus(record.status)) {
+      if (record.status === payload.status && JSON.stringify(record.terminal) === JSON.stringify(payload)) return;
       throw new FamilyBridgeProtocolError('ACTION_ALREADY_TERMINAL', 'A terminal action cannot transition again', 4400);
     }
     const next = payload.status;
+    if (record.status === 'started' && next === 'started') return;
     if (record.status === 'dispatched' && next !== 'started') {
       throw new FamilyBridgeProtocolError('ACTION_TRANSITION_INVALID', 'An action must report started before progress or completion', 4400);
     }
@@ -300,6 +302,57 @@ export class CompanionSessionManager extends EventEmitter {
       this.#trimActionHistory();
     }
     this.emit('actionStatus', clone(payload), publicAction(record));
+  }
+
+  waitForActionActivation(actionId, options = {}) {
+    const timeoutMs = options.timeoutMs ?? 3_000;
+    const settleMs = options.settleMs ?? 100;
+    if (typeof actionId !== 'string' || !this.actionHistory.has(actionId)) {
+      throw sessionError(404, 'ACTION_NOT_FOUND', 'The companion action was not found.');
+    }
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30_000
+      || !Number.isInteger(settleMs) || settleMs < 0 || settleMs > 1_000 || settleMs >= timeoutMs) {
+      throw new TypeError('Action activation timing is invalid');
+    }
+    return new Promise((resolve, reject) => {
+      let activationTimer = null;
+      const timeout = setTimeout(() => finish(reject, sessionError(504, 'ACTION_START_TIMEOUT', 'The companion action did not confirm activation in time.')), timeoutMs);
+      const cleanup = () => {
+        clearTimeout(timeout);
+        if (activationTimer !== null) clearTimeout(activationTimer);
+        this.off('actionStatus', onStatus);
+        this.off('disconnect', onDisconnect);
+      };
+      const finish = (settle, value) => {
+        cleanup();
+        settle(value);
+      };
+      const inspect = () => {
+        const record = this.actionHistory.get(actionId);
+        if (!record) return finish(reject, sessionError(404, 'ACTION_NOT_FOUND', 'The companion action was not found.'));
+        if (isTerminalActionStatus(record.status)) {
+          if (record.status === 'succeeded') return finish(resolve, publicAction(record));
+          const detail = record.terminal?.error?.code ?? record.status;
+          return finish(reject, sessionError(409, 'ACTION_START_FAILED', `The companion action failed to activate (${detail}).`));
+        }
+        if (record.status === 'started' || record.status === 'progress') {
+          if (activationTimer !== null) clearTimeout(activationTimer);
+          activationTimer = setTimeout(() => {
+            activationTimer = null;
+            inspect();
+            const current = this.actionHistory.get(actionId);
+            if (current && (current.status === 'started' || current.status === 'progress')) finish(resolve, publicAction(current));
+          }, settleMs);
+        }
+      };
+      const onStatus = (payload) => {
+        if (payload.actionId === actionId) inspect();
+      };
+      const onDisconnect = () => finish(reject, sessionError(409, 'COMPANION_DISCONNECTED', 'The companion disconnected before the action activated.'));
+      this.on('actionStatus', onStatus);
+      this.on('disconnect', onDisconnect);
+      inspect();
+    });
   }
 
   dispatchAction(action, options = {}) {

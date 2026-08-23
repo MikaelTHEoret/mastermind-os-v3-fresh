@@ -1093,6 +1093,7 @@ export async function createControlPlane(options = {}) {
     sendChat: (text) => companionSessions.dispatchAction({ kind: 'direct.say', args: { text } }, { timeoutMs: 15_000 }),
     dispatchAction: (action, actionOptions) => companionSessions.dispatchAction(action, actionOptions),
     cancelAction: (actionId, reason) => companionSessions.cancelAction(actionId, reason),
+    waitForActionActivation: (actionId, waitOptions) => companionSessions.waitForActionActivation(actionId, waitOptions),
     sessionStatus: () => companionSessions.status(),
   });
   if (typeof familyCompanionBrain.tickSurvival === 'function') {

@@ -160,7 +160,7 @@ test('conversation coordinator handles deterministic physical tasks without a mo
     taskSupervisor: {
       async handle(value) {
         handled.push(value.text);
-        return { handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED' };
+        return { handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', spoke: true };
       },
     },
     canSendChat: () => true,
@@ -170,6 +170,7 @@ test('conversation coordinator handles deterministic physical tasks without a mo
   assert.equal(result.execution.code, 'PHYSICAL_TASK_DISPATCHED');
   assert.equal(modelCalls, 0);
   assert.deepEqual(handled, ['Alchemist, follow me']);
+  assert.equal(coordinator.status().activeCompanionSessions, 1);
 });
 
 test('deterministic physical tasks remain available without conversation or a model provider', async () => {

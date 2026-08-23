@@ -64,11 +64,8 @@ if (bridgeBytes.length !== lockedBridge.size || sha256(bridgeBytes) !== lockedBr
 if (providerBytes.length !== lockedProvider.size || sha256(providerBytes) !== lockedProvider.sha256) {
   throw new Error('Rebuilt Baritone provider did not match the audited lock');
 }
-const response = await fetch(lockedProfile.url);
-if (!response.ok) throw new Error('Official Fabric profile was unavailable');
-const profileBytes = Buffer.from(await response.arrayBuffer());
-if (profileBytes.length !== lockedProfile.size || sha256(profileBytes) !== lockedProfile.sha256) {
-  throw new Error('Official Fabric profile changed after audit');
+if (oldProfileBytes.length !== lockedProfile.size || sha256(oldProfileBytes) !== lockedProfile.sha256) {
+  throw new Error('Installed Fabric profile did not match the audited lock');
 }
 
 const publicManifest = JSON.parse(oldPublicBytes.toString('utf8'));
@@ -89,13 +86,15 @@ for (const [manifest, oldBridge, oldProvider, oldProfile] of [
   }
   Object.assign(bridge, { size: lockedBridge.size, digest: lockedBridge.sha256 });
   Object.assign(provider, { size: lockedProvider.size, digest: lockedProvider.sha256 });
-  Object.assign(profile, { size: lockedProfile.size, digest: lockedProfile.sha256 });
+  if (profile.size !== lockedProfile.size || profile.digest !== lockedProfile.sha256) {
+    throw new Error('Managed manifest did not retain the audited Fabric profile');
+  }
 }
 const nextPublic = Buffer.from(`${JSON.stringify(publicManifest, null, 2)}\n`, 'utf8');
 const nextPrivate = Buffer.from(`${JSON.stringify(privateManifest, null, 2)}\n`, 'utf8');
 const suffix = `.respawn-update-${crypto.randomUUID()}`;
 const updates = [
-  [targets.bridge, bridgeBytes], [targets.provider, providerBytes], [targets.profile, profileBytes],
+  [targets.bridge, bridgeBytes], [targets.provider, providerBytes],
   [targets.publicManifest, nextPublic], [targets.privateManifest, nextPrivate],
 ].map(([target, bytes]) => ({ target, bytes, temporary: `${target}${suffix}.tmp`, backup: `${target}${suffix}.bak` }));
 const published = [];
@@ -135,5 +134,5 @@ console.log(JSON.stringify({
   bridgeSha256: sha256(bridgeBytes),
   providerBytes: providerBytes.length,
   providerSha256: sha256(providerBytes),
-  profileSha256: sha256(profileBytes),
+  profileSha256: sha256(oldProfileBytes),
 }));

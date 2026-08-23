@@ -83,9 +83,11 @@ export class CompanionPhysicalTaskSupervisor {
   constructor(options = {}) {
     this.dispatchAction = options.dispatchAction;
     this.cancelAction = options.cancelAction;
+    this.waitForActionActivation = options.waitForActionActivation ?? (async (action) => action);
     this.sessionStatus = options.sessionStatus;
     this.sendChat = options.sendChat;
     if (typeof this.dispatchAction !== 'function' || typeof this.cancelAction !== 'function'
+      || typeof this.waitForActionActivation !== 'function'
       || typeof this.sessionStatus !== 'function' || typeof this.sendChat !== 'function') {
       throw new TypeError('The physical task supervisor dependencies are invalid');
     }
@@ -113,32 +115,33 @@ export class CompanionPhysicalTaskSupervisor {
     if (!PHYSICAL_ROLES.has(value?.role) || typeof value?.minecraftUuid !== 'string' || !UUID.test(value.minecraftUuid)) {
       this.denied += 1;
       this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_NOT_AUTHORIZED' };
-      await this.#speak("I can chat, but I can't take gameplay commands from this account.");
-      return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_NOT_AUTHORIZED' });
+      const spoke = await this.#speak("I can chat, but I can't take gameplay commands from this account.");
+      return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_NOT_AUTHORIZED', spoke });
     }
     try {
       if (compiled.intent === 'cancel-current') {
         const active = this.sessionStatus()?.activeAction ?? null;
         if (!active || typeof active.actionId !== 'string' || TERMINAL_ACTION_STATUSES.has(active.status)) {
           this.last = { intent: compiled.intent, code: 'NO_ACTIVE_PHYSICAL_TASK' };
-          await this.#speak("I'm not doing anything to stop right now.");
-          return Object.freeze({ handled: true, ok: true, code: 'NO_ACTIVE_PHYSICAL_TASK' });
+          const spoke = await this.#speak("I'm not doing anything to stop right now.");
+          return Object.freeze({ handled: true, ok: true, code: 'NO_ACTIVE_PHYSICAL_TASK', spoke });
         }
         const cancellation = await this.cancelAction(active.actionId, 'player-request');
         this.cancelled += 1;
         this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_CANCEL_REQUESTED', actionId: active.actionId };
-        await this.#speak('Okay, stopping.');
-        return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_CANCEL_REQUESTED', cancellation });
+        const spoke = await this.#speak('Okay, stopping.');
+        return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_CANCEL_REQUESTED', cancellation, spoke });
       }
 
       const action = compiled.action.kind === 'skill.followPlayer'
         ? { ...compiled.action, args: { ...compiled.action.args, playerUuid: value.minecraftUuid } }
         : compiled.action;
       const dispatched = await this.dispatchAction(action, { timeoutMs: compiled.timeoutMs });
+      await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
       this.accepted += 1;
       this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_DISPATCHED', actionId: dispatched.actionId };
-      await this.#speak(compiled.acknowledgement);
-      return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', intent: compiled.intent, action: dispatched });
+      const spoke = await this.#speak(compiled.acknowledgement);
+      return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', intent: compiled.intent, action: dispatched, spoke });
     } catch (error) {
       this.failures += 1;
       const code = publicFailureCode(error);
@@ -148,8 +151,8 @@ export class CompanionPhysicalTaskSupervisor {
         : code === 'CAPABILITY_UNAVAILABLE'
           ? "I can't do that one yet."
           : "I couldn't start that just now.";
-      await this.#speak(reply);
-      return Object.freeze({ handled: true, ok: false, code });
+      const spoke = await this.#speak(reply);
+      return Object.freeze({ handled: true, ok: false, code, spoke });
     }
   }
 

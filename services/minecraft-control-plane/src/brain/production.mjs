@@ -287,6 +287,7 @@ export class CompanionConversationCoordinator {
       const task = await this.taskSupervisor.handle(value);
       if (task.handled) {
         this.intake.markExecution(task.code, value.occurredAt);
+        if (task.spoke === true) this.#markCompanionResponse(value);
         return { ...intake, execution: { ok: task.ok, code: task.code } };
       }
     }
@@ -329,12 +330,7 @@ export class CompanionConversationCoordinator {
       await this.sendChat(text);
       this.replies += 1;
       this.intake.markExecution('REPLY_DISPATCHED', value.occurredAt);
-      this.router.markResponse({
-        messageId: crypto.randomUUID(),
-        occurredAt: new Date().toISOString(),
-        minecraftUuid: value.minecraftUuid,
-        actor: 'COMPANION',
-      });
+      this.#markCompanionResponse(value);
       return { ...intake, execution: { ok: true, code: 'REPLY_DISPATCHED' } };
     } catch (error) {
       this.failures += 1;
@@ -344,6 +340,15 @@ export class CompanionConversationCoordinator {
     } finally {
       this.governor.release(leaseId);
     }
+  }
+
+  #markCompanionResponse(value) {
+    this.router.markResponse({
+      messageId: crypto.randomUUID(),
+      occurredAt: new Date().toISOString(),
+      minecraftUuid: value.minecraftUuid,
+      actor: 'COMPANION',
+    });
   }
 
   status() {
@@ -399,6 +404,7 @@ export function createFamilyCompanionBrain(options = {}) {
     ? (options.taskSupervisor ?? new CompanionPhysicalTaskSupervisor({
       dispatchAction: options.dispatchAction,
       cancelAction: options.cancelAction,
+      waitForActionActivation: options.waitForActionActivation,
       sessionStatus: options.sessionStatus,
       sendChat: options.sendChat,
     }))
