@@ -13,6 +13,10 @@ import {
 const MAX_ACTION_TIMEOUT_MS = 30 * 60 * 1000;
 const MIN_ACTION_TIMEOUT_MS = 100;
 const MAX_ACTION_HISTORY = 128;
+// Minecraft 26.2 can pause the client tick/bridge loop for roughly 25 seconds
+// while replacing the death screen with a fresh world. Keep this exceptional
+// transition bounded while leaving ordinary heartbeat enforcement unchanged.
+const RESPAWN_TRANSITION_GRACE_MS = 45_000;
 const REQUIRED_CAPABILITIES = Object.freeze(['state.snapshot', 'action.cancel']);
 
 export class CompanionSessionError extends Error {
@@ -97,6 +101,7 @@ export class CompanionSessionManager extends EventEmitter {
     this.lastDisconnect = null;
     this.actionHistory = new Map();
     this.activeAction = null;
+    this.respawnTransitionUntilMs = null;
     this.pendingShutdown = null;
     this.receiveQueue = Promise.resolve();
   }
@@ -119,6 +124,7 @@ export class CompanionSessionManager extends EventEmitter {
       this.latestSnapshot = null;
       this.actionHistory.clear();
       this.activeAction = null;
+      this.respawnTransitionUntilMs = null;
       this.pendingShutdown = null;
     }
     this.connection = {
@@ -223,8 +229,11 @@ export class CompanionSessionManager extends EventEmitter {
         connection.hasSnapshot = true;
         connection.lastSnapshotMs = this.now();
         connection.killSwitch = message.payload.safety.killSwitch;
+        if (this.#isSynchronized(connection, this.now())) this.respawnTransitionUntilMs = null;
         if (connection.killSwitch) this.closeConnection(4403, 'kill-switch-active');
-        else if (this.activeAction && !this.#isSynchronized(connection, this.now())) this.closeConnection(4408, 'family-state-lost');
+        else if (this.activeAction && !this.#allowsRespawnTransition() && !this.#isSynchronized(connection, this.now())) {
+          this.closeConnection(4408, 'family-state-lost');
+        }
         this.emit('snapshot', clone(this.latestSnapshot));
         break;
       case 'action.status':
@@ -252,8 +261,11 @@ export class CompanionSessionManager extends EventEmitter {
     connection.lastHeartbeat = clone(payload);
     connection.hasHeartbeat = true;
     connection.killSwitch = payload.killSwitch;
+    if (this.#isSynchronized(connection, this.now())) this.respawnTransitionUntilMs = null;
     if (payload.killSwitch) this.closeConnection(4403, 'kill-switch-active');
-    else if (this.activeAction && !this.#isSynchronized(connection, this.now())) this.closeConnection(4408, 'family-state-lost');
+    else if (this.activeAction && !this.#allowsRespawnTransition() && !this.#isSynchronized(connection, this.now())) {
+      this.closeConnection(4408, 'family-state-lost');
+    }
     this.emit('heartbeat', clone(payload));
   }
 
@@ -284,6 +296,7 @@ export class CompanionSessionManager extends EventEmitter {
       record.terminal = clone(payload);
       record.finishedAt = record.lastStatusAt;
       if (this.activeAction?.actionId === record.actionId) this.activeAction = null;
+      if (record.kind === 'direct.respawn' && next !== 'succeeded') this.respawnTransitionUntilMs = null;
       this.#trimActionHistory();
     }
     this.emit('actionStatus', clone(payload), publicAction(record));
@@ -322,6 +335,7 @@ export class CompanionSessionManager extends EventEmitter {
         deadlineAt: record.deadlineAt,
         action: record.action,
       });
+      if (action.kind === 'direct.respawn') this.respawnTransitionUntilMs = now + RESPAWN_TRANSITION_GRACE_MS;
     } catch (error) {
       this.actionHistory.delete(record.actionId);
       if (this.activeAction === record) this.activeAction = null;
@@ -381,7 +395,9 @@ export class CompanionSessionManager extends EventEmitter {
       return this.status(at);
     }
     if (connection.phase === 'ready') {
-      if (connection.lastHeartbeatMs !== null && at - connection.lastHeartbeatMs >= this.heartbeatTimeoutMs) {
+      if (connection.lastHeartbeatMs !== null
+        && at - connection.lastHeartbeatMs >= this.heartbeatTimeoutMs
+        && !this.#allowsRespawnTransition(at)) {
         this.closeConnection(4408, 'heartbeat-timeout');
         return this.status(at);
       }
@@ -396,7 +412,7 @@ export class CompanionSessionManager extends EventEmitter {
         this.closeConnection(4408, 'client-shutdown-timeout');
         return this.status(at);
       }
-      if (this.activeAction && !this.#isSynchronized(connection, at)) {
+      if (this.activeAction && !this.#allowsRespawnTransition(at) && !this.#isSynchronized(connection, at)) {
         this.closeConnection(4408, 'family-state-lost');
         return this.status(at);
       }
@@ -430,6 +446,7 @@ export class CompanionSessionManager extends EventEmitter {
     }
     this.lastDisconnect = { at: disconnectedAt, code, reason: safeCloseReason(reason) };
     this.connection = null;
+    this.respawnTransitionUntilMs = null;
     this.pendingShutdown = null;
     this.emit('disconnect', clone(this.lastDisconnect), this.status());
     return true;
@@ -477,6 +494,10 @@ export class CompanionSessionManager extends EventEmitter {
       && this.latestSnapshot?.serverAlias === 'family-server'
       && this.latestSnapshot?.player !== null
       && this.latestSnapshot?.world !== null;
+  }
+
+  #allowsRespawnTransition(at = this.now()) {
+    return Number.isFinite(this.respawnTransitionUntilMs) && at < this.respawnTransitionUntilMs;
   }
 
   #send(type, payload) {

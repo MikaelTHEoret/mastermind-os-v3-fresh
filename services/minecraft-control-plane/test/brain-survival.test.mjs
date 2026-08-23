@@ -59,7 +59,7 @@ test('a large recent health loss triggers deterministic escape before health bec
 test('death selects bounded respawn while low hunger fails visibly until eat exists', async () => {
   const dead = controller({ snapshot: snapshot({ health: 0 }) });
   assert.equal((await dead.value.tick()).intent, 'recovery.respawn');
-  assert.deepEqual(dead.calls[0], [{ kind: 'direct.respawn', args: {} }, { timeoutMs: 15_000 }]);
+  assert.deepEqual(dead.calls[0], [{ kind: 'direct.respawn', args: {} }, { timeoutMs: 45_000 }]);
 
   const hungry = controller({ snapshot: snapshot({ hunger: 6 }) });
   const unavailable = await hungry.value.tick();

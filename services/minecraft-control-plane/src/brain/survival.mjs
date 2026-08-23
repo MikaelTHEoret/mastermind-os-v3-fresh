@@ -119,7 +119,7 @@ export class DeterministicSurvivalController {
     }
     try {
       const action = await this.dispatchAction(intent.action, {
-        timeoutMs: intent.kind === 'recovery.respawn' ? 15_000 : 60_000,
+        timeoutMs: intent.kind === 'recovery.respawn' ? 45_000 : 60_000,
       });
       this.lastDispatchAt = at;
       this.dispatches += 1;

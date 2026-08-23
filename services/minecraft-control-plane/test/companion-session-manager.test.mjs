@@ -247,6 +247,76 @@ test('world exit or stale state terminates an already-running action session', a
   }
 });
 
+test('respawn tolerates the expected world transition without weakening liveness', async () => {
+  const { manager, socket, setNow } = await readyManager();
+  await synchronizeInWorld(manager);
+  const action = manager.dispatchAction({ kind: 'direct.respawn', args: {} });
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 4, messageId: '22222222-2222-4222-8222-222222222223',
+    payload: { actionId: action.actionId, status: 'started' },
+  }));
+  await manager.receive(clientMessage({
+    type: 'bridge.heartbeat', seq: 5, messageId: '22222222-2222-4222-8222-222222222224',
+    payload: { clientTick: 21, phase: 'main-menu', activeActionId: action.actionId, killSwitch: false },
+  }));
+  await manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 6, messageId: '22222222-2222-4222-8222-222222222225',
+    payload: {
+      snapshotId: '22222222-2222-4222-8222-222222222226', clientTick: 21, phase: 'main-menu',
+      serverAlias: null, player: null, world: null,
+      baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
+      safety: { killSwitch: false },
+    },
+  }));
+  assert.deepEqual(socket.closes, []);
+  assert.equal(manager.status().state, 'syncing');
+  assert.equal(manager.status().activeAction.actionId, action.actionId);
+
+  await manager.receive(clientMessage({
+    type: 'action.status', seq: 7, messageId: '22222222-2222-4222-8222-222222222227',
+    payload: { actionId: action.actionId, status: 'succeeded', result: { code: 'respawned' } },
+  }));
+  assert.equal(manager.status().activeAction, null);
+  setNow(startedAt + 750);
+  manager.checkLiveness();
+  assert.deepEqual(socket.closes, []);
+
+  await manager.receive(clientMessage({
+    type: 'bridge.heartbeat', seq: 8, messageId: '22222222-2222-4222-8222-222222222229',
+    payload: { clientTick: 22, phase: 'in-world', activeActionId: null, killSwitch: false },
+  }));
+  await manager.receive(clientMessage({
+    type: 'state.snapshot', seq: 9, messageId: '22222222-2222-4222-8222-222222222230',
+    payload: {
+      snapshotId: '22222222-2222-4222-8222-222222222231', clientTick: 22, phase: 'in-world',
+      serverAlias: 'family-server',
+      player: {
+        position: { x: 1, y: 64, z: 2 }, velocity: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0,
+        health: 20, maxHealth: 20, hunger: 20, armor: 0, dimension: 'minecraft:overworld',
+      },
+      world: { timeOfDay: 1000, weather: 'clear' },
+      baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
+      safety: { killSwitch: false },
+    },
+  }));
+  assert.equal(manager.status().state, 'ready');
+
+  const stale = await readyManager();
+  await synchronizeInWorld(stale.manager);
+  const staleAction = stale.manager.dispatchAction({ kind: 'direct.respawn', args: {} });
+  await stale.manager.receive(clientMessage({
+    type: 'action.status', seq: 4, messageId: '22222222-2222-4222-8222-222222222228',
+    payload: { actionId: staleAction.actionId, status: 'started' },
+  }));
+  stale.setNow(startedAt + 44_999);
+  stale.manager.checkLiveness();
+  assert.deepEqual(stale.socket.closes, []);
+  stale.setNow(startedAt + 45_000);
+  stale.manager.checkLiveness();
+  assert.deepEqual(stale.socket.closes, [{ code: 4408, reason: 'heartbeat-timeout' }]);
+  assert.equal(stale.manager.status().activeAction, null);
+});
+
 test('no new action can be dispatched after graceful shutdown begins', async () => {
   const { manager } = await readyManager();
   await synchronizeInWorld(manager);

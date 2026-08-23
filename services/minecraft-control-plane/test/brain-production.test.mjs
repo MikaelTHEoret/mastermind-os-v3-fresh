@@ -252,5 +252,5 @@ test('deterministic survival remains available without conversation, a model, or
   const result = await brain.tickSurvival();
   assert.equal(result.code, 'SURVIVAL_ACTION_DISPATCHED');
   assert.equal(brain.status().flags.survivalAutomation, true);
-  assert.deepEqual(calls, [[{ kind: 'direct.respawn', args: {} }, { timeoutMs: 15_000 }]]);
+  assert.deepEqual(calls, [[{ kind: 'direct.respawn', args: {} }, { timeoutMs: 45_000 }]]);
 });
