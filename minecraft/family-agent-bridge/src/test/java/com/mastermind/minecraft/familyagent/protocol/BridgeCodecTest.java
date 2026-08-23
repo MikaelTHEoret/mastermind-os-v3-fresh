@@ -114,6 +114,14 @@ final class BridgeCodecTest {
         placeArgs.addProperty("y", 64);
         placeArgs.addProperty("z", -20);
         codec.decodeControl(execute("direct.placeBlock", placeArgs, 4), SESSION, 3);
+
+        var nearbyArgs = new JsonObject();
+        nearbyArgs.addProperty("blockId", "minecraft:oak_planks");
+        codec.decodeControl(execute("direct.placeNearbyBlock", nearbyArgs, 5), SESSION, 4);
+
+        var dropArgs = new JsonObject();
+        dropArgs.addProperty("all", false);
+        codec.decodeControl(execute("direct.dropItem", dropArgs, 6), SESSION, 5);
     }
 
     @Test

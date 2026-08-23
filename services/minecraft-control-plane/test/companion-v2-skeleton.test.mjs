@@ -13,7 +13,7 @@ import {
 test('v2 skeleton lists all required observations and actions without advertising them', () => {
   assert.ok(FAMILY_BRIDGE_V2_OBSERVATIONS.includes('inventory.snapshot'));
   assert.ok(FAMILY_BRIDGE_V2_OBSERVATIONS.includes('homeZones.metadata'));
-  assert.ok(FAMILY_BRIDGE_V2_ACTIONS.includes('direct.dropItem'));
+  assert.ok(FAMILY_BRIDGE_V2_ACTIONS.includes('inventory.move'));
   assert.ok(FAMILY_BRIDGE_V2_ACTIONS.includes('skill.buildBounded'));
   const manifest = companionV2SkeletonManifest(FAMILY_BRIDGE_CAPABILITIES);
   assert.deepEqual(manifest.supportedVersions, [1]);
@@ -28,7 +28,7 @@ test('v2 observations are bounded and v2 actions return an honest unavailable re
     data: { amount: 2, source: 'minecraft:zombie' },
   });
   assert.equal(observation.kind, 'damage.recent');
-  const result = executeCompanionV2Action({ kind: 'direct.dropItem', arguments: { all: false } });
+  const result = executeCompanionV2Action({ kind: 'inventory.move', arguments: { from: 1, to: 2 } });
   assert.equal(result.ok, false);
   assert.equal(result.code, 'FEATURE_NOT_IMPLEMENTED');
 });

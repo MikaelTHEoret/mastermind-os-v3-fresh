@@ -212,6 +212,14 @@ public final class BridgeCodec {
                 integer(args, "y", -2_048, 2_048);
                 integer(args, "z", -30_000_000, 30_000_000);
             }
+            case "direct.placeNearbyBlock" -> {
+                exactObject(args, kind + ".args", "blockId");
+                patternedString(args, "blockId", 3, 128, REGISTRY_ID);
+            }
+            case "direct.dropItem" -> {
+                exactObject(args, kind + ".args", "all");
+                bool(args, "all");
+            }
             case "skill.navigateTo" -> {
                 exactObject(args, kind + ".args", "x", "y", "z", "tolerance");
                 integer(args, "x", -30_000_000, 30_000_000);

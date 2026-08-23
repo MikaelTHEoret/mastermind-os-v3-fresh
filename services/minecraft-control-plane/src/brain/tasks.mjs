@@ -18,6 +18,8 @@ const BLOCK_ALIASES = new Map([
 
 const PLACEABLE_BLOCK_ALIASES = new Map([
   ['oak plank', 'minecraft:oak_planks'], ['oak planks', 'minecraft:oak_planks'],
+  ['plank', 'minecraft:oak_planks'], ['planks', 'minecraft:oak_planks'],
+  ['wood plank', 'minecraft:oak_planks'], ['wood planks', 'minecraft:oak_planks'],
   ['cobblestone', 'minecraft:cobblestone'], ['stone', 'minecraft:stone'],
   ['dirt', 'minecraft:dirt'], ['torch', 'minecraft:torch'],
 ]);
@@ -65,6 +67,24 @@ export function compileDeterministicCompanionTask(text) {
     return task('follow-player', { kind: 'skill.followPlayer', args: { playerUuid: null, distance } }, "Okay, I'll follow you.", 30 * 60_000, replaceCurrent);
   }
 
+  const labeledNavigation = request.match(/^(?:go|walk|navigate|come)\s+to\s+(.+)$/u);
+  if (labeledNavigation) {
+    const entries = [...labeledNavigation[1].matchAll(/\b([xyz])\s*[:=]\s*(-?\d+)\b/gu)];
+    const coordinates = new Map(entries.map((entry) => [entry[1], Number(entry[2])]));
+    if (entries.length === 3 && coordinates.size === 3) {
+      const x = coordinates.get('x');
+      const y = coordinates.get('y');
+      const z = coordinates.get('z');
+      if (y < -64 || y > 320) {
+        return task('clarify-coordinates', null,
+          `Those coordinates look mixed up: Y is ${y} and Z is ${z}. Send them as x y z.`, 15_000, replaceCurrent);
+      }
+      if (Math.abs(x) <= 30_000_000 && Math.abs(z) <= 30_000_000) {
+        return task('navigate', { kind: 'skill.navigateTo', args: { x, y, z, tolerance: 2 } }, "Okay, I'm on my way.", 10 * 60_000, replaceCurrent);
+      }
+    }
+  }
+
   const navigate = request.match(/^(?:go|walk|navigate|come)\s+to\s+(?:coordinates?\s+)?(?:x\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:y\s*=?\s*)?(-?\d+)\s*[, ]+\s*(?:z\s*=?\s*)?(-?\d+)[.!?]*$/u);
   if (navigate) {
     const [x, y, z] = navigate.slice(1).map(Number);
@@ -96,6 +116,23 @@ export function compileDeterministicCompanionTask(text) {
     const [x, y, z] = place.slice(2).map(Number);
     if (!blockId || Math.abs(x) > 30_000_000 || y < -2_048 || y > 2_048 || Math.abs(z) > 30_000_000) return null;
     return task('place-block', { kind: 'direct.placeBlock', args: { blockId, x, y, z } }, `Okay, I'll place ${label} there.`, 15_000, replaceCurrent);
+  }
+
+
+  const placeNearby = request.match(/^place\s+(?:(?:a\s+)?(?:one|single)\s+|a\s+)?(.+?)\s+(?:on\s+(?:the\s+)?(?:ground|floor)(?:\s+anywhere)?|nearby|right here|anywhere)\s*[.!?]*$/u);
+  if (placeNearby) {
+    const label = placeNearby[1].trim().replace(/\s+/gu, ' ');
+    const blockId = PLACEABLE_BLOCK_ALIASES.get(label) ?? (/^[a-z0-9_.-]+:[a-z0-9_./-]+$/u.test(label) ? label : null);
+    if (!blockId) return null;
+    return task('place-nearby-block', { kind: 'direct.placeNearbyBlock', args: { blockId } },
+      `Okay, I'll place one ${label} nearby.`, 15_000, replaceCurrent);
+  }
+
+  const drop = request.match(/^(?:drop|throw)(?:\s+(?:the|a|one))?(?:\s+(?:item|steak|food|thing|stack))?(?:\s+(?:that(?:'?s| is)\s+)?(?:in|from)\s+(?:your\s+)?(?:hand|hotbar))?(?:\s+(?:on|onto)\s+(?:the\s+)?(?:ground|floor)|\s+(?:right here|right there))?\s*[.!?]*$/u);
+  if (drop) {
+    const all = /\bstack\b/u.test(request);
+    return task('drop-held-item', { kind: 'direct.dropItem', args: { all } },
+      all ? "Okay, I'll drop the held stack." : "Okay, I'll drop one held item.", 15_000, replaceCurrent);
   }
 
   const explore = request.match(/^(?:explore|look around|scout)(?:\s+(?:within\s+)?(\d+)\s+blocks?)?[.!?]*$/u);
@@ -183,6 +220,12 @@ export class CompanionPhysicalTaskSupervisor {
         this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_CANCEL_REQUESTED', actionId: active.actionId };
         const spoke = await this.#speak('Okay, stopping.');
         return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_CANCEL_REQUESTED', cancellation, spoke });
+      }
+
+      if (compiled.action === null) {
+        this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_CLARIFICATION' };
+        const spoke = await this.#speak(compiled.acknowledgement);
+        return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_CLARIFICATION', spoke });
       }
 
       const action = compiled.action.kind === 'skill.followPlayer'

@@ -334,6 +334,8 @@ final class MinecraftActionController {
                 case "direct.selectSlot" -> selectSlot(command);
                 case "direct.use" -> use(command);
                 case "direct.placeBlock" -> placeBlock(command, nowNanos);
+                case "direct.placeNearbyBlock" -> placeNearbyBlock(command, nowNanos);
+                case "direct.dropItem" -> dropItem(command);
                 default -> startNavigation(command);
             }
         } catch (NavigationUnavailableException error) {
@@ -387,6 +389,39 @@ final class MinecraftActionController {
     }
 
     private void placeBlock(ActionCommand command, long nowNanos) {
+        var args = command.arguments();
+        var expectedBlock = Identifier.parse(args.get("blockId").getAsString());
+        var target = new BlockPos(args.get("x").getAsInt(), args.get("y").getAsInt(), args.get("z").getAsInt());
+        startPlacementAt(command, target, expectedBlock, nowNanos);
+    }
+
+    private void placeNearbyBlock(ActionCommand command, long nowNanos) {
+        var player = requirePlayer();
+        var level = minecraft.level;
+        if (level == null) {
+            finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
+            return;
+        }
+        var expectedBlock = Identifier.parse(command.arguments().get("blockId").getAsString());
+        var base = player.blockPosition();
+        int[][] offsets = {
+            {0, 0, -1}, {1, 0, 0}, {0, 0, 1}, {-1, 0, 0},
+            {1, 0, -1}, {1, 0, 1}, {-1, 0, 1}, {-1, 0, -1}
+        };
+        for (var offset : offsets) {
+            var target = new BlockPos(base.getX() + offset[0], base.getY(), base.getZ() + offset[2]);
+            var support = target.below();
+            if (level.getBlockState(target).canBeReplaced()
+                && !level.getBlockState(support).isAir()
+                && level.getBlockState(support).isFaceSturdy(level, support, Direction.UP)) {
+                startPlacementAt(command, target, expectedBlock, nowNanos);
+                return;
+            }
+        }
+        finishFailed(command.actionId(), "no-nearby-placement", "No nearby ground position can safely accept the requested block");
+    }
+
+    private void startPlacementAt(ActionCommand command, BlockPos target, Identifier expectedBlock, long nowNanos) {
         var player = requirePlayer();
         var level = minecraft.level;
         var gameMode = minecraft.gameMode;
@@ -394,9 +429,6 @@ final class MinecraftActionController {
             finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
             return;
         }
-        var args = command.arguments();
-        var expectedBlock = Identifier.parse(args.get("blockId").getAsString());
-        var target = new BlockPos(args.get("x").getAsInt(), args.get("y").getAsInt(), args.get("z").getAsInt());
         if (!level.getBlockState(target).canBeReplaced()) {
             finishFailed(command.actionId(), "target-occupied", "The requested placement position is not replaceable");
             return;
@@ -440,6 +472,19 @@ final class MinecraftActionController {
         }
         player.swing(InteractionHand.MAIN_HAND);
         running = new PlacementAction(command, target, expectedBlock, nowNanos);
+    }
+
+    private void dropItem(ActionCommand command) {
+        var player = requirePlayer();
+        if (player.getInventory().getSelectedItem().isEmpty()) {
+            finishFailed(command.actionId(), "empty-hand", "The companion has no selected item to drop");
+            return;
+        }
+        if (!player.drop(command.arguments().get("all").getAsBoolean())) {
+            finishFailed(command.actionId(), "drop-rejected", "Minecraft rejected the held-item drop");
+            return;
+        }
+        finishSucceeded(command.actionId(), "dropped");
     }
 
     private int findHotbarBlock(net.minecraft.client.player.LocalPlayer player, Identifier blockId) {

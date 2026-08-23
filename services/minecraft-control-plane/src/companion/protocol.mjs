@@ -20,6 +20,8 @@ export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'direct.selectSlot',
   'direct.use',
   'direct.placeBlock',
+  'direct.placeNearbyBlock',
+  'direct.dropItem',
   'skill.navigateTo',
   'skill.followPlayer',
   'skill.gatherBlock',
@@ -167,6 +169,14 @@ function validateActionArgs(action) {
       numberValue(args.x, `${kind}.args.x`, -30_000_000, 30_000_000, { integer: true });
       numberValue(args.y, `${kind}.args.y`, -2_048, 2_048, { integer: true });
       numberValue(args.z, `${kind}.args.z`, -30_000_000, 30_000_000, { integer: true });
+      break;
+    case 'direct.placeNearbyBlock':
+      exactObject(args, `${kind}.args`, ['blockId']);
+      stringValue(args.blockId, `${kind}.args.blockId`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      break;
+    case 'direct.dropItem':
+      exactObject(args, `${kind}.args`, ['all']);
+      booleanValue(args.all, `${kind}.args.all`);
       break;
     case 'skill.navigateTo':
       exactObject(args, `${kind}.args`, ['x', 'y', 'z', 'tolerance']);

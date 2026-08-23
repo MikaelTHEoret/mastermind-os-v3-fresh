@@ -9,7 +9,6 @@ export const FAMILY_BRIDGE_V2_OBSERVATIONS = Object.freeze([
 ]);
 
 export const FAMILY_BRIDGE_V2_ACTIONS = Object.freeze([
-  'direct.dropItem',
   'inventory.inspect', 'inventory.equip', 'inventory.move', 'inventory.give',
   'craft.recipe', 'container.transfer', 'skill.sleep', 'skill.eat', 'skill.combat',
   'skill.tendCrops', 'skill.deliverItem', 'skill.buildBounded',

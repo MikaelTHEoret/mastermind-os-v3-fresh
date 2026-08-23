@@ -24,6 +24,8 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'select a numbered hotbar slot',
   'use the item or object under the crosshair',
   'place a supported hotbar block at nearby coordinates',
+  'place one supported hotbar block on nearby ground',
+  'drop the selected item or stack',
   'stop the current physical task',
 ]);
 const CAPABILITY_QUESTION = /^(?:what can you do|what are (?:your )?(?:abilities|capabilities)|what are you capable of(?: doing)?|what do you have access to)(?: now)?[?!.]*$/u;
@@ -73,7 +75,7 @@ function capabilityReply(flags) {
     return "I can chat with you, but my movement and task controls aren't enabled right now.";
   }
   const survival = flags.survivalAutomation === true ? ' and handle basic survival' : '';
-  return `I can chat, follow you, navigate/look at coordinates, scout, gather, use a crosshair target, place one nearby block, stop${survival}. I can't sleep, craft, use storage, build structures, or deliver yet.`;
+  return `I can chat, follow you, navigate to coordinates, scout, gather, use targets, place nearby blocks, drop held items, and stop${survival}. I can't sleep, craft, use storage, build structures, or deliver yet.`;
 }
 
 export function isCompanionSelfMessage(value) {
