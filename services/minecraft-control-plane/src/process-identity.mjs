@@ -6,7 +6,13 @@ import path from 'node:path';
 const SHA256 = /^[a-f0-9]{64}$/i;
 const INSPECTION_TIMEOUT_MS = 5_000;
 const MAX_INSPECTION_BYTES = 128 * 1024;
-const WINDOWS_ENVIRONMENT_KEYS = new Set(['PATH', 'PATHEXT', 'SYSTEMROOT', 'TEMP', 'TMP', 'WINDIR']);
+// Get-CimInstance is provided by a PowerShell module. Preserve only the module
+// discovery path in addition to the minimal Windows process environment; if it
+// is stripped, Windows PowerShell can stall until our probe timeout and leave
+// repeated inspection helpers behind during startup reconciliation.
+const WINDOWS_ENVIRONMENT_KEYS = new Set([
+  'PATH', 'PATHEXT', 'PSMODULEPATH', 'SYSTEMROOT', 'TEMP', 'TMP', 'WINDIR',
+]);
 
 // The script is constant. Its two inputs are validated integers supplied only
 // through private environment variables by the local service.
@@ -139,6 +145,14 @@ function windowsChildEnvironment(pid, port, udpPort) {
   for (const [key, value] of Object.entries(process.env)) {
     const canonical = key.toUpperCase();
     if (WINDOWS_ENVIRONMENT_KEYS.has(canonical) && typeof value === 'string') environment[canonical] = value;
+  }
+  if (!environment.PSMODULEPATH) {
+    const windowsRoot = environment.SYSTEMROOT ?? environment.WINDIR;
+    if (typeof windowsRoot === 'string' && path.win32.isAbsolute(windowsRoot)) {
+      environment.PSMODULEPATH = path.win32.join(
+        windowsRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'Modules',
+      );
+    }
   }
   return environment;
 }
