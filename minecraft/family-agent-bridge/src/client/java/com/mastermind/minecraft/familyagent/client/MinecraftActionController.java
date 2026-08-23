@@ -336,6 +336,9 @@ final class MinecraftActionController {
                 case "direct.placeBlock" -> placeBlock(command, nowNanos);
                 case "direct.placeNearbyBlock" -> placeNearbyBlock(command, nowNanos);
                 case "direct.dropItem" -> dropItem(command);
+                case "direct.dropItemById" -> dropItemById(command);
+                case "direct.selectItem" -> selectItem(command);
+                case "direct.swingHand" -> swingHand(command);
                 default -> startNavigation(command);
             }
         } catch (NavigationUnavailableException error) {
@@ -360,6 +363,28 @@ final class MinecraftActionController {
         var slot = command.arguments().get("slot").getAsInt();
         selectHotbarSlot(requirePlayer(), slot);
         finishSucceeded(command.actionId(), "selected");
+    }
+
+    private void selectItem(ActionCommand command) {
+        var player = requirePlayer();
+        var expectedItem = Identifier.parse(command.arguments().get("itemId").getAsString());
+        for (var slot = 0; slot < 9; slot += 1) {
+            var stack = player.getInventory().getItem(slot);
+            if (!stack.isEmpty() && expectedItem.equals(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+                selectHotbarSlot(player, slot);
+                finishSucceeded(command.actionId(), "selected");
+                return;
+            }
+        }
+        finishFailed(command.actionId(), "item-not-in-hotbar", "The requested item is not available in the companion hotbar");
+    }
+
+    private void swingHand(ActionCommand command) {
+        var player = requirePlayer();
+        var hand = command.arguments().get("hand").getAsString().equals("off")
+            ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        player.swing(hand);
+        finishSucceeded(command.actionId(), "swung");
     }
 
     private void use(ActionCommand command) {
@@ -485,6 +510,24 @@ final class MinecraftActionController {
             return;
         }
         finishSucceeded(command.actionId(), "dropped");
+    }
+
+    private void dropItemById(ActionCommand command) {
+        var player = requirePlayer();
+        var expectedItem = Identifier.parse(command.arguments().get("itemId").getAsString());
+        for (var slot = 0; slot < 9; slot += 1) {
+            var stack = player.getInventory().getItem(slot);
+            if (!stack.isEmpty() && expectedItem.equals(BuiltInRegistries.ITEM.getKey(stack.getItem()))) {
+                selectHotbarSlot(player, slot);
+                if (!player.drop(command.arguments().get("all").getAsBoolean())) {
+                    finishFailed(command.actionId(), "drop-rejected", "Minecraft rejected the requested item drop");
+                    return;
+                }
+                finishSucceeded(command.actionId(), "dropped");
+                return;
+            }
+        }
+        finishFailed(command.actionId(), "item-not-in-hotbar", "The requested item is not available in the companion hotbar");
     }
 
     private int findHotbarBlock(net.minecraft.client.player.LocalPlayer player, Identifier blockId) {

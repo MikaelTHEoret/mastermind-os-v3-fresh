@@ -259,6 +259,46 @@ export class CompanionPhysicalTaskSupervisor {
     }
   }
 
+  async handlePlanned(value, plan) {
+    if (!plan || typeof plan !== 'object' || Array.isArray(plan)) return Object.freeze({ handled: false });
+    if (plan.decision === 'conversation') return Object.freeze({ handled: false });
+    if (plan.decision === 'clarify') {
+      const spoke = await this.#speak(plan.message);
+      this.last = { intent: 'planned-clarification', code: 'PHYSICAL_TASK_CLARIFICATION' };
+      return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_CLARIFICATION', spoke });
+    }
+    if (plan.decision === 'cancel') return this.handle({ ...value, text: 'stop' });
+    if (plan.decision !== 'action' || !plan.action || typeof plan.action.kind !== 'string') {
+      return Object.freeze({ handled: false });
+    }
+    if (!PHYSICAL_ROLES.has(value?.role) || typeof value?.minecraftUuid !== 'string' || !UUID.test(value.minecraftUuid)) {
+      this.denied += 1;
+      this.last = { intent: 'planned-action', code: 'PHYSICAL_TASK_NOT_AUTHORIZED' };
+      const spoke = await this.#speak("I can chat, but I can't take gameplay commands from this account.");
+      return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_NOT_AUTHORIZED', spoke });
+    }
+    try {
+      const active = this.sessionStatus()?.activeAction ?? null;
+      if (active && !TERMINAL_ACTION_STATUSES.has(active.status)) {
+        this.last = { intent: 'planned-action', code: 'COMPANION_BUSY' };
+        const spoke = await this.#speak("I'm already doing something. Tell me to stop first if you want me to switch.");
+        return Object.freeze({ handled: true, ok: false, code: 'COMPANION_BUSY', spoke });
+      }
+      const dispatched = await this.dispatchAction(plan.action, { timeoutMs: plan.timeoutMs ?? 60_000 });
+      await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
+      this.accepted += 1;
+      this.last = { intent: 'planned-action', code: 'PHYSICAL_TASK_DISPATCHED', actionId: dispatched.actionId };
+      const spoke = await this.#speak("Okay, I'll try that now.");
+      return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', action: dispatched, spoke });
+    } catch (error) {
+      this.failures += 1;
+      const code = publicFailureCode(error);
+      this.last = { intent: 'planned-action', code };
+      const spoke = await this.#speak("I couldn't execute that action.");
+      return Object.freeze({ handled: true, ok: false, code, spoke });
+    }
+  }
+
   status() {
     return Object.freeze({
       accepted: this.accepted,

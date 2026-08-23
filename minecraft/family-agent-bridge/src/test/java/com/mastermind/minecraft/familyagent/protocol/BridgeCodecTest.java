@@ -122,6 +122,19 @@ final class BridgeCodecTest {
         var dropArgs = new JsonObject();
         dropArgs.addProperty("all", false);
         codec.decodeControl(execute("direct.dropItem", dropArgs, 6), SESSION, 5);
+
+        var namedDropArgs = new JsonObject();
+        namedDropArgs.addProperty("itemId", "minecraft:cooked_beef");
+        namedDropArgs.addProperty("all", false);
+        codec.decodeControl(execute("direct.dropItemById", namedDropArgs, 7), SESSION, 6);
+
+        var itemArgs = new JsonObject();
+        itemArgs.addProperty("itemId", "minecraft:oak_planks");
+        codec.decodeControl(execute("direct.selectItem", itemArgs, 8), SESSION, 7);
+
+        var swingArgs = new JsonObject();
+        swingArgs.addProperty("hand", "main");
+        codec.decodeControl(execute("direct.swingHand", swingArgs, 9), SESSION, 8);
     }
 
     @Test

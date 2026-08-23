@@ -7,6 +7,7 @@ import { featureStatus } from './features.mjs';
 import { ConversationIntake, ConversationRouter, PermissionPolicy, createFamilyCompanionSkeleton } from './skeleton.mjs';
 import { DeterministicSurvivalController } from './survival.mjs';
 import { CompanionPhysicalTaskSupervisor } from './tasks.mjs';
+import { validateFamilyBridgeAction } from '../companion/protocol.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SAFE_MODEL = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/u;
@@ -26,8 +27,16 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'place a supported hotbar block at nearby coordinates',
   'place one supported hotbar block on nearby ground',
   'drop the selected item or stack',
+  'select a named item already in the hotbar',
+  'swing either hand, including punching air',
   'stop the current physical task',
 ]);
+const PLANNABLE_ACTIONS = Object.freeze([
+  'direct.lookAt', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.attack', 'direct.swingHand',
+  'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+  'skill.navigateTo', 'skill.followPlayer', 'skill.gatherBlock', 'skill.explore',
+]);
+const PHYSICAL_REQUEST_HINT = /\b(?:stop|cancel|follow|come|walk|go|navigate|look|explore|scout|gather|collect|mine|chop|get|place|put|drop|throw|select|choose|switch|use|open|press|interact|punch|hit|attack|inventory|find)\b/iu;
 const CAPABILITY_QUESTION = /^(?:what can you do|what are (?:your )?(?:abilities|capabilities)|what are you capable of(?: doing)?|what do you have access to)(?: now)?[?!.]*$/u;
 const PRIVATE_ENV_KEYS = Object.freeze([
   'OPENAI_API_KEY',
@@ -52,6 +61,37 @@ When asked what you are or what you can do, answer naturally as the embodied Min
 Never issue Minecraft commands, URLs, secrets, purchases, or requests for private information. Do not infer diagnoses, protected traits, psychographics, or commercial intent.
 If asked for an unavailable physical action, say naturally and briefly that you cannot do that one yet, then continue the conversation if useful.
 Return one natural reply with no speaker prefix.`;
+
+const PHYSICAL_PLANNER_INSTRUCTIONS = `You are the constrained physical-action router for a Minecraft companion.
+Classify the current player message using the supplied previous message, inventory totals, position, and authorized action kinds.
+Return decision "action" only when a single authorized typed action safely represents the request. Return "cancel" for stopping current work, "clarify" when required information is missing or contradictory, and "conversation" when no physical action is requested.
+Never narrate, promise, role-play, or claim an action. The executor speaks separately only after validated dispatch.
+Use zero-based slots for direct.selectSlot: player-visible slot 1 is 0 and slot 9 is 8.
+Use direct.selectItem for requests to find or select a named hotbar item. Prefer an exact item ID present in inventory. In this world, wooden plank means minecraft:oak_planks. Do not invent unavailable items.
+Use direct.swingHand for punching or swinging at air. Use direct.attack only for an entity under the crosshair.
+Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
+Use direct.dropItemById when the player names the item to throw or drop. Prefer an exact item ID present in inventory and set all true only for the whole stack.
+Use direct.placeNearbyBlock when the player permits nearby, here, in front, on the floor/ground, or anywhere. Use direct.placeBlock only with explicit x/y/z.
+For skill.followPlayer, argumentsJson must contain only distance; the trusted runtime binds the requesting player's UUID.
+For navigation, preserve labeled axes. If Y is outside -64 through 320 or axes appear swapped, clarify.
+argumentsJson must be a JSON object string containing exactly the fields required by the chosen action. message is used only for a short clarification and must otherwise be empty.`;
+
+const PHYSICAL_PLAN_FORMAT = Object.freeze({
+  type: 'json_schema',
+  name: 'minecraft_physical_plan',
+  strict: true,
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      decision: { enum: ['conversation', 'clarify', 'cancel', 'action'] },
+      actionKind: { enum: ['none', ...PLANNABLE_ACTIONS] },
+      argumentsJson: { type: 'string', minLength: 2, maxLength: 512 },
+      message: { type: 'string', minLength: 0, maxLength: 180 },
+    },
+    required: ['decision', 'actionKind', 'argumentsJson', 'message'],
+  },
+});
 
 function boundedReply(value) {
   if (typeof value !== 'string') throw Object.assign(new Error('Model reply was not text'), { code: 'MODEL_OUTPUT_INVALID' });
@@ -101,6 +141,43 @@ function publicFailure(error, fallback = 'MODEL_REQUEST_FAILED') {
     ? error.code
     : fallback;
   return { ok: false, code };
+}
+
+function validatedPhysicalPlan(output, authorizedTools, minecraftUuid) {
+  if (!output || typeof output !== 'object' || Array.isArray(output)) {
+    throw Object.assign(new Error('Physical plan was not an object'), { code: 'MODEL_OUTPUT_INVALID' });
+  }
+  const { decision, actionKind, argumentsJson, message } = output;
+  if (!['conversation', 'clarify', 'cancel', 'action'].includes(decision)
+    || typeof actionKind !== 'string' || typeof argumentsJson !== 'string' || typeof message !== 'string') {
+    throw Object.assign(new Error('Physical plan fields are invalid'), { code: 'MODEL_OUTPUT_INVALID' });
+  }
+  if (decision === 'conversation') return Object.freeze({ decision, action: null, message: '' });
+  if (decision === 'cancel') return Object.freeze({ decision, action: null, message: '' });
+  if (decision === 'clarify') {
+    const clarification = boundedReply(message);
+    return Object.freeze({ decision, action: null, message: clarification });
+  }
+  if (actionKind === 'none' || !authorizedTools.includes(actionKind)) {
+    throw Object.assign(new Error('Physical plan selected an unauthorized action'), { code: 'MODEL_ACTION_UNAUTHORIZED' });
+  }
+  let args;
+  try {
+    args = JSON.parse(argumentsJson);
+  } catch {
+    throw Object.assign(new Error('Physical action arguments were not JSON'), { code: 'MODEL_OUTPUT_INVALID' });
+  }
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    throw Object.assign(new Error('Physical action arguments were not an object'), { code: 'MODEL_OUTPUT_INVALID' });
+  }
+  if (actionKind === 'skill.followPlayer') {
+    if (!UUID.test(minecraftUuid) || Object.keys(args).some((key) => key !== 'distance')) {
+      throw Object.assign(new Error('Follow plan crossed the trusted identity boundary'), { code: 'MODEL_OUTPUT_INVALID' });
+    }
+    args = { ...args, playerUuid: minecraftUuid };
+  }
+  const action = validateFamilyBridgeAction({ kind: actionKind, args });
+  return Object.freeze({ decision, action, message: '' });
 }
 
 function selectedEnvValue(contents, key) {
@@ -162,7 +239,10 @@ export class OpenAIResponsesProvider {
 
   async reason(value) {
     const request = validateReasoningRequest(value);
-    if (request.kind !== 'converse' || request.actor !== 'COMPANION' || request.authorizedTools.length !== 0) {
+    const isConversation = request.kind === 'converse' && request.authorizedTools.length === 0;
+    const isPhysicalPlan = request.kind === 'plan' && request.authorizedTools.length > 0
+      && request.authorizedTools.every((kind) => PLANNABLE_ACTIONS.includes(kind));
+    if ((!isConversation && !isPhysicalPlan) || request.actor !== 'COMPANION') {
       return validateReasoningResult({
         requestId: request.requestId,
         status: 'failed',
@@ -193,22 +273,19 @@ export class OpenAIResponsesProvider {
         body: JSON.stringify({
           model: this.model,
           store: false,
-          instructions: COMPANION_INSTRUCTIONS,
+          instructions: isPhysicalPlan ? PHYSICAL_PLANNER_INSTRUCTIONS : COMPANION_INSTRUCTIONS,
           input: [{
             role: 'user',
             content: [{ type: 'input_text', text: JSON.stringify(request.input) }],
           }],
-          max_output_tokens: 256,
+          max_output_tokens: isPhysicalPlan ? 384 : 256,
           reasoning: { effort: 'minimal' },
           text: {
             verbosity: 'low',
-            format: {
-              type: 'json_schema',
-              name: 'minecraft_companion_reply',
-              strict: true,
+            format: isPhysicalPlan ? PHYSICAL_PLAN_FORMAT : {
+              type: 'json_schema', name: 'minecraft_companion_reply', strict: true,
               schema: {
-                type: 'object',
-                additionalProperties: false,
+                type: 'object', additionalProperties: false,
                 properties: { text: { type: 'string', minLength: 1, maxLength: MAX_REPLY_CHARS } },
                 required: ['text'],
               },
@@ -233,11 +310,11 @@ export class OpenAIResponsesProvider {
       }
       const payload = await response.json();
       const parsed = JSON.parse(outputText(payload));
-      const text = boundedReply(parsed?.text);
+      const output = isPhysicalPlan ? parsed : { text: boundedReply(parsed?.text) };
       return validateReasoningResult({
         requestId: request.requestId,
         status: 'succeeded',
-        output: { text },
+        output,
         model: this.model,
         completedAt: new Date().toISOString(),
       });
@@ -295,12 +372,14 @@ export class CompanionConversationCoordinator {
     this.canSendChat = options.canSendChat ?? (() => true);
     this.governor = options.governor ?? new ModelCallGovernor();
     this.taskSupervisor = options.taskSupervisor ?? null;
+    this.sessionStatus = options.sessionStatus ?? (() => null);
     if (!this.provider || typeof this.provider.reason !== 'function' || typeof this.sendChat !== 'function'
       || typeof this.canSendChat !== 'function') throw new TypeError('The companion conversation dependencies are invalid');
     this.modelCalls = 0;
     this.replies = 0;
     this.failures = 0;
     this.lastModel = null;
+    this.recentMessages = new Map();
   }
 
   async ingest(value) {
@@ -321,6 +400,20 @@ export class CompanionConversationCoordinator {
         this.intake.markExecution(task.code, value.occurredAt);
         if (task.spoke === true) this.#markCompanionResponse(value);
         return { ...intake, execution: { ok: task.ok, code: task.code } };
+      }
+      const previous = this.recentMessages.get(value.minecraftUuid);
+      const previousIsRecent = previous && Date.now() - previous.receivedAt < 90_000;
+      const shouldPlan = this.flags.modelReasoning && (PHYSICAL_REQUEST_HINT.test(value.text)
+        || (previousIsRecent && PHYSICAL_REQUEST_HINT.test(previous.text)));
+      this.recentMessages.set(value.minecraftUuid, { text: value.text, receivedAt: Date.now() });
+      if (this.recentMessages.size > 32) this.recentMessages.delete(this.recentMessages.keys().next().value);
+      if (shouldPlan) {
+        const planned = await this.#planPhysical(value, previousIsRecent ? previous.text : null);
+        if (planned.handled) {
+          this.intake.markExecution(planned.code, value.occurredAt);
+          if (planned.spoke === true) this.#markCompanionResponse(value);
+          return { ...intake, execution: { ok: planned.ok, code: planned.code } };
+        }
       }
     }
     if (!this.flags.companionConversation || !this.flags.modelReasoning) return intake;
@@ -396,6 +489,59 @@ export class CompanionConversationCoordinator {
       return { ...intake, execution: failure };
     } finally {
       this.governor.release(leaseId);
+    }
+  }
+
+  async #planPhysical(value, previousMessage) {
+    if (!this.canSendChat()) return { handled: true, ok: false, code: 'COMPANION_OUTPUT_UNAVAILABLE' };
+    const leaseId = this.governor.acquire();
+    if (!leaseId) return { handled: true, ok: false, code: 'MODEL_CONCURRENCY_LIMIT' };
+    try {
+      this.modelCalls += 1;
+      const snapshot = this.sessionStatus()?.latestSnapshot ?? null;
+      const result = await this.provider.reason({
+        requestId: crypto.randomUUID(), kind: 'plan', actor: 'COMPANION',
+        playerId: typeof value.playerId === 'string' && UUID.test(value.playerId) ? value.playerId : null,
+        input: {
+          currentMessage: value.text,
+          previousMessage,
+          player: { displayName: value.displayName, role: value.role },
+          companionState: {
+            position: snapshot?.player?.position ?? null,
+            inventory: snapshot?.inventory?.items ?? [],
+            selectedHotbarSlot: snapshot?.player?.selectedHotbarSlot ?? null,
+          },
+        },
+        authorizedTools: [...PLANNABLE_ACTIONS],
+        deadlineAt: new Date(Date.now() + 20_000).toISOString(),
+      });
+      this.lastModel = result.model;
+      if (result.status !== 'succeeded') {
+        this.failures += 1;
+        return { handled: true, ok: false, code: result.output?.code ?? 'MODEL_REQUEST_FAILED' };
+      }
+      const plan = validatedPhysicalPlan(result.output, PLANNABLE_ACTIONS, value.minecraftUuid);
+      if (plan.decision === 'conversation') {
+        const spoke = await this.#speakPlanningFailure("I couldn't map that to an action yet, so I didn't do anything.");
+        return { handled: true, ok: false, code: 'PHYSICAL_REQUEST_NOT_UNDERSTOOD', spoke };
+      }
+      return this.taskSupervisor.handlePlanned(value, plan);
+    } catch (error) {
+      this.failures += 1;
+      const spoke = await this.#speakPlanningFailure("I couldn't turn that into a safe action, so I didn't do anything.");
+      return { handled: true, ok: false, code: publicFailure(error, 'PHYSICAL_PLAN_FAILED').code, spoke };
+    } finally {
+      this.governor.release(leaseId);
+    }
+  }
+
+  async #speakPlanningFailure(text) {
+    try {
+      await this.sendChat(text);
+      this.replies += 1;
+      return true;
+    } catch {
+      return false;
     }
   }
 
@@ -480,6 +626,7 @@ export function createFamilyCompanionBrain(options = {}) {
     sendChat: options.sendChat,
     canSendChat: options.canSendChat,
     taskSupervisor,
+    sessionStatus: options.sessionStatus,
   });
   const states = {
     computerChat: 'stubbed', companionConversation: 'implemented', modelReasoning: 'implemented', profileCapture: 'stubbed',

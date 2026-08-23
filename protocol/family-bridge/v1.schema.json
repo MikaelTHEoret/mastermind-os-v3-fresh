@@ -41,7 +41,7 @@
       "enum": [
         "state.snapshot", "state.inventory", "action.cancel", "client.shutdown",
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem",
+        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
@@ -49,7 +49,7 @@
     "actionKind": {
       "enum": [
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem",
+        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
@@ -57,7 +57,7 @@
     "capabilities": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 22,
+      "maxItems": 25,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
     },
@@ -430,6 +430,36 @@
             "args": {
               "type": "object", "additionalProperties": false, "required": ["all"],
               "properties": { "all": { "type": "boolean" } }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
+            "kind": { "const": "direct.dropItemById" },
+            "args": {
+              "type": "object", "additionalProperties": false, "required": ["itemId", "all"],
+              "properties": { "itemId": { "$ref": "#/$defs/registryId" }, "all": { "type": "boolean" } }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
+            "kind": { "const": "direct.selectItem" },
+            "args": {
+              "type": "object", "additionalProperties": false, "required": ["itemId"],
+              "properties": { "itemId": { "$ref": "#/$defs/registryId" } }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
+            "kind": { "const": "direct.swingHand" },
+            "args": {
+              "type": "object", "additionalProperties": false, "required": ["hand"],
+              "properties": { "hand": { "enum": ["main", "off"] } }
             }
           }
         },

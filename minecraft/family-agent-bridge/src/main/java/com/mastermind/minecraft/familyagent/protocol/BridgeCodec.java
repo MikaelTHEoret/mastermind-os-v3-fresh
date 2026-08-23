@@ -220,6 +220,19 @@ public final class BridgeCodec {
                 exactObject(args, kind + ".args", "all");
                 bool(args, "all");
             }
+            case "direct.dropItemById" -> {
+                exactObject(args, kind + ".args", "itemId", "all");
+                patternedString(args, "itemId", 3, 128, REGISTRY_ID);
+                bool(args, "all");
+            }
+            case "direct.selectItem" -> {
+                exactObject(args, kind + ".args", "itemId");
+                patternedString(args, "itemId", 3, 128, REGISTRY_ID);
+            }
+            case "direct.swingHand" -> {
+                exactObject(args, kind + ".args", "hand");
+                enumString(args, "hand", Set.of("main", "off"));
+            }
             case "skill.navigateTo" -> {
                 exactObject(args, kind + ".args", "x", "y", "z", "tolerance");
                 integer(args, "x", -30_000_000, 30_000_000);

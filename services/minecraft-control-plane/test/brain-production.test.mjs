@@ -89,6 +89,36 @@ test('OpenAI provider sends a non-stored structured request and validates the bo
   assert.match(captured.init.headers.authorization, /^Bearer sk-test-/u);
 });
 
+test('OpenAI provider requests a strict physical plan without exposing executable tools', async () => {
+  let captured;
+  const provider = new OpenAIResponsesProvider({
+    apiKey: 'sk-test-abcdefghijklmnopqrstuvwxyz',
+    fetcher: async (url, init) => {
+      captured = { url, init };
+      return {
+        ok: true,
+        async json() {
+          return { output: [{ content: [{ type: 'output_text', text: JSON.stringify({
+            decision: 'action', actionKind: 'direct.swingHand', argumentsJson: '{"hand":"main"}', message: '',
+          }) }] }] };
+        },
+      };
+    },
+  });
+  const result = await provider.reason({
+    requestId: '01919a62-8e84-7c6b-8eb0-4f79592f3ac1', kind: 'plan', actor: 'COMPANION', playerId: PLAYER,
+    input: { currentMessage: 'punch air' }, authorizedTools: ['direct.swingHand'],
+    deadlineAt: new Date(Date.now() + 10_000).toISOString(),
+  });
+  assert.equal(result.status, 'succeeded');
+  assert.equal(result.output.actionKind, 'direct.swingHand');
+  const body = JSON.parse(captured.init.body);
+  assert.equal(body.text.format.name, 'minecraft_physical_plan');
+  assert.equal(body.text.format.strict, true);
+  assert.equal(body.tools, undefined);
+  assert.match(body.instructions, /Never narrate, promise, role-play/u);
+});
+
 test('conversation coordinator does not spend a model call when embodiment output is unavailable', async () => {
   let modelCalls = 0;
   const coordinator = new CompanionConversationCoordinator({
@@ -191,6 +221,8 @@ test('conversation context describes the companion identity and exact enabled ph
     'place a supported hotbar block at nearby coordinates',
     'place one supported hotbar block on nearby ground',
     'drop the selected item or stack',
+    'select a named item already in the hotbar',
+    'swing either hand, including punching air',
     'stop the current physical task',
   ]);
   assert.ok(request.input.capabilities.limitations.includes('sleeping'));
@@ -237,6 +269,66 @@ test('conversation coordinator handles deterministic physical tasks without a mo
   assert.equal(modelCalls, 0);
   assert.deepEqual(handled, ['Alchemist, follow me']);
   assert.equal(coordinator.status().activeCompanionSessions, 1);
+});
+
+test('unmatched natural physical requests become validated typed actions instead of chat promises', async () => {
+  const planned = [];
+  const requests = [];
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
+    provider: {
+      async reason(request) {
+        requests.push(request);
+        return {
+          requestId: request.requestId, status: 'succeeded', model: 'fixture', completedAt: new Date().toISOString(),
+          output: { decision: 'action', actionKind: 'direct.selectItem', argumentsJson: '{"itemId":"minecraft:oak_planks"}', message: '' },
+        };
+      },
+    },
+    taskSupervisor: {
+      async handle() { return { handled: false }; },
+      async handlePlanned(value, plan) {
+        planned.push([value.text, plan]);
+        return { handled: true, ok: true, code: 'PHYSICAL_TASK_DISPATCHED', spoke: true };
+      },
+    },
+    sessionStatus: () => ({ latestSnapshot: { inventory: { items: [{ itemId: 'minecraft:oak_planks', count: 12 }] } } }),
+    canSendChat: () => true,
+    sendChat: async () => { throw new Error('ordinary chat must not narrate the action'); },
+  });
+  const result = await coordinator.ingest(chat({ text: 'Alchemist, can you select a wooden plank' }));
+  assert.equal(result.execution.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].kind, 'plan');
+  assert.deepEqual(requests[0].input.companionState.inventory, [{ itemId: 'minecraft:oak_planks', count: 12 }]);
+  assert.deepEqual(planned[0][1].action, { kind: 'direct.selectItem', args: { itemId: 'minecraft:oak_planks' } });
+});
+
+test('invalid planned actions are blocked and never fall through to conversational role-play', async () => {
+  let plannedCalls = 0;
+  let chatDispatches = 0;
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
+    provider: {
+      async reason(request) {
+        return {
+          requestId: request.requestId, status: 'succeeded', model: 'fixture', completedAt: new Date().toISOString(),
+          output: { decision: 'action', actionKind: 'direct.say', argumentsJson: '{"text":"I did it"}', message: '' },
+        };
+      },
+    },
+    taskSupervisor: {
+      async handle() { return { handled: false }; },
+      async handlePlanned() { plannedCalls += 1; throw new Error('must not dispatch'); },
+    },
+    canSendChat: () => true,
+    sendChat: async () => { chatDispatches += 1; },
+  });
+  const result = await coordinator.ingest(chat({ text: 'Alchemist, punch the air' }));
+  assert.equal(result.execution.ok, false);
+  assert.equal(result.execution.code, 'MODEL_ACTION_UNAUTHORIZED');
+  assert.equal(plannedCalls, 0);
+  assert.equal(chatDispatches, 1);
 });
 
 test('deterministic physical tasks remain available without conversation or a model provider', async () => {
