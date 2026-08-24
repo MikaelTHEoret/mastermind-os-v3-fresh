@@ -78,6 +78,8 @@ test('the action union accepts only bounded typed direct actions and Baritone sk
     { kind: 'direct.attack', args: {} },
     { kind: 'direct.selectSlot', args: { slot: 2 } },
     { kind: 'direct.use', args: { hand: 'main' } },
+    { kind: 'direct.interactBlock', args: { blockId: 'minecraft:chest', x: 11, y: 64, z: 20, hand: 'main' } },
+    { kind: 'direct.interactEntity', args: { entityUuid: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', typeId: 'minecraft:oak_boat', hand: 'main' } },
     { kind: 'direct.placeBlock', args: { blockId: 'minecraft:oak_planks', x: 11, y: 64, z: 20 } },
     { kind: 'direct.placeNearbyBlock', args: { blockId: 'minecraft:oak_planks' } },
     { kind: 'direct.dropItem', args: { all: false } },
@@ -125,6 +127,18 @@ test('action status variants are exact and terminal payloads cannot be ambiguous
   expectProtocolError(() => validateFamilyBridgeMessage({
     ...base, payload: { actionId, status: 'succeeded', result: { code: 'arrived' }, error: { code: 'x', message: 'x' } },
   }, { direction: 'client' }), 'UNKNOWN_FIELD');
+});
+
+test('player and survival cancellation reasons cross the strict control boundary', () => {
+  for (const [index, reason] of ['player-request', 'player-replacement-request', 'survival-emergency'].entries()) {
+    const message = createFamilyBridgeMessage({
+      sessionId, seq: index + 1, source: 'control-plane', type: 'action.cancel',
+      sentAt: `2026-08-13T12:00:0${index}.000Z`,
+      messageId: `99999999-9999-4999-8999-99999999999${index}`,
+      payload: { actionId: '66666666-6666-4666-8666-666666666666', reason },
+    });
+    assert.equal(message.payload.reason, reason);
+  }
 });
 
 test('inventory snapshots accept bounded totals and reject duplicates or excess entries', async () => {

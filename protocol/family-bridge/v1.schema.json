@@ -41,7 +41,7 @@
       "enum": [
         "state.snapshot", "state.inventory", "state.localAwareness", "action.cancel", "client.shutdown",
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
+        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
@@ -49,7 +49,7 @@
     "actionKind": {
       "enum": [
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
+        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
@@ -57,7 +57,7 @@
     "capabilities": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 26,
+      "maxItems": 28,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
     },
@@ -212,6 +212,9 @@
         "maxHealth": { "type": "number", "minimum": 1, "maximum": 2048 },
         "hunger": { "type": "integer", "minimum": 0, "maximum": 20 },
         "armor": { "type": "integer", "minimum": 0, "maximum": 30 },
+        "air": { "type": "integer", "minimum": 0, "maximum": 300 },
+        "inWater": { "type": "boolean" },
+        "onFire": { "type": "boolean" },
         "dimension": { "$ref": "#/$defs/registryId" }
       }
     },
@@ -507,6 +510,36 @@
         {
           "type": "object", "additionalProperties": false, "required": ["kind", "args"],
           "properties": {
+            "kind": { "const": "direct.interactBlock" },
+            "args": {
+              "type": "object", "additionalProperties": false, "required": ["blockId", "x", "y", "z", "hand"],
+              "properties": {
+                "blockId": { "$ref": "#/$defs/registryId" },
+                "x": { "type": "integer", "minimum": -30000000, "maximum": 30000000 },
+                "y": { "type": "integer", "minimum": -2048, "maximum": 2048 },
+                "z": { "type": "integer", "minimum": -30000000, "maximum": 30000000 },
+                "hand": { "enum": ["main", "off"] }
+              }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
+            "kind": { "const": "direct.interactEntity" },
+            "args": {
+              "type": "object", "additionalProperties": false, "required": ["entityUuid", "typeId", "hand"],
+              "properties": {
+                "entityUuid": { "$ref": "#/$defs/uuid" },
+                "typeId": { "$ref": "#/$defs/registryId" },
+                "hand": { "enum": ["main", "off"] }
+              }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
             "kind": { "const": "direct.placeBlock" },
             "args": {
               "type": "object", "additionalProperties": false, "required": ["blockId", "x", "y", "z"],
@@ -693,7 +726,7 @@
             "actionId": { "$ref": "#/$defs/uuid" }, "status": { "const": "cancelled" },
             "cancellation": {
               "type": "object", "additionalProperties": false, "required": ["reason"],
-              "properties": { "reason": { "enum": ["operator", "deadline", "shutdown", "superseded", "connection-lost", "kill-switch", "client-shutdown"] } }
+              "properties": { "reason": { "enum": ["operator", "deadline", "shutdown", "superseded", "player-request", "player-replacement-request", "survival-emergency", "connection-lost", "kill-switch", "client-shutdown"] } }
             }
           }
         }
@@ -714,7 +747,7 @@
             "type": { "const": "action.cancel" },
             "payload": {
               "type": "object", "additionalProperties": false, "required": ["actionId", "reason"],
-              "properties": { "actionId": { "$ref": "#/$defs/uuid" }, "reason": { "enum": ["operator", "deadline", "shutdown", "superseded"] } }
+              "properties": { "actionId": { "$ref": "#/$defs/uuid" }, "reason": { "enum": ["operator", "deadline", "shutdown", "superseded", "player-request", "player-replacement-request", "survival-emergency"] } }
             }
           }
         }

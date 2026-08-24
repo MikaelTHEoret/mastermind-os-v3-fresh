@@ -51,6 +51,18 @@ function task(intent, action, acknowledgement, timeoutMs, replaceCurrent = false
   return Object.freeze({ handled: true, intent, action, acknowledgement, timeoutMs, replaceCurrent });
 }
 
+function unavailableTask(intent, acknowledgement) {
+  return Object.freeze({
+    handled: true,
+    intent,
+    action: null,
+    acknowledgement,
+    timeoutMs: null,
+    replaceCurrent: false,
+    unavailable: true,
+  });
+}
+
 export function compileDeterministicCompanionTask(text) {
   let request = normalizeRequest(text);
   if (!request) return null;
@@ -75,6 +87,29 @@ export function compileDeterministicCompanionTask(text) {
 
   if (/^(?:jump|jump once)[.!?]*$/u.test(request)) {
     return task('jump', { kind: 'direct.jump', args: {} }, "Okay.", 15_000, replaceCurrent);
+  }
+
+  const relativeMove = request.match(/^(?:move|walk)\s+(?:(\d+)\s+blocks?\s+)?(forward|forwards|back|backward|backwards|left|right)[.!?]*$/u);
+  if (relativeMove) {
+    const blocks = relativeMove[1] === undefined ? 2 : Number(relativeMove[1]);
+    if (!Number.isInteger(blocks) || blocks < 1 || blocks > 12) return null;
+    const direction = relativeMove[2];
+    const forward = direction.startsWith('back') ? -1 : direction.startsWith('forward') ? 1 : 0;
+    const strafe = direction === 'left' ? -1 : direction === 'right' ? 1 : 0;
+    return task('relative-move', {
+      kind: 'direct.moveFor',
+      args: { forward, strafe, durationMs: Math.min(5_000, blocks * 350), sprint: false, sneak: false },
+    }, `Okay, moving ${direction.replace(/s$/u, '')}.`, 15_000, replaceCurrent);
+  }
+
+  if (/\b(?:sleep|go to bed|use (?:a|the|that)?\s*bed)\b/u.test(request)) {
+    return unavailableTask('sleep-unavailable', "I can see beds now, but I can't reliably walk to one and sleep in it yet.");
+  }
+  if (/\b(?:what|which)\b.*\b(?:inside|in|contents?|items?)\b.*\b(?:chest|barrel|container)\b|\b(?:take|move|put|store|deposit)\b.*\b(?:chest|barrel|container)\b/u.test(request)) {
+    return unavailableTask('container-management-unavailable', "I can open a nearby container, but I can't inspect or move its contents yet.");
+  }
+  if (/^(?:close|stop using)\b.*\b(?:chest|crafting table|furnace|container|screen)\b/u.test(request)) {
+    return unavailableTask('screen-close-unavailable', "I can't close an open container screen through the bridge yet.");
   }
 
   const labeledNavigation = request.match(/^(?:go|walk|navigate|come)\s+to\s+(.+)$/u);
@@ -183,8 +218,12 @@ export class CompanionPhysicalTaskSupervisor {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       const last = this.sessionStatus()?.lastAction ?? null;
-      if (last?.actionId === actionId && last.status !== 'succeeded') {
-        throw Object.assign(new Error('The prior action did not succeed'), { code: 'ACTION_STEP_FAILED' });
+      if (last?.actionId === actionId && last.status !== 'succeeded'
+        && !(waitOptions.allowCancelled === true && last.status === 'cancelled')) {
+        throw Object.assign(new Error('The prior action did not succeed'), {
+          code: 'ACTION_STEP_FAILED',
+          actionErrorCode: last.terminal?.error?.code ?? last.terminal?.cancellation?.reason ?? null,
+        });
       }
     });
     this.sessionStatus = options.sessionStatus;
@@ -212,6 +251,51 @@ export class CompanionPhysicalTaskSupervisor {
     }
   }
 
+  async #waitForVerifiedLook(action, beforeSnapshotId, timeoutMs = 2_000) {
+    if (action.kind !== 'direct.lookAt') return;
+    const deadline = Date.now() + timeoutMs;
+    let observedFreshSnapshot = false;
+    while (Date.now() < deadline) {
+      const snapshot = this.sessionStatus()?.latestSnapshot ?? null;
+      if (snapshot?.snapshotId && snapshot.snapshotId !== beforeSnapshotId) {
+        observedFreshSnapshot = true;
+        const target = snapshot.awareness?.crosshairTarget ?? null;
+        if (target?.kind === 'block' && target.x === action.args.x && target.y === action.args.y && target.z === action.args.z) return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw Object.assign(new Error('The requested look target was not acquired'), {
+      code: observedFreshSnapshot ? 'TARGET_NOT_ACQUIRED' : 'ACTION_OBSERVATION_TIMEOUT',
+    });
+  }
+
+  #failureReply(code, error) {
+    if (code === 'COMPANION_BUSY') return "I'm already doing something. Tell me to stop first if you want me to switch.";
+    if (code === 'CAPABILITY_UNAVAILABLE') return "I can't do that one yet.";
+    if (code === 'TARGET_NOT_ACQUIRED') return "I turned toward it, but it isn't actually under my crosshair yet.";
+    if (code === 'ACTION_OBSERVATION_TIMEOUT') return "I moved, but I couldn't verify what I was looking at.";
+    if (code === 'ACTION_STEP_FAILED') {
+      if (error?.actionErrorCode === 'nothing-used') return "That target didn't accept the interaction, so I didn't claim it worked.";
+      if (error?.actionErrorCode === 'target-out-of-reach') return "I can see it, but it's still out of reach.";
+      if (error?.actionErrorCode === 'target-mismatch') return "The block or entity there wasn't the requested target, so I stopped.";
+      if (error?.actionErrorCode === 'target-obscured') return "That target is nearby, but something is blocking it from me.";
+      if (error?.actionErrorCode === 'target-unavailable') return "That target moved or disappeared before I could use it.";
+      return "The action failed after it started, so I stopped there.";
+    }
+    return "I couldn't start that just now.";
+  }
+
+  async #preemptActiveForParent(value, reason = 'player-replacement-request') {
+    const active = this.sessionStatus()?.activeAction ?? null;
+    if (!active || TERMINAL_ACTION_STATUSES.has(active.status)) return;
+    if (value?.role !== 'parent') {
+      throw Object.assign(new Error('The companion is already busy'), { code: 'COMPANION_BUSY' });
+    }
+    await this.cancelAction(active.actionId, reason);
+    await this.waitForPhysicalIdle(active.actionId, { timeoutMs: 3_000, allowCancelled: true });
+    this.cancelled += 1;
+  }
+
   async handle(value) {
     const compiled = compileDeterministicCompanionTask(value?.text);
     if (!compiled) return Object.freeze({ handled: false });
@@ -236,6 +320,12 @@ export class CompanionPhysicalTaskSupervisor {
         return Object.freeze({ handled: true, ok: true, code: 'PHYSICAL_TASK_CANCEL_REQUESTED', cancellation, spoke });
       }
 
+      if (compiled.unavailable === true) {
+        this.last = { intent: compiled.intent, code: 'PHYSICAL_SKILL_UNAVAILABLE' };
+        const spoke = await this.#speak(compiled.acknowledgement);
+        return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_SKILL_UNAVAILABLE', spoke });
+      }
+
       if (compiled.action === null) {
         this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_CLARIFICATION' };
         const spoke = await this.#speak(compiled.acknowledgement);
@@ -249,12 +339,19 @@ export class CompanionPhysicalTaskSupervisor {
         const active = this.sessionStatus()?.activeAction ?? null;
         if (active && typeof active.actionId === 'string' && !TERMINAL_ACTION_STATUSES.has(active.status)) {
           await this.cancelAction(active.actionId, 'player-replacement-request');
-          await this.waitForPhysicalIdle(active.actionId, { timeoutMs: 3_000 });
+          await this.waitForPhysicalIdle(active.actionId, { timeoutMs: 3_000, allowCancelled: true });
           this.cancelled += 1;
         }
+      } else if (this.sessionStatus()?.activeAction) {
+        await this.#preemptActiveForParent(value);
       }
+      const beforeSnapshotId = this.sessionStatus()?.latestSnapshot?.snapshotId ?? null;
       const dispatched = await this.dispatchAction(action, { timeoutMs: compiled.timeoutMs });
       await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
+      if (action.kind.startsWith('direct.')) {
+        await this.waitForPhysicalIdle(dispatched.actionId, { timeoutMs: compiled.timeoutMs });
+        await this.#waitForVerifiedLook(action, beforeSnapshotId);
+      }
       this.accepted += 1;
       this.last = { intent: compiled.intent, code: 'PHYSICAL_TASK_DISPATCHED', actionId: dispatched.actionId };
       const spoke = await this.#speak(compiled.acknowledgement);
@@ -263,11 +360,7 @@ export class CompanionPhysicalTaskSupervisor {
       this.failures += 1;
       const code = publicFailureCode(error);
       this.last = { intent: compiled.intent, code };
-      const reply = code === 'COMPANION_BUSY'
-        ? "I'm already doing something. Tell me to stop first if you want me to switch."
-        : code === 'CAPABILITY_UNAVAILABLE'
-          ? "I can't do that one yet."
-          : "I couldn't start that just now.";
+      const reply = this.#failureReply(code, error);
       const spoke = await this.#speak(reply);
       return Object.freeze({ handled: true, ok: false, code, spoke });
     }
@@ -293,12 +386,7 @@ export class CompanionPhysicalTaskSupervisor {
       return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_NOT_AUTHORIZED', spoke });
     }
     try {
-      const active = this.sessionStatus()?.activeAction ?? null;
-      if (active && !TERMINAL_ACTION_STATUSES.has(active.status)) {
-        this.last = { intent: 'planned-action', code: 'COMPANION_BUSY' };
-        const spoke = await this.#speak("I'm already doing something. Tell me to stop first if you want me to switch.");
-        return Object.freeze({ handled: true, ok: false, code: 'COMPANION_BUSY', spoke });
-      }
+      await this.#preemptActiveForParent(value);
       const dispatchedActions = [];
       for (let index = 0; index < plan.actions.length; index += 1) {
         const action = plan.actions[index];
@@ -306,11 +394,13 @@ export class CompanionPhysicalTaskSupervisor {
           : action.kind === 'skill.gatherBlock' ? 15 * 60_000
             : action.kind === 'skill.navigateTo' || action.kind === 'skill.explore' ? 10 * 60_000
               : 15_000;
+        const beforeSnapshotId = this.sessionStatus()?.latestSnapshot?.snapshotId ?? null;
         const dispatched = await this.dispatchAction(action, { timeoutMs });
         await this.waitForActionActivation(dispatched.actionId, { timeoutMs: 3_000, settleMs: 100 });
         dispatchedActions.push(dispatched);
-        if (index < plan.actions.length - 1) {
-          await this.waitForPhysicalIdle(dispatched.actionId, { timeoutMs: 15_000 });
+        if (index < plan.actions.length - 1 || action.kind.startsWith('direct.')) {
+          await this.waitForPhysicalIdle(dispatched.actionId, { timeoutMs });
+          await this.#waitForVerifiedLook(action, beforeSnapshotId);
         }
       }
       this.accepted += 1;
@@ -322,7 +412,7 @@ export class CompanionPhysicalTaskSupervisor {
       this.failures += 1;
       const code = publicFailureCode(error);
       this.last = { intent: 'planned-action', code };
-      const spoke = await this.#speak("That didn't work, so I stopped there.");
+      const spoke = await this.#speak(this.#failureReply(code, error));
       return Object.freeze({ handled: true, ok: false, code, spoke });
     }
   }

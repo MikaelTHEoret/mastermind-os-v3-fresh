@@ -56,6 +56,18 @@ test('a large recent health loss triggers deterministic escape before health bec
   assert.equal(value.selectIntent().reason, 'recent-damage');
 });
 
+test('low air preempts follow before drowning without a model call', async () => {
+  const drowning = controller({
+    snapshot: snapshot({ air: 220, inWater: true }),
+    status: { activeAction: { actionId: '77777777-7777-4777-8777-777777777777' } },
+  });
+  const result = await drowning.value.tick();
+  assert.equal(result.code, 'SURVIVAL_PREEMPTION_REQUESTED');
+  assert.deepEqual(drowning.calls, [[
+    'cancel', '77777777-7777-4777-8777-777777777777', 'survival-emergency',
+  ]]);
+});
+
 test('death selects bounded respawn while low hunger fails visibly until eat exists', async () => {
   const dead = controller({ snapshot: snapshot({ health: 0 }) });
   assert.equal((await dead.value.tick()).intent, 'recovery.respawn');

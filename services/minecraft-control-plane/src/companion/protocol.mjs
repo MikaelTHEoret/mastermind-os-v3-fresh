@@ -20,6 +20,8 @@ export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'direct.attack',
   'direct.selectSlot',
   'direct.use',
+  'direct.interactBlock',
+  'direct.interactEntity',
   'direct.placeBlock',
   'direct.placeNearbyBlock',
   'direct.dropItem',
@@ -46,7 +48,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const SAFE_CODE = /^[a-z0-9](?:[a-z0-9._-]{0,63})$/;
 const REGISTRY_ID = /^(?!https?:|file:)[a-z0-9_.-]+:[a-z0-9_][a-z0-9_./-]*$/;
 const VERSION_TEXT = /^[0-9A-Za-z](?:[0-9A-Za-z._+\-]{0,63})$/;
-const CONTROL_CANCEL_REASONS = new Set(['operator', 'deadline', 'shutdown', 'superseded']);
+const CONTROL_CANCEL_REASONS = new Set([
+  'operator', 'deadline', 'shutdown', 'superseded',
+  'player-request', 'player-replacement-request', 'survival-emergency',
+]);
 const TERMINAL_CANCEL_REASONS = new Set([...CONTROL_CANCEL_REASONS, 'connection-lost', 'kill-switch', 'client-shutdown']);
 const CLIENT_PHASES = new Set(['main-menu', 'connecting', 'in-world', 'disconnected']);
 const BARITONE_STATES = new Set(['idle', 'planning', 'pathing', 'paused', 'failed']);
@@ -167,6 +172,20 @@ function validateActionArgs(action) {
       exactObject(args, `${kind}.args`, ['hand']);
       stringValue(args.hand, `${kind}.args.hand`, { values: new Set(['main', 'off']) });
       break;
+    case 'direct.interactBlock':
+      exactObject(args, `${kind}.args`, ['blockId', 'x', 'y', 'z', 'hand']);
+      stringValue(args.blockId, `${kind}.args.blockId`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(args.x, `${kind}.args.x`, -30_000_000, 30_000_000, { integer: true });
+      numberValue(args.y, `${kind}.args.y`, -2_048, 2_048, { integer: true });
+      numberValue(args.z, `${kind}.args.z`, -30_000_000, 30_000_000, { integer: true });
+      stringValue(args.hand, `${kind}.args.hand`, { values: new Set(['main', 'off']) });
+      break;
+    case 'direct.interactEntity':
+      exactObject(args, `${kind}.args`, ['entityUuid', 'typeId', 'hand']);
+      uuidValue(args.entityUuid, `${kind}.args.entityUuid`);
+      stringValue(args.typeId, `${kind}.args.typeId`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      stringValue(args.hand, `${kind}.args.hand`, { values: new Set(['main', 'off']) });
+      break;
     case 'direct.placeBlock':
       exactObject(args, `${kind}.args`, ['blockId', 'x', 'y', 'z']);
       stringValue(args.blockId, `${kind}.args.blockId`, { min: 3, max: 128, pattern: REGISTRY_ID });
@@ -250,7 +269,7 @@ function validatePlayer(value) {
   if (value === null) return null;
   const player = exactObject(value, 'state.snapshot.payload.player', [
     'position', 'velocity', 'yaw', 'pitch', 'health', 'maxHealth', 'hunger', 'armor', 'dimension',
-  ]);
+  ], ['air', 'inWater', 'onFire']);
   validateVector(player.position, 'player.position', -30_000_000, 30_000_000);
   validateVector(player.velocity, 'player.velocity', -1_024, 1_024);
   numberValue(player.yaw, 'player.yaw', -180, 180);
@@ -261,6 +280,9 @@ function validatePlayer(value) {
   numberValue(player.hunger, 'player.hunger', 0, 20, { integer: true });
   numberValue(player.armor, 'player.armor', 0, 30, { integer: true });
   stringValue(player.dimension, 'player.dimension', { min: 3, max: 128, pattern: REGISTRY_ID });
+  if (Object.hasOwn(player, 'air')) numberValue(player.air, 'player.air', 0, 300, { integer: true });
+  if (Object.hasOwn(player, 'inWater')) booleanValue(player.inWater, 'player.inWater');
+  if (Object.hasOwn(player, 'onFire')) booleanValue(player.onFire, 'player.onFire');
   return player;
 }
 
@@ -465,7 +487,7 @@ function validateActionStatus(value) {
   } else {
     exactObject(status, 'action.status.payload', ['actionId', 'status', 'cancellation']);
     const cancellation = exactObject(status.cancellation, 'action.status.payload.cancellation', ['reason']);
-    stringValue(cancellation.reason, 'action.status.payload.cancellation.reason', { min: 8, max: 15, values: TERMINAL_CANCEL_REASONS });
+    stringValue(cancellation.reason, 'action.status.payload.cancellation.reason', { min: 8, max: 26, values: TERMINAL_CANCEL_REASONS });
   }
   return status;
 }
@@ -539,7 +561,7 @@ function validateControlPayload(type, payload) {
     case 'action.cancel': {
       const cancel = exactObject(payload, 'action.cancel.payload', ['actionId', 'reason']);
       uuidValue(cancel.actionId, 'action.cancel.payload.actionId');
-      stringValue(cancel.reason, 'action.cancel.payload.reason', { min: 8, max: 10, values: CONTROL_CANCEL_REASONS });
+      stringValue(cancel.reason, 'action.cancel.payload.reason', { min: 8, max: 26, values: CONTROL_CANCEL_REASONS });
       return cancel;
     }
     case 'client.shutdown': {

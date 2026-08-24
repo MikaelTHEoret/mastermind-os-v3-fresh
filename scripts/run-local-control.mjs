@@ -126,11 +126,20 @@ const takeover = await stopPreviousSupervisor({
 if (takeover.action !== 'none') console.log(`Local command-center startup: ${takeover.action}.`);
 
 async function captureIdentity(role, entrypoint, pid, port = undefined) {
-  const deadline = Date.now() + 4_000;
+  const deadline = Date.now() + 12_000;
+  let lastInspectionError = null;
   do {
-    const snapshot = await inspectProcess(pid);
-    if (snapshot) return { ...processIdentity(role, entrypoint, snapshot), ...(port === undefined ? {} : { port }) };
-    if (Date.now() >= deadline) throw new Error(`The ${role} process exited before its identity could be recorded`);
+    try {
+      const snapshot = await inspectProcess(pid);
+      if (snapshot) return { ...processIdentity(role, entrypoint, snapshot), ...(port === undefined ? {} : { port }) };
+    } catch (error) {
+      lastInspectionError = error;
+    }
+    if (Date.now() >= deadline) {
+      throw Object.assign(new Error(`The ${role} process identity could not be recorded`), {
+        cause: lastInspectionError,
+      });
+    }
     await new Promise((resolve) => setTimeout(resolve, 50));
   } while (true);
 }
@@ -156,6 +165,7 @@ const sharedEnvironment = createSharedLocalControlEnvironment({
 const children = new Set();
 const activeChildren = new Map();
 const intentionalAgentExits = new WeakSet();
+const intentionalStartupExits = new WeakSet();
 let stateWriteTail = Promise.resolve();
 let closing = false;
 let exitCode = 0;
@@ -377,11 +387,25 @@ async function isExactChildAlive(record) {
 }
 
 async function assertExactActiveChild(record) {
-  if (activeChildren.get(record.identity.role)?.child !== record.child
-    || record.child.exitCode !== null || record.child.signalCode !== null
-    || !(await isExactChildAlive(record))) {
-    throw new Error(`The exact ${record.identity.role} process exited before readiness publication`);
-  }
+  const deadline = Date.now() + 4_000;
+  do {
+    if (activeChildren.get(record.identity.role)?.child !== record.child
+      || record.child.exitCode !== null || record.child.signalCode !== null) {
+      throw new Error(`The exact ${record.identity.role} process exited before readiness publication`);
+    }
+    try {
+      if (await isExactChildAlive(record)) return;
+      throw new Error(`The exact ${record.identity.role} process exited before readiness publication`);
+    } catch (error) {
+      if (error?.message?.startsWith('The exact ')) throw error;
+      if (Date.now() >= deadline) {
+        throw Object.assign(new Error(`The exact ${record.identity.role} process identity could not be verified before readiness publication`), {
+          cause: error,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  } while (true);
 }
 
 async function removeActiveChildAndPersist(record) {
@@ -476,6 +500,7 @@ async function spawnManaged(role, entrypoint, args, port, generation = 1) {
     const active = activeChildren.get(role);
     const wasActive = active?.child === child;
     if (wasActive) activeChildren.delete(role);
+    if (intentionalStartupExits.has(child)) return;
     if (role === 'minecraft-control-agent') {
       if (!closing && !intentionalAgentExits.has(child)) {
         const lastExit = boundedExitRecord('unexpected', code, signal);
@@ -542,6 +567,7 @@ async function spawnManaged(role, entrypoint, args, port, generation = 1) {
           }
         }
         if (safeToSignal) {
+          intentionalStartupExits.add(child);
           if (role === 'minecraft-control-agent') intentionalAgentExits.add(child);
           const signalled = child.kill('SIGTERM');
           if (signalled) {

@@ -31,6 +31,8 @@ public final class BridgeProtocol {
         "direct.attack",
         "direct.selectSlot",
         "direct.use",
+        "direct.interactBlock",
+        "direct.interactEntity",
         "direct.placeBlock",
         "direct.placeNearbyBlock",
         "direct.dropItem",
@@ -42,14 +44,14 @@ public final class BridgeProtocol {
     public static final Set<String> ALL_CAPABILITIES = Set.of(
         "state.snapshot", "state.inventory", "state.localAwareness", "action.cancel", "client.shutdown",
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
+        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
     );
 
     public static final Set<String> ACTION_KINDS = Set.of(
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
+        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
         "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
     );

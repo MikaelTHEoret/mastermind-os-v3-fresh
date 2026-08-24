@@ -21,6 +21,9 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   assert.equal(compileDeterministicCompanionTask('follow me ?').action.kind, 'skill.followPlayer');
   assert.equal(compileDeterministicCompanionTask('come').action.kind, 'skill.followPlayer');
   assert.equal(compileDeterministicCompanionTask('can you jump ?').action.kind, 'direct.jump');
+  assert.deepEqual(compileDeterministicCompanionTask('move 5 blocks back').action, {
+    kind: 'direct.moveFor', args: { forward: -1, strafe: 0, durationMs: 1750, sprint: false, sneak: false },
+  });
   assert.equal(compileDeterministicCompanionTask('stop and follow me').replaceCurrent, true);
   assert.equal(compileDeterministicCompanionTask('cancel that then explore 32 blocks').replaceCurrent, true);
   assert.deepEqual(compileDeterministicCompanionTask('go to 10 64 -20').action, {
@@ -59,6 +62,9 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
     kind: 'skill.explore', args: { radius: 80 },
   });
   assert.equal(compileDeterministicCompanionTask('stop').intent, 'cancel-current');
+  assert.equal(compileDeterministicCompanionTask('sleep now').unavailable, true);
+  assert.equal(compileDeterministicCompanionTask('enter the boat with me'), null);
+  assert.equal(compileDeterministicCompanionTask('take the first item in the chest').intent, 'container-management-unavailable');
   assert.equal(compileDeterministicCompanionTask('get me something useful'), null);
   assert.equal(compileDeterministicCompanionTask('explore 999 blocks'), null);
   assert.equal(compileDeterministicCompanionTask('mine 65 coal'), null);
@@ -120,6 +126,7 @@ test('planned physical tasks execute a bounded sequence and wait between steps',
     ['idle', '11111111-1111-4111-8111-111111111111', { timeoutMs: 15_000 }],
     ['dispatch', { kind: 'direct.dropItem', args: { all: false } }, { timeoutMs: 15_000 }],
     ['activated', '11111111-1111-4111-8111-111111111112'],
+    ['idle', '11111111-1111-4111-8111-111111111112', { timeoutMs: 15_000 }],
     ['say', "Okay, I'll drop one."],
   ]);
 });
@@ -193,10 +200,58 @@ test('physical task supervisor atomically replaces active work before starting a
   assert.equal(result.code, 'PHYSICAL_TASK_DISPATCHED');
   assert.deepEqual(calls, [
     ['cancel', '22222222-2222-4222-8222-222222222222', 'player-replacement-request'],
-    ['idle', '22222222-2222-4222-8222-222222222222', { timeoutMs: 3_000 }],
+    ['idle', '22222222-2222-4222-8222-222222222222', { timeoutMs: 3_000, allowCancelled: true }],
     ['dispatch', { kind: 'skill.followPlayer', args: { playerUuid: PLAYER_UUID, distance: 4 } }, { timeoutMs: 1_800_000 }],
     ['say', "Okay, I'll follow you."],
   ]);
+});
+
+test('a parent planned interaction preempts a lingering follow action', async () => {
+  const calls = [];
+  let active = { actionId: '22222222-2222-4222-8222-222222222222', status: 'started' };
+  const supervisor = new CompanionPhysicalTaskSupervisor({
+    cancelAction: async (actionId, reason) => calls.push(['cancel', actionId, reason]),
+    waitForPhysicalIdle: async (actionId, options) => { calls.push(['idle', actionId, options]); active = null; },
+    dispatchAction: async (action) => {
+      calls.push(['dispatch', action]);
+      return { actionId: '33333333-3333-4333-8333-333333333333', kind: action.kind };
+    },
+    waitForActionActivation: async () => {},
+    sessionStatus: () => ({ activeAction: active }),
+    sendChat: async (text) => calls.push(['say', text]),
+  });
+  const result = await supervisor.handlePlanned({ role: 'parent', minecraftUuid: PLAYER_UUID }, {
+    decision: 'action', acknowledgement: "Okay, getting in.",
+    actions: [{
+      kind: 'direct.interactEntity',
+      args: { entityUuid: '44444444-4444-4444-8444-444444444444', typeId: 'minecraft:oak_boat', hand: 'main' },
+    }],
+  });
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls.slice(0, 3), [
+    ['cancel', '22222222-2222-4222-8222-222222222222', 'player-replacement-request'],
+    ['idle', '22222222-2222-4222-8222-222222222222', { timeoutMs: 3_000, allowCancelled: true }],
+    ['dispatch', {
+      kind: 'direct.interactEntity',
+      args: { entityUuid: '44444444-4444-4444-8444-444444444444', typeId: 'minecraft:oak_boat', hand: 'main' },
+    }],
+  ]);
+});
+
+test('unsupported transcript requests fail honestly without dispatch or a model', async () => {
+  const speech = [];
+  const supervisor = new CompanionPhysicalTaskSupervisor({
+    dispatchAction: async () => { throw new Error('must not dispatch'); },
+    cancelAction: async () => { throw new Error('must not cancel'); },
+    sessionStatus: () => ({ activeAction: null }),
+    sendChat: async (text) => speech.push(text),
+  });
+  for (const text of ['sleep now', 'take the first item in the chest']) {
+    const result = await supervisor.handle({ role: 'parent', minecraftUuid: PLAYER_UUID, text });
+    assert.equal(result.code, 'PHYSICAL_SKILL_UNAVAILABLE');
+  }
+  assert.match(speech[0], /can't reliably/u);
+  assert.match(speech[1], /can't inspect or move/u);
 });
 
 test('physical task supervisor asks for coordinate correction without dispatching or using a model', async () => {

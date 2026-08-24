@@ -160,9 +160,12 @@ async function connectReady(baseUrl, manager) {
     serverAlias: 'family-server',
     player: {
       position: { x: 1, y: 64, z: 2 }, velocity: { x: 0, y: 0, z: 0 }, yaw: 0, pitch: 0,
-      health: 20, maxHealth: 20, hunger: 20, armor: 0, dimension: 'minecraft:overworld',
+      health: 20, maxHealth: 20, hunger: 20, armor: 0, air: 300, inWater: false, onFire: false,
+      dimension: 'minecraft:overworld',
     },
     world: { timeOfDay: 1000, weather: 'clear' },
+    inventory: { items: [], hotbar: [], selectedSlot: 0 },
+    awareness: { radius: 8, blocks: [], players: [], entities: [], crosshairTarget: { kind: 'miss' } },
     baritone: { state: 'idle', activeSkill: null, goal: null }, activeAction: null,
     safety: { killSwitch: false },
   }, 3, '14141414-1414-4414-8414-141414141414'));

@@ -108,33 +108,58 @@ final class BridgeCodecTest {
         useArgs.addProperty("hand", "main");
         codec.decodeControl(execute("direct.use", useArgs, 3), SESSION, 2);
 
+        var blockArgs = new JsonObject();
+        blockArgs.addProperty("blockId", "minecraft:chest");
+        blockArgs.addProperty("x", 10);
+        blockArgs.addProperty("y", 64);
+        blockArgs.addProperty("z", -20);
+        blockArgs.addProperty("hand", "main");
+        codec.decodeControl(execute("direct.interactBlock", blockArgs, 4), SESSION, 3);
+
+        var entityArgs = new JsonObject();
+        entityArgs.addProperty("entityUuid", "33333333-3333-4333-8333-333333333333");
+        entityArgs.addProperty("typeId", "minecraft:oak_boat");
+        entityArgs.addProperty("hand", "main");
+        codec.decodeControl(execute("direct.interactEntity", entityArgs, 5), SESSION, 4);
+
         var placeArgs = new JsonObject();
         placeArgs.addProperty("blockId", "minecraft:oak_planks");
         placeArgs.addProperty("x", 10);
         placeArgs.addProperty("y", 64);
         placeArgs.addProperty("z", -20);
-        codec.decodeControl(execute("direct.placeBlock", placeArgs, 4), SESSION, 3);
+        codec.decodeControl(execute("direct.placeBlock", placeArgs, 6), SESSION, 5);
 
         var nearbyArgs = new JsonObject();
         nearbyArgs.addProperty("blockId", "minecraft:oak_planks");
-        codec.decodeControl(execute("direct.placeNearbyBlock", nearbyArgs, 5), SESSION, 4);
+        codec.decodeControl(execute("direct.placeNearbyBlock", nearbyArgs, 7), SESSION, 6);
 
         var dropArgs = new JsonObject();
         dropArgs.addProperty("all", false);
-        codec.decodeControl(execute("direct.dropItem", dropArgs, 6), SESSION, 5);
+        codec.decodeControl(execute("direct.dropItem", dropArgs, 8), SESSION, 7);
 
         var namedDropArgs = new JsonObject();
         namedDropArgs.addProperty("itemId", "minecraft:cooked_beef");
         namedDropArgs.addProperty("all", false);
-        codec.decodeControl(execute("direct.dropItemById", namedDropArgs, 7), SESSION, 6);
+        codec.decodeControl(execute("direct.dropItemById", namedDropArgs, 9), SESSION, 8);
 
         var itemArgs = new JsonObject();
         itemArgs.addProperty("itemId", "minecraft:oak_planks");
-        codec.decodeControl(execute("direct.selectItem", itemArgs, 8), SESSION, 7);
+        codec.decodeControl(execute("direct.selectItem", itemArgs, 10), SESSION, 9);
 
         var swingArgs = new JsonObject();
         swingArgs.addProperty("hand", "main");
-        codec.decodeControl(execute("direct.swingHand", swingArgs, 9), SESSION, 8);
+        codec.decodeControl(execute("direct.swingHand", swingArgs, 11), SESSION, 10);
+    }
+
+    @Test
+    void acceptsPlayerAndSurvivalCancellationReasons() {
+        long previous = 0;
+        for (var reason : new String[] { "player-request", "player-replacement-request", "survival-emergency" }) {
+            var payload = cancelPayload();
+            payload.addProperty("reason", reason);
+            codec.decodeControl(envelope("action.cancel", payload, previous + 1).toString(), SESSION, previous);
+            previous += 1;
+        }
     }
 
     @Test
@@ -219,7 +244,8 @@ final class BridgeCodecTest {
         var snapshot = StrictJsonParser.parse("""
             {"snapshotId":"44444444-4444-4444-8444-444444444444","clientTick":1,"phase":"in-world",
              "serverAlias":"family-server","player":{"position":{"x":1,"y":64,"z":2},"velocity":{"x":0,"y":0,"z":0},
-             "yaw":0,"pitch":0,"health":20,"maxHealth":20,"hunger":20,"armor":0,"dimension":"minecraft:overworld"},
+             "yaw":0,"pitch":0,"health":20,"maxHealth":20,"hunger":20,"armor":0,"air":220,"inWater":true,"onFire":false,
+             "dimension":"minecraft:overworld"},
              "world":{"timeOfDay":1000,"weather":"clear"},"inventory":{"items":[{"itemId":"minecraft:oak_log","count":3}]},
              "baritone":{"state":"idle","activeSkill":null,"goal":null},"activeAction":null,"safety":{"killSwitch":false}}
             """).getAsJsonObject();

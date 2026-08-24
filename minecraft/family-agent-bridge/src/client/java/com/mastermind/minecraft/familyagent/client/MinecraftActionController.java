@@ -33,7 +33,7 @@ import java.util.function.BiConsumer;
 final class MinecraftActionController {
     private static final int TERMINAL_REPLAY_LIMIT = 128;
 
-    private sealed interface RunningAction permits TimedMove, TimedLook, OneTickJump, PlacementAction, NavigationAction {
+    private sealed interface RunningAction permits TimedMove, TimedLook, OneTickJump, WaterEscapeAction, PlacementAction, NavigationAction {
         ActionCommand command();
 
         void tick(long nowNanos);
@@ -141,7 +141,9 @@ final class MinecraftActionController {
                 var originalYaw = startYaw;
                 var originalPitch = startPitch;
                 player.lookAt(EntityAnchorArgument.Anchor.EYES, new Vec3(
-                    args.get("x").getAsDouble(), args.get("y").getAsDouble(), args.get("z").getAsDouble()
+                    args.get("x").getAsDouble() + 0.5D,
+                    args.get("y").getAsDouble() + 0.5D,
+                    args.get("z").getAsDouble() + 0.5D
                 ));
                 targetYaw = player.getYRot();
                 targetPitch = player.getXRot();
@@ -197,6 +199,38 @@ final class MinecraftActionController {
         public void tick(long nowNanos) {
             if (nowNanos > startNanos) {
                 finishSucceeded(command.actionId(), "completed");
+            }
+        }
+
+        @Override
+        public void cancel(String reason) {
+            minecraft.options.keyJump.setDown(false);
+        }
+    }
+
+    private final class WaterEscapeAction implements RunningAction {
+        private final ActionCommand command;
+
+        private WaterEscapeAction(ActionCommand command) {
+            this.command = command;
+            minecraft.options.keyJump.setDown(true);
+        }
+
+        @Override
+        public ActionCommand command() {
+            return command;
+        }
+
+        @Override
+        public void tick(long nowNanos) {
+            var player = minecraft.player;
+            if (player == null) {
+                finishFailed(command.actionId(), "not-in-world", "The Family AI client is not in a world");
+                return;
+            }
+            minecraft.options.keyJump.setDown(true);
+            if (!player.isInWater() || player.getAirSupply() >= 280) {
+                finishSucceeded(command.actionId(), "surfaced");
             }
         }
 
@@ -333,12 +367,15 @@ final class MinecraftActionController {
                 case "direct.attack" -> attack(command);
                 case "direct.selectSlot" -> selectSlot(command);
                 case "direct.use" -> use(command);
+                case "direct.interactBlock" -> interactBlock(command);
+                case "direct.interactEntity" -> interactEntity(command);
                 case "direct.placeBlock" -> placeBlock(command, nowNanos);
                 case "direct.placeNearbyBlock" -> placeNearbyBlock(command, nowNanos);
                 case "direct.dropItem" -> dropItem(command);
                 case "direct.dropItemById" -> dropItemById(command);
                 case "direct.selectItem" -> selectItem(command);
                 case "direct.swingHand" -> swingHand(command);
+                case "skill.escapeDanger" -> startEscape(command);
                 default -> startNavigation(command);
             }
         } catch (NavigationUnavailableException error) {
@@ -411,6 +448,77 @@ final class MinecraftActionController {
         }
         player.swing(hand);
         finishSucceeded(command.actionId(), "used");
+    }
+
+    private void interactBlock(ActionCommand command) {
+        var player = requirePlayer();
+        var level = minecraft.level;
+        var gameMode = minecraft.gameMode;
+        if (level == null || gameMode == null) {
+            finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
+            return;
+        }
+        var args = command.arguments();
+        var target = new BlockPos(args.get("x").getAsInt(), args.get("y").getAsInt(), args.get("z").getAsInt());
+        var expected = Identifier.parse(args.get("blockId").getAsString());
+        var actual = BuiltInRegistries.BLOCK.getKey(level.getBlockState(target).getBlock());
+        if (!expected.equals(actual)) {
+            finishFailed(command.actionId(), "target-mismatch", "The observed block changed before interaction");
+            return;
+        }
+        if (player.getEyePosition().distanceToSqr(Vec3.atCenterOf(target)) > 36.0D) {
+            finishFailed(command.actionId(), "target-out-of-reach", "The requested block is outside normal player reach");
+            return;
+        }
+        var hand = args.get("hand").getAsString().equals("off") ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        var hit = new BlockHitResult(Vec3.atCenterOf(target), Direction.UP, target, false);
+        var result = gameMode.useItemOn(player, hand, hit);
+        if (!result.consumesAction()) {
+            finishFailed(command.actionId(), "nothing-used", "The requested block did not accept an interaction");
+            return;
+        }
+        player.swing(hand);
+        finishSucceeded(command.actionId(), "interacted-block");
+    }
+
+    private void interactEntity(ActionCommand command) {
+        var player = requirePlayer();
+        var level = minecraft.level;
+        var gameMode = minecraft.gameMode;
+        if (level == null || gameMode == null) {
+            finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
+            return;
+        }
+        var args = command.arguments();
+        var targetId = UUID.fromString(args.get("entityUuid").getAsString());
+        var expectedType = Identifier.parse(args.get("typeId").getAsString());
+        var target = level.getEntities(player, player.getBoundingBox().inflate(6.0D)).stream()
+            .filter(entity -> entity.getUUID().equals(targetId))
+            .findFirst().orElse(null);
+        if (target == null || !target.isAlive()) {
+            finishFailed(command.actionId(), "target-unavailable", "The requested entity is no longer nearby");
+            return;
+        }
+        if (!expectedType.equals(BuiltInRegistries.ENTITY_TYPE.getKey(target.getType()))) {
+            finishFailed(command.actionId(), "target-mismatch", "The observed entity changed before interaction");
+            return;
+        }
+        if (player.distanceToSqr(target) > 36.0D) {
+            finishFailed(command.actionId(), "target-out-of-reach", "The requested entity is outside normal player reach");
+            return;
+        }
+        if (!player.hasLineOfSight(target)) {
+            finishFailed(command.actionId(), "target-obscured", "The requested entity is not visible from the companion position");
+            return;
+        }
+        var hand = args.get("hand").getAsString().equals("off") ? InteractionHand.OFF_HAND : InteractionHand.MAIN_HAND;
+        var result = gameMode.interact(player, target, new EntityHitResult(target), hand);
+        if (!result.consumesAction()) {
+            finishFailed(command.actionId(), "nothing-used", "The requested entity did not accept an interaction");
+            return;
+        }
+        player.swing(hand);
+        finishSucceeded(command.actionId(), "interacted-entity");
     }
 
     private void placeBlock(ActionCommand command, long nowNanos) {
@@ -571,6 +679,15 @@ final class MinecraftActionController {
                 minecraft.execute(() -> finishFailed(command.actionId(), errorCode, message));
             }
         });
+    }
+
+    private void startEscape(ActionCommand command) {
+        var player = requirePlayer();
+        if (player.isInWater() && player.getAirSupply() < 280) {
+            running = new WaterEscapeAction(command);
+            return;
+        }
+        startNavigation(command);
     }
 
     private void finishSucceeded(UUID actionId, String code) {

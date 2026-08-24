@@ -22,8 +22,10 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'explore a bounded nearby radius',
   'gather supported blocks',
   'look at supplied coordinates',
+  'move briefly forward, backward, or sideways',
   'select a numbered hotbar slot',
   'use the item or object under the crosshair',
+  'interact with an exact nearby observed block or entity',
   'place a supported hotbar block at nearby coordinates',
   'place one supported hotbar block on nearby ground',
   'drop the selected item or stack',
@@ -32,7 +34,8 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'stop the current physical task',
 ]);
 const PLANNABLE_ACTIONS = Object.freeze([
-  'direct.lookAt', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.attack', 'direct.swingHand', 'direct.jump',
+  'direct.lookAt', 'direct.moveFor', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
+  'direct.interactEntity', 'direct.attack', 'direct.swingHand', 'direct.jump',
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
   'skill.navigateTo', 'skill.followPlayer', 'skill.gatherBlock', 'skill.explore',
 ]);
@@ -72,8 +75,12 @@ Authorization is already decided outside this planner. Never call an ordinary ga
 Use zero-based slots for direct.selectSlot: player-visible slot 1 is 0 and slot 9 is 8.
 Use direct.selectItem for requests to find or select a named hotbar item. Prefer an exact item ID present in inventory. In this world, wooden plank means minecraft:oak_planks. Do not invent unavailable items.
 Use direct.jump for a request to jump. Treat "come", "come here", and "come to me" as skill.followPlayer with distance 3.
+Use direct.moveFor only for a short relative movement request. forward 1 is forward and -1 is backward; strafe -1 is left and 1 is right. Keep durationMs at or below 5000 and never sprint or sneak unless explicitly requested.
 Use direct.swingHand for punching or swinging at air. Use direct.attack only for an entity under the crosshair.
 Use direct.use only when the requested object/item interaction is consistent with crosshairTarget or the selected hotbar item. Never pretend a container, mob, dropped item, or block is present when it is absent from the supplied awareness.
+Prefer direct.interactBlock over direct.lookAt plus direct.use when one exact nearbyBlocks target matches. Copy its exact blockId and coordinates; the client revalidates both identity and reach before interacting.
+Use direct.interactEntity for an exact nearbyEntities target such as an observed boat. Copy its exact entityUuid and typeId and use hand main. Never invent or reuse an entity UUID from an earlier observation.
+Opening a container does not reveal its contents. Container inspection and item transfer are unavailable; clarify that exact limitation rather than claiming to see or move items.
 nearbyEntities distinguishes hostile, passive, dropped-item, and other entities and includes visibility. nearbyPlayers includes visibility and held items. Prefer visible targets and exact IDs; clarify when several targets match.
 Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
 Use direct.dropItemById when the player names the item to throw or drop. Prefer an exact item ID present in inventory and set all true only for the whole stack.
@@ -123,8 +130,8 @@ function capabilityReply(flags) {
   if (flags.physicalTaskPlanning !== true) {
     return "I can chat with you, but my movement and task controls aren't enabled right now.";
   }
-  const survival = flags.survivalAutomation === true ? ' and handle basic survival' : '';
-  return `I can chat, follow you, navigate to coordinates, scout, gather, use targets, place nearby blocks, drop held items, and stop${survival}. I can't sleep, craft, use storage, build structures, or deliver yet.`;
+  const survival = flags.survivalAutomation === true ? ', and handle basic survival' : '';
+  return `I can chat, follow you, navigate, scout, gather, use nearby blocks or entities, place blocks, drop items, stop${survival}. I can't sleep reliably, inspect storage, craft, build, or deliver yet.`;
 }
 
 export function isCompanionSelfMessage(value) {

@@ -307,6 +307,9 @@ final class MinecraftSnapshotCollector {
         value.addProperty("maxHealth", maxHealth);
         value.addProperty("hunger", Math.max(0, Math.min(20, player.getFoodData().getFoodLevel())));
         value.addProperty("armor", Math.max(0, Math.min(30, player.getArmorValue())));
+        value.addProperty("air", Math.max(0, Math.min(300, player.getAirSupply())));
+        value.addProperty("inWater", player.isInWater());
+        value.addProperty("onFire", player.isOnFire());
         value.addProperty("dimension", minecraft.level.dimension().identifier().toString());
         payload.add("player", value);
     }

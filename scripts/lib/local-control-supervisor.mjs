@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
@@ -207,6 +208,19 @@ function normalizedPath(value) {
   return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 }
 
+function normalizedResolvedPath(value) {
+  try {
+    return normalizedPath(realpathSync.native(value));
+  } catch {
+    return normalizedPath(value);
+  }
+}
+
+function expectedPathMatches(value, expected) {
+  const observed = normalizedPath(value);
+  return observed === normalizedPath(expected) || observed === normalizedResolvedPath(expected);
+}
+
 function sha256(value) {
   return crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 }
@@ -280,7 +294,7 @@ function validateStateShape(state, expectedWorkspace) {
     const expected = expectedChildren.get(child.role);
     if (
       !expected || child.port !== expected.port
-      || normalizedPath(child.entrypoint) !== normalizedPath(expected.entrypoint)
+      || !expectedPathMatches(child.entrypoint, expected.entrypoint)
       || normalizedPath(child.workingDirectory) !== normalizedPath(workspace)
       || (child.parentPid != null && child.parentPid !== state.supervisor.pid)
     ) throw new Error('The ownership record contains an unexpected child identity');

@@ -22,9 +22,13 @@ public final class BridgeCodec {
     private static final Set<String> ENVELOPE_FIELDS = Set.of(
         "protocol", "version", "messageId", "sessionId", "seq", "sentAt", "source", "type", "payload"
     );
-    private static final Set<String> CANCEL_REASONS = Set.of("operator", "deadline", "shutdown", "superseded");
+    private static final Set<String> CANCEL_REASONS = Set.of(
+        "operator", "deadline", "shutdown", "superseded",
+        "player-request", "player-replacement-request", "survival-emergency"
+    );
     private static final Set<String> CLIENT_CANCEL_REASONS = Set.of(
-        "operator", "deadline", "shutdown", "superseded", "connection-lost", "kill-switch", "client-shutdown"
+        "operator", "deadline", "shutdown", "superseded", "player-request", "player-replacement-request",
+        "survival-emergency", "connection-lost", "kill-switch", "client-shutdown"
     );
     private static final Set<String> PHASES = Set.of("main-menu", "connecting", "in-world", "disconnected");
     private static final Set<String> BARITONE_STATES = Set.of("idle", "planning", "pathing", "paused", "failed");
@@ -153,7 +157,7 @@ public final class BridgeCodec {
 
     private ControlMessage.Cancel decodeCancel(BridgeEnvelope envelope, JsonObject value) {
         var payload = exactObject(value, "action.cancel.payload", "actionId", "reason");
-        var reason = string(payload, "reason", 8, 10);
+        var reason = string(payload, "reason", 8, 26);
         if (!CANCEL_REASONS.contains(reason)) {
             throw invalid("action.cancel reason is unsupported");
         }
@@ -203,6 +207,20 @@ public final class BridgeCodec {
             }
             case "direct.use" -> {
                 exactObject(args, kind + ".args", "hand");
+                enumString(args, "hand", Set.of("main", "off"));
+            }
+            case "direct.interactBlock" -> {
+                exactObject(args, kind + ".args", "blockId", "x", "y", "z", "hand");
+                patternedString(args, "blockId", 3, 128, REGISTRY_ID);
+                integer(args, "x", -30_000_000, 30_000_000);
+                integer(args, "y", -2_048, 2_048);
+                integer(args, "z", -30_000_000, 30_000_000);
+                enumString(args, "hand", Set.of("main", "off"));
+            }
+            case "direct.interactEntity" -> {
+                exactObject(args, kind + ".args", "entityUuid", "typeId", "hand");
+                uuid(args, "entityUuid");
+                patternedString(args, "typeId", 3, 128, REGISTRY_ID);
                 enumString(args, "hand", Set.of("main", "off"));
             }
             case "direct.placeBlock" -> {
@@ -451,7 +469,9 @@ public final class BridgeCodec {
         if (isNull(element)) {
             return;
         }
-        var player = exactObject(element, "state.snapshot.payload.player", "position", "velocity", "yaw", "pitch", "health", "maxHealth", "hunger", "armor", "dimension");
+        var player = exactObject(element, "state.snapshot.payload.player",
+            Set.of("position", "velocity", "yaw", "pitch", "health", "maxHealth", "hunger", "armor", "dimension"),
+            Set.of("air", "inWater", "onFire"));
         validateVector(player.get("position"), "player.position", 30_000_000);
         validateVector(player.get("velocity"), "player.velocity", 1_024);
         number(player, "yaw", -180, 180);
@@ -464,6 +484,9 @@ public final class BridgeCodec {
         integer(player, "hunger", 0, 20);
         integer(player, "armor", 0, 30);
         patternedString(player, "dimension", 3, 128, REGISTRY_ID);
+        if (player.has("air")) integer(player, "air", 0, 300);
+        if (player.has("inWater")) bool(player, "inWater");
+        if (player.has("onFire")) bool(player, "onFire");
     }
 
     private void validateVector(JsonElement element, String label, double absoluteLimit) {

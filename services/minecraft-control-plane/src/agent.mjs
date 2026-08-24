@@ -1243,7 +1243,15 @@ export async function createControlPlane(options = {}) {
     return true;
   };
   const combinedStackInterlock = async (id, target) => {
-    await mods.assertStackUpdateAllowedWithinInstanceLock(id);
+    const current = await store.get(id);
+    const changesMinecraftStack = !current
+      || current.minecraftVersion !== target?.minecraftVersion
+      || current.loaderVersion !== target?.loaderVersion;
+    if (changesMinecraftStack) {
+      await mods.assertStackUpdateAllowedWithinInstanceLock(id);
+    } else {
+      await mods.assertStartAllowedWithinInstanceLock(id);
+    }
     await worlds.assertStackUpdateAllowedWithinInstanceLock(id, target);
   };
   if (typeof updater.setStackInterlock === 'function') updater.setStackInterlock(combinedStackInterlock);

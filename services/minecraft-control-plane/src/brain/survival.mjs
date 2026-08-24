@@ -58,6 +58,12 @@ export class DeterministicSurvivalController {
     if (health <= 0) {
       return Object.freeze({ kind: 'recovery.respawn', reason: 'dead', action: { kind: 'direct.respawn', args: {} } });
     }
+    if (snapshot.player.onFire === true) {
+      return Object.freeze({ kind: 'emergency.escape', reason: 'on-fire', action: { kind: 'skill.escapeDanger', args: {} } });
+    }
+    if (snapshot.player.inWater === true && Number.isInteger(snapshot.player.air) && snapshot.player.air <= 240) {
+      return Object.freeze({ kind: 'emergency.escape', reason: 'low-air', action: { kind: 'skill.escapeDanger', args: {} } });
+    }
     const recentlyHurt = validSnapshot(this.previous) && this.previous.player.health - health >= 4;
     if (health / maxHealth <= 0.4 || recentlyHurt) {
       return Object.freeze({ kind: 'emergency.escape', reason: recentlyHurt ? 'recent-damage' : 'low-health', action: { kind: 'skill.escapeDanger', args: {} } });
