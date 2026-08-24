@@ -11,6 +11,14 @@ public static class MastermindWorldFileGuard {
     [StructLayout(LayoutKind.Sequential)]
     public struct FILETIME { public UInt32 LowDateTime; public UInt32 HighDateTime; }
     [StructLayout(LayoutKind.Sequential)]
+    public struct FILE_BASIC_INFO {
+        public Int64 CreationTime;
+        public Int64 LastAccessTime;
+        public Int64 LastWriteTime;
+        public Int64 ChangeTime;
+        public UInt32 FileAttributes;
+    }
+    [StructLayout(LayoutKind.Sequential)]
     public struct BY_HANDLE_FILE_INFORMATION {
         public UInt32 FileAttributes;
         public FILETIME CreationTime;
@@ -146,9 +154,11 @@ try {
     $keys = @($request.PSObject.Properties.Name)
     if ($keys.Count -ne 1 -or $keys[0] -ne 'path' -or -not (Test-SafeGuardPath $request.path)) { Fail-Safely }
 
-    # FILE_READ_ATTRIBUTES | DELETE, share-read only, OPEN_REPARSE_POINT.
+    # FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | DELETE, share-read only,
+    # OPEN_REPARSE_POINT. Write-attributes is used only to clear READONLY on an
+    # exact held object immediately before an authorized deletion.
     $guard = [MastermindWorldFileGuard]::CreateFileW(
-        [IO.Path]::GetFullPath($request.path), 0x00010080, 1, [IntPtr]::Zero, 3, 0x00200000, [IntPtr]::Zero
+        [IO.Path]::GetFullPath($request.path), 0x00010180, 1, [IntPtr]::Zero, 3, 0x00200000, [IntPtr]::Zero
     )
     if ($guard.IsInvalid) { Fail-Safely }
     $before = Get-Evidence $guard
@@ -181,6 +191,19 @@ try {
         [Console]::Out.WriteLine((@{ ok = $true; renamed = $true } | ConvertTo-Json -Compress))
         }
     } elseif ($command -eq 'delete') {
+        if (($before.attributes -band 0x1) -ne 0) {
+            $basic = New-Object MastermindWorldFileGuard+FILE_BASIC_INFO
+            $basic.FileAttributes = [UInt32] ($before.attributes -band (-bnot 0x1))
+            if ($basic.FileAttributes -eq 0) { $basic.FileAttributes = [UInt32] 0x80 }
+            $basicSize = [Runtime.InteropServices.Marshal]::SizeOf([type][MastermindWorldFileGuard+FILE_BASIC_INFO])
+            $basicBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($basicSize)
+            try {
+                [Runtime.InteropServices.Marshal]::StructureToPtr($basic, $basicBuffer, $false)
+                if (-not [MastermindWorldFileGuard]::SetFileInformationByHandle(
+                    $guard, 0, $basicBuffer, [UInt32] $basicSize
+                )) { Fail-Safely }
+            } finally { [Runtime.InteropServices.Marshal]::FreeHGlobal($basicBuffer) }
+        }
         $disposition = [Runtime.InteropServices.Marshal]::AllocHGlobal(1)
         try {
             [Runtime.InteropServices.Marshal]::WriteByte($disposition, 1)

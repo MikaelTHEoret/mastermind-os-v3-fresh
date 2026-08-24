@@ -11,6 +11,14 @@ public static class MastermindWorldFileGuardBatch {
     [StructLayout(LayoutKind.Sequential)]
     public struct FILETIME { public UInt32 LowDateTime; public UInt32 HighDateTime; }
     [StructLayout(LayoutKind.Sequential)]
+    public struct FILE_BASIC_INFO {
+        public Int64 CreationTime;
+        public Int64 LastAccessTime;
+        public Int64 LastWriteTime;
+        public Int64 ChangeTime;
+        public UInt32 FileAttributes;
+    }
+    [StructLayout(LayoutKind.Sequential)]
     public struct BY_HANDLE_FILE_INFORMATION {
         public UInt32 FileAttributes;
         public FILETIME CreationTime;
@@ -220,7 +228,7 @@ try {
         # Mutation guards retain DELETE access for their handle-authorized
         # rename/delete operations. Both modes deny external writes, rename, and
         # deletion. OPEN_REPARSE_POINT prevents final-component traversal.
-        $desiredAccess = if ($readCompatible) { [Convert]::ToUInt32('80000080', 16) } else { [UInt32] 0x00010080 }
+        $desiredAccess = if ($readCompatible) { [Convert]::ToUInt32('80000080', 16) } else { [UInt32] 0x00010180 }
         $handle = [MastermindWorldFileGuardBatch]::CreateFileW(
             $fullPath, $desiredAccess, 1, [IntPtr]::Zero, 3, 0x00200000, [IntPtr]::Zero
         )
@@ -275,6 +283,23 @@ try {
             Rename-HeldFile $entry.handle $request.destination ($command -eq 'replace')
             Assert-SameFile $entry
         } elseif ($command -eq 'delete') {
+            if (($entry.attributes -band 0x1) -ne 0) {
+                $basic = New-Object MastermindWorldFileGuardBatch+FILE_BASIC_INFO
+                $basic.FileAttributes = [UInt32] ($entry.attributes -band (-bnot 0x1))
+                if ($basic.FileAttributes -eq 0) { $basic.FileAttributes = [UInt32] 0x80 }
+                $basicSize = [Runtime.InteropServices.Marshal]::SizeOf(
+                    [type][MastermindWorldFileGuardBatch+FILE_BASIC_INFO]
+                )
+                $basicBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($basicSize)
+                try {
+                    [Runtime.InteropServices.Marshal]::StructureToPtr($basic, $basicBuffer, $false)
+                    if (-not [MastermindWorldFileGuardBatch]::SetFileInformationByHandle(
+                        $entry.handle, 0, $basicBuffer, [UInt32] $basicSize
+                    )) { Stop-Unsafe }
+                } finally {
+                    [Runtime.InteropServices.Marshal]::FreeHGlobal($basicBuffer)
+                }
+            }
             $disposition = [Runtime.InteropServices.Marshal]::AllocHGlobal(1)
             try {
                 [Runtime.InteropServices.Marshal]::WriteByte($disposition, 1)

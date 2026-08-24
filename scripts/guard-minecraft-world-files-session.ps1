@@ -11,6 +11,14 @@ public static class MastermindFilesystemFileSession {
     [StructLayout(LayoutKind.Sequential)]
     public struct FILETIME { public UInt32 LowDateTime; public UInt32 HighDateTime; }
     [StructLayout(LayoutKind.Sequential)]
+    public struct FILE_BASIC_INFO {
+        public Int64 CreationTime;
+        public Int64 LastAccessTime;
+        public Int64 LastWriteTime;
+        public Int64 ChangeTime;
+        public UInt32 FileAttributes;
+    }
+    [StructLayout(LayoutKind.Sequential)]
     public struct BY_HANDLE_FILE_INFORMATION {
         public UInt32 FileAttributes;
         public FILETIME CreationTime;
@@ -284,7 +292,7 @@ try {
                 $fullPath = $fullPaths[$index]
                 $slot = [int] $availableSlots[$index]
                 $handle = [MastermindFilesystemFileSession]::CreateFileW(
-                    $fullPath, 0x00010080, 1, [IntPtr]::Zero, 3, 0x00200000, [IntPtr]::Zero
+                    $fullPath, 0x00010180, 1, [IntPtr]::Zero, 3, 0x00200000, [IntPtr]::Zero
                 )
                 if ($handle.IsInvalid) { Stop-Unsafe }
                 $evidence = Get-FileEvidence $handle
@@ -369,6 +377,27 @@ try {
             Rename-HeldFile $entry.handle $destination ($request.command -eq 'replace')
             Assert-SameFile $entry
         } elseif ($request.command -eq 'delete') {
+            # Read-only is a normal attribute for managed immutable artifacts
+            # such as family-core.jar. Clear only that attribute through the
+            # already authenticated handle before marking the same file object
+            # for deletion; path-based attribute mutation would reopen a race.
+            if (($entry.attributes -band 0x1) -ne 0) {
+                $basic = New-Object MastermindFilesystemFileSession+FILE_BASIC_INFO
+                $basic.FileAttributes = [UInt32] ($entry.attributes -band (-bnot 0x1))
+                if ($basic.FileAttributes -eq 0) { $basic.FileAttributes = [UInt32] 0x80 }
+                $basicSize = [Runtime.InteropServices.Marshal]::SizeOf(
+                    [type][MastermindFilesystemFileSession+FILE_BASIC_INFO]
+                )
+                $basicBuffer = [Runtime.InteropServices.Marshal]::AllocHGlobal($basicSize)
+                try {
+                    [Runtime.InteropServices.Marshal]::StructureToPtr($basic, $basicBuffer, $false)
+                    if (-not [MastermindFilesystemFileSession]::SetFileInformationByHandle(
+                        $entry.handle, 0, $basicBuffer, [UInt32] $basicSize
+                    )) { Stop-Unsafe }
+                } finally {
+                    [Runtime.InteropServices.Marshal]::FreeHGlobal($basicBuffer)
+                }
+            }
             $disposition = [Runtime.InteropServices.Marshal]::AllocHGlobal(1)
             try {
                 [Runtime.InteropServices.Marshal]::WriteByte($disposition, 1)

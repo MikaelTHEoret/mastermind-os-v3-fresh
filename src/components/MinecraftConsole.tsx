@@ -5393,6 +5393,35 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
       try {
         const pending = pendingInstanceUpdateFromStorage(raw);
         if (!pending || pending.instanceId !== instance.id) throw new Error('Persisted update identity mismatch.');
+        const authoritative = next[instance.id]?.update;
+        const componentPlanUncommitted = pending.plan.updateKind === 'component'
+          && pending.plan.currentMinecraft === pending.plan.targetMinecraft
+          && authoritative?.state === 'component-update-available'
+          && authoritative.planId === pending.plan.planId;
+        const componentPlanCommitted = pending.plan.updateKind === 'component'
+          && pending.plan.currentMinecraft === pending.plan.targetMinecraft
+          && authoritative?.state === 'current'
+          && authoritative.currentMinecraft === pending.plan.currentMinecraft
+          && authoritative.targetMinecraft === pending.plan.targetMinecraft;
+        if (componentPlanUncommitted || componentPlanCommitted) {
+          let journalCleared = false;
+          await withInstanceUpdateLock(instance.id, async () => {
+            const current = window.localStorage.getItem(instanceUpdateStorageKey(instance.id));
+            if (current === raw) {
+              window.localStorage.removeItem(instanceUpdateStorageKey(instance.id));
+              journalCleared = true;
+            } else if (current === null) {
+              journalCleared = true;
+            }
+          }).catch(() => undefined);
+          if (journalCleared) {
+            next[instance.id] = {
+              loading: false,
+              update: authoritative,
+            };
+            continue;
+          }
+        }
         next[instance.id] = {
           loading: false,
           update: pending.plan,

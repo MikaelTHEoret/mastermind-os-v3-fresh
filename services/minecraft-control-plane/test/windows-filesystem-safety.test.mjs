@@ -874,6 +874,19 @@ test('Windows file guard deletes only the exact held file object', { skip: proce
   await assert.rejects(() => fs.lstat(moved), (error) => error?.code === 'ENOENT');
 });
 
+test('Windows file guard deletes the exact held read-only managed artifact', { skip: process.platform !== 'win32' }, async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mastermind-world-native-readonly-delete-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'mastermind-family-core.jar');
+  await fs.writeFile(file, 'immutable-managed-artifact');
+  await fs.chmod(file, 0o444);
+
+  const guard = await acquireWindowsFileGuard(file);
+  await guard.delete();
+
+  await assert.rejects(() => fs.lstat(file), (error) => error?.code === 'ENOENT');
+});
+
 test('Windows guards rename the exact held directory and file objects', { skip: process.platform !== 'win32' }, async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'mastermind-world-native-held-rename-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));

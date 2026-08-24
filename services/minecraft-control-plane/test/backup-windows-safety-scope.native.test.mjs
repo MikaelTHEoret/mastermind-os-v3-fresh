@@ -130,6 +130,38 @@ test('persistent native verifier rejects ambiguous child entries and leaves zero
   }
 });
 
+test('persistent native file guard deletes an exact held read-only managed artifact', {
+  skip: ENABLED ? false : 'explicit native safety-session gate is disabled',
+}, async () => {
+  const fixture = assertSafeFixture(await fs.mkdtemp(path.join(os.tmpdir(), 'mastermind-native-session-')));
+  const artifact = path.join(fixture, 'mastermind-family-core.jar');
+  const records = [];
+  try {
+    await fs.writeFile(artifact, 'immutable-managed-artifact', { flag: 'wx' });
+    await fs.chmod(artifact, 0o444);
+    const broker = createWindowsFilesystemSafetyBroker({
+      platform: 'win32',
+      spawnProcess: recordingSpawn(records),
+      requestTimeoutMs: 30_000,
+      verificationTimeoutMs: 120_000,
+    });
+
+    await broker.runOperation(async () => {
+      const guard = await broker.fileGuard(artifact);
+      await guard.delete();
+    });
+
+    await assert.rejects(() => fs.lstat(artifact), (error) => error?.code === 'ENOENT');
+    assert.equal(records.length, 1);
+    assert.equal(records[0].kind, 'file');
+    assert.equal(records[0].closeCode, 0);
+    assert.equal(isPidAlive(records[0].pid), false);
+  } finally {
+    assertSafeFixture(fixture);
+    await fs.rm(fixture, { recursive: true, force: true });
+  }
+});
+
 test(TEST_NAME, { skip: ENABLED ? false : 'explicit native safety-session gate is disabled' }, async () => {
   const fixture = assertSafeFixture(await fs.mkdtemp(path.join(os.tmpdir(), 'mastermind-native-session-')));
   const directories = ['directory-a', 'directory-b', 'directory-c'].map((name) => path.join(fixture, name));
