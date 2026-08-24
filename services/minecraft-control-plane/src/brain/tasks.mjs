@@ -105,11 +105,23 @@ export function compileDeterministicCompanionTask(text) {
   if (/\b(?:sleep|go to bed|use (?:a|the|that)?\s*bed)\b/u.test(request)) {
     return unavailableTask('sleep-unavailable', "I can see beds now, but I can't reliably walk to one and sleep in it yet.");
   }
+  const chickenSmelt = request.match(/^(?:(?:cook|smelt|bake|roast)(?:\s+me)?\s+(?:(\d+)\s+)?(?:some\s+|the\s+|my\s+)?(?:raw\s+)?chicken|put\s+(?:(\d+)\s+)?(?:some\s+|the\s+|my\s+)?(?:raw\s+)?chicken\s+(?:in|into)\s+(?:a|the|one of the)?\s*(?:furnaces?|ovens?|smokers?))(?:\s+.*)?[.!?]*$/u);
+  if (chickenSmelt || /\b(?:any|either|nearest|closest|that|the|this|one)\s+furnace\b.*\b(?:will do|works?|is fine|doesn'?t matter)\b/u.test(request)) {
+    const requested = chickenSmelt ? Number(chickenSmelt[1] ?? chickenSmelt[2] ?? 0) : 0;
+    if (!Number.isInteger(requested) || requested < 0 || requested > 64) return null;
+    return task('smelt-chicken', {
+      kind: 'skill.smelt',
+      args: {
+        blockId: 'minecraft:furnace', inputItemId: 'minecraft:chicken', outputItemId: 'minecraft:cooked_chicken',
+        fuelItemId: 'minecraft:coal', count: requested === 0 ? null : requested, maxDistance: 16,
+      },
+    }, "Okay, I'll cook the chicken in the nearest furnace.", 10 * 60_000, replaceCurrent);
+  }
   if (/\b(?:cook|smelt|bake|roast)\b/u.test(request)
     || /\b(?:use|load|fill|start)\b.*\b(?:furnace|smoker|blast furnace|campfire)\b/u.test(request)
     || /\b(?:any|either|nearest|closest|that|the|this|one)\s+(?:furnace|smoker)\b.*\b(?:will do|works?|is fine|doesn'?t matter)\b/u.test(request)) {
     return unavailableTask('furnace-management-unavailable',
-      "I can walk to and open a furnace, but I can't put food or fuel into it, collect the result, or verify cooking yet.");
+      "I can cook raw chicken with coal now, but other furnace recipes aren't enabled yet.");
   }
   if (/\b(?:what|which)\b.*\b(?:inside|in|contents?|items?)\b.*\b(?:chest|barrel|container)\b|\b(?:take|move|put|store|deposit)\b.*\b(?:chest|barrel|container)\b/u.test(request)) {
     return unavailableTask('container-management-unavailable', "I can open a nearby container, but I can't inspect or move its contents yet.");
@@ -280,6 +292,8 @@ export class CompanionPhysicalTaskSupervisor {
     if (code === 'CAPABILITY_UNAVAILABLE') return "I can't do that one yet.";
     if (code === 'TARGET_NOT_ACQUIRED') return "I turned toward it, but it isn't actually under my crosshair yet.";
     if (code === 'ACTION_OBSERVATION_TIMEOUT') return "I moved, but I couldn't verify what I was looking at.";
+    if (code === 'SMELT_INPUT_UNAVAILABLE') return "I don't have enough raw chicken for that.";
+    if (code === 'SMELT_FUEL_UNAVAILABLE') return "I don't have enough coal to cook that chicken.";
     if (code === 'ACTION_STEP_FAILED') {
       if (error?.actionErrorCode === 'nothing-used') return "That target didn't accept the interaction, so I didn't claim it worked.";
       if (error?.actionErrorCode === 'target-out-of-reach') return "I can see it, but it's still out of reach.";
@@ -338,9 +352,23 @@ export class CompanionPhysicalTaskSupervisor {
         return Object.freeze({ handled: true, ok: false, code: 'PHYSICAL_TASK_CLARIFICATION', spoke });
       }
 
-      const action = compiled.action.kind === 'skill.followPlayer'
+      let action = compiled.action.kind === 'skill.followPlayer'
         ? { ...compiled.action, args: { ...compiled.action.args, playerUuid: value.minecraftUuid } }
         : compiled.action;
+      if (action.kind === 'skill.smelt') {
+        const items = this.sessionStatus()?.latestSnapshot?.inventory?.items ?? [];
+        const availableInput = items.find((item) => item.itemId === action.args.inputItemId)?.count ?? 0;
+        const count = action.args.count ?? Math.min(64, availableInput);
+        if (!Number.isInteger(count) || count < 1 || availableInput < count) {
+          throw Object.assign(new Error('The requested smelting input is unavailable'), { code: 'SMELT_INPUT_UNAVAILABLE' });
+        }
+        const requiredFuel = Math.max(1, Math.ceil(count / 8));
+        const availableFuel = items.find((item) => item.itemId === action.args.fuelItemId)?.count ?? 0;
+        if (availableFuel < requiredFuel) {
+          throw Object.assign(new Error('The requested smelting fuel is unavailable'), { code: 'SMELT_FUEL_UNAVAILABLE' });
+        }
+        action = { ...action, args: { ...action.args, count } };
+      }
       if (compiled.replaceCurrent) {
         const active = this.sessionStatus()?.activeAction ?? null;
         if (active && typeof active.actionId === 'string' && !TERMINAL_ACTION_STATUSES.has(active.status)) {

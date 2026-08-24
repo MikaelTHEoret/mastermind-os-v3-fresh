@@ -223,6 +223,7 @@ test('conversation context describes the companion identity and exact enabled ph
     'place a supported hotbar block at nearby coordinates',
     'place one supported hotbar block on nearby ground',
     'drop the selected item or stack',
+    'cook raw chicken with coal in a nearby furnace and collect it',
     'select a named item already in the hotbar',
     'swing either hand, including punching air',
     'stop the current physical task',
@@ -273,24 +274,35 @@ test('conversation coordinator handles deterministic physical tasks without a mo
   assert.equal(coordinator.status().activeCompanionSessions, 1);
 });
 
-test('furnace cooking is rejected honestly before planning or conversational role-play', async () => {
+test('furnace cooking dispatches the complete typed skill without conversational role-play', async () => {
   let modelCalls = 0;
   const sent = [];
+  const dispatched = [];
   const brain = createFamilyCompanionBrain({
     environment: { OPENAI_API_KEY: 'sk-test-abcdefghijklmnopqrstuvwxyz' },
     flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
     provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
     canSendChat: () => true,
     sendChat: async (text) => sent.push(text),
-    dispatchAction: async () => { throw new Error('must not dispatch'); },
+    dispatchAction: async (action) => {
+      dispatched.push(action);
+      return { actionId: '33333333-3333-4333-8333-333333333333', kind: action.kind, status: 'dispatched' };
+    },
     cancelAction: async () => { throw new Error('must not cancel'); },
-    sessionStatus: () => ({ activeAction: null }),
+    sessionStatus: () => ({
+      activeAction: null,
+      latestSnapshot: { inventory: { items: [
+        { itemId: 'minecraft:chicken', count: 4 }, { itemId: 'minecraft:coal', count: 14 },
+      ] } },
+    }),
   });
   const result = await brain.ingestChat(chat({ text: 'Alchemist, can you cook me some chicken in one of the furnaces' }));
-  assert.equal(result.execution.code, 'PHYSICAL_SKILL_UNAVAILABLE');
+  assert.equal(result.execution.code, 'PHYSICAL_TASK_DISPATCHED');
   assert.equal(modelCalls, 0);
   assert.equal(sent.length, 1);
-  assert.match(sent[0], /can't put food or fuel/u);
+  assert.equal(dispatched[0].kind, 'skill.smelt');
+  assert.equal(dispatched[0].args.count, 4);
+  assert.match(sent[0], /cook the chicken/u);
 });
 
 test('conversation output guard blocks unverified embodied action claims', async () => {

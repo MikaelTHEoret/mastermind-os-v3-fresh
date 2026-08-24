@@ -273,6 +273,14 @@ public final class BridgeCodec {
                 exactObject(args, kind + ".args", "radius");
                 integer(args, "radius", 16, 1_024);
             }
+            case "skill.smelt" -> {
+                exactObject(args, kind + ".args", "blockId", "inputItemId", "outputItemId", "fuelItemId", "count", "maxDistance");
+                for (var field : List.of("blockId", "inputItemId", "outputItemId", "fuelItemId")) {
+                    patternedString(args, field, 3, 128, REGISTRY_ID);
+                }
+                integer(args, "count", 1, 64);
+                integer(args, "maxDistance", 1, 16);
+            }
             case "skill.returnToKnownSafePoint" -> {
                 exactObject(args, kind + ".args", "safePointId");
                 patternedString(args, "safePointId", 1, 64, SAFE_CODE);

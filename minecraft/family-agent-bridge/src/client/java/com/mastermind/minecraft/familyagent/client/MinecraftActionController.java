@@ -16,6 +16,8 @@ import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.inventory.AbstractFurnaceMenu;
+import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
@@ -33,7 +35,7 @@ import java.util.function.BiConsumer;
 final class MinecraftActionController {
     private static final int TERMINAL_REPLAY_LIMIT = 128;
 
-    private sealed interface RunningAction permits TimedMove, TimedLook, OneTickJump, WaterEscapeAction, PlacementAction, NavigationAction {
+    private sealed interface RunningAction permits TimedMove, TimedLook, OneTickJump, WaterEscapeAction, PlacementAction, FurnaceAction, NavigationAction {
         ActionCommand command();
 
         void tick(long nowNanos);
@@ -240,6 +242,206 @@ final class MinecraftActionController {
         }
     }
 
+    private final class FurnaceAction implements RunningAction {
+        private enum Stage { NAVIGATING, OPENING, WAITING_SCREEN, WAITING_LOAD, SMELTING, COLLECTING }
+
+        private final ActionCommand command;
+        private final BlockPos target;
+        private final Identifier blockId;
+        private final Identifier inputItemId;
+        private final Identifier outputItemId;
+        private final Identifier fuelItemId;
+        private final int count;
+        private final int fuelCount;
+        private final int initialOutputCount;
+        private Stage stage;
+        private long stageDeadlineNanos;
+
+        private FurnaceAction(ActionCommand command, BlockPos target) {
+            this.command = command;
+            this.target = target;
+            var args = command.arguments();
+            blockId = Identifier.parse(args.get("blockId").getAsString());
+            inputItemId = Identifier.parse(args.get("inputItemId").getAsString());
+            outputItemId = Identifier.parse(args.get("outputItemId").getAsString());
+            fuelItemId = Identifier.parse(args.get("fuelItemId").getAsString());
+            count = args.get("count").getAsInt();
+            fuelCount = Math.max(1, (count + 7) / 8);
+            initialOutputCount = inventoryCount(outputItemId);
+        }
+
+        private void start(long nowNanos) {
+            var player = requirePlayer();
+            if (player.getEyePosition().distanceToSqr(Vec3.atCenterOf(target)) <= 36.0D) {
+                stage = Stage.OPENING;
+                tick(nowNanos);
+                return;
+            }
+            stage = Stage.NAVIGATING;
+            var args = new JsonObject();
+            args.addProperty("x", target.getX());
+            args.addProperty("y", target.getY());
+            args.addProperty("z", target.getZ());
+            args.addProperty("tolerance", 2);
+            var navigationCommand = new ActionCommand(command.actionId(), command.deadlineAt(), "skill.navigateTo", args);
+            navigation.start(navigationCommand, new NavigationProvider.Completion() {
+                @Override
+                public void succeeded(String resultCode) {
+                    minecraft.execute(() -> {
+                        if (running == FurnaceAction.this) stage = Stage.OPENING;
+                    });
+                }
+
+                @Override
+                public void failed(String errorCode, String message) {
+                    minecraft.execute(() -> finishFailed(command.actionId(), errorCode, message));
+                }
+            });
+        }
+
+        @Override
+        public ActionCommand command() {
+            return command;
+        }
+
+        @Override
+        public void tick(long nowNanos) {
+            switch (stage) {
+                case NAVIGATING -> navigation.tick();
+                case OPENING -> open(nowNanos);
+                case WAITING_SCREEN -> waitForScreen(nowNanos);
+                case WAITING_LOAD -> waitForLoad(nowNanos);
+                case SMELTING -> waitForResult();
+                case COLLECTING -> verifyCollected(nowNanos);
+            }
+        }
+
+        private void open(long nowNanos) {
+            var player = requirePlayer();
+            var level = minecraft.level;
+            var gameMode = minecraft.gameMode;
+            if (level == null || gameMode == null) {
+                finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
+                return;
+            }
+            var actual = BuiltInRegistries.BLOCK.getKey(level.getBlockState(target).getBlock());
+            if (!blockId.equals(actual)) {
+                finishFailed(command.actionId(), "target-mismatch", "The selected furnace changed before it could be opened");
+                return;
+            }
+            if (player.getEyePosition().distanceToSqr(Vec3.atCenterOf(target)) > 36.0D) {
+                finishFailed(command.actionId(), "target-out-of-reach", "Baritone stopped outside furnace reach");
+                return;
+            }
+            var hit = new BlockHitResult(Vec3.atCenterOf(target), Direction.UP, target, false);
+            var result = gameMode.useItemOn(player, InteractionHand.MAIN_HAND, hit);
+            if (!result.consumesAction()) {
+                finishFailed(command.actionId(), "furnace-open-rejected", "Minecraft rejected the furnace interaction");
+                return;
+            }
+            player.swing(InteractionHand.MAIN_HAND);
+            stage = Stage.WAITING_SCREEN;
+            stageDeadlineNanos = nowNanos + 3_000_000_000L;
+        }
+
+        private void waitForScreen(long nowNanos) {
+            var player = requirePlayer();
+            if (player.containerMenu instanceof AbstractFurnaceMenu menu) {
+                if (!menu.getSlot(0).getItem().isEmpty() || !menu.getSlot(2).getItem().isEmpty()) {
+                    finishFailed(command.actionId(), "furnace-not-empty", "The selected furnace already contains an input or completed result");
+                    return;
+                }
+                var fuel = menu.getSlot(1).getItem();
+                if (!fuel.isEmpty() && !fuelItemId.equals(itemId(fuel))) {
+                    finishFailed(command.actionId(), "furnace-fuel-mismatch", "The selected furnace contains a different fuel");
+                    return;
+                }
+                if (!moveExact(menu, inputItemId, 0, count) || !moveExact(menu, fuelItemId, 1, fuelCount)) {
+                    finishFailed(command.actionId(), "smelt-items-unavailable", "The requested food or enough fuel is not available in the inventory");
+                    return;
+                }
+                stage = Stage.WAITING_LOAD;
+                stageDeadlineNanos = nowNanos + 3_000_000_000L;
+                return;
+            }
+            if (nowNanos >= stageDeadlineNanos) {
+                finishFailed(command.actionId(), "furnace-screen-timeout", "The furnace screen did not open in time");
+            }
+        }
+
+        private void waitForLoad(long nowNanos) {
+            var menu = furnaceMenu();
+            if (menu == null) return;
+            var input = menu.getSlot(0).getItem();
+            var fuel = menu.getSlot(1).getItem();
+            var fuelConfirmed = menu.isLit()
+                || (!fuel.isEmpty() && fuelItemId.equals(itemId(fuel)) && fuel.getCount() >= fuelCount);
+            if (!input.isEmpty() && inputItemId.equals(itemId(input)) && input.getCount() >= count
+                && fuelConfirmed) {
+                stage = Stage.SMELTING;
+                return;
+            }
+            if (nowNanos >= stageDeadlineNanos) {
+                finishFailed(command.actionId(), "furnace-load-not-confirmed", "The server did not confirm the furnace input and fuel transfer");
+            }
+        }
+
+        private void waitForResult() {
+            var menu = furnaceMenu();
+            if (menu == null) return;
+            var result = menu.getSlot(2).getItem();
+            if (!result.isEmpty() && outputItemId.equals(itemId(result)) && result.getCount() >= count) {
+                click(menu, 2, 0, ContainerInput.QUICK_MOVE);
+                stage = Stage.COLLECTING;
+                stageDeadlineNanos = System.nanoTime() + 3_000_000_000L;
+            }
+        }
+
+        private void verifyCollected(long nowNanos) {
+            if (inventoryCount(outputItemId) >= initialOutputCount + count) {
+                closeFurnaceScreen();
+                finishSucceeded(command.actionId(), "smelted-and-collected");
+                return;
+            }
+            if (nowNanos >= stageDeadlineNanos) {
+                finishFailed(command.actionId(), "smelt-result-not-collected", "The cooked result was not confirmed in the companion inventory");
+            }
+        }
+
+        private AbstractFurnaceMenu furnaceMenu() {
+            var player = requirePlayer();
+            if (player.containerMenu instanceof AbstractFurnaceMenu menu) return menu;
+            finishFailed(command.actionId(), "furnace-screen-closed", "The furnace screen closed before cooking completed");
+            return null;
+        }
+
+        private boolean moveExact(AbstractFurnaceMenu menu, Identifier expected, int targetSlot, int requested) {
+            var targetStack = menu.getSlot(targetSlot).getItem();
+            if (!targetStack.isEmpty() && !expected.equals(itemId(targetStack))) return false;
+            for (var sourceSlot = 3; sourceSlot < menu.slots.size(); sourceSlot += 1) {
+                var source = menu.getSlot(sourceSlot).getItem();
+                if (source.isEmpty() || !expected.equals(itemId(source)) || source.getCount() < requested) continue;
+                click(menu, sourceSlot, 0, ContainerInput.PICKUP);
+                for (var moved = 0; moved < requested; moved += 1) click(menu, targetSlot, 1, ContainerInput.PICKUP);
+                if (!menu.getCarried().isEmpty()) click(menu, sourceSlot, 0, ContainerInput.PICKUP);
+                return true;
+            }
+            return false;
+        }
+
+        private void click(AbstractFurnaceMenu menu, int slot, int button, ContainerInput type) {
+            var gameMode = minecraft.gameMode;
+            if (gameMode == null) throw new IllegalStateException("The Family AI client has no active game mode");
+            gameMode.handleContainerInput(menu.containerId, slot, button, type, requirePlayer());
+        }
+
+        @Override
+        public void cancel(String reason) {
+            try { navigation.cancel(reason); } catch (RuntimeException ignored) { }
+            closeFurnaceScreen();
+        }
+    }
+
     private record NavigationAction(ActionCommand command, NavigationProvider provider) implements RunningAction {
         @Override
         public void tick(long nowNanos) {
@@ -375,6 +577,7 @@ final class MinecraftActionController {
                 case "direct.dropItemById" -> dropItemById(command);
                 case "direct.selectItem" -> selectItem(command);
                 case "direct.swingHand" -> swingHand(command);
+                case "skill.smelt" -> startSmelt(command, nowNanos);
                 case "skill.escapeDanger" -> startEscape(command);
                 default -> startNavigation(command);
             }
@@ -688,6 +891,58 @@ final class MinecraftActionController {
             return;
         }
         startNavigation(command);
+    }
+
+    private void startSmelt(ActionCommand command, long nowNanos) {
+        var player = requirePlayer();
+        var level = minecraft.level;
+        if (level == null) {
+            finishFailed(command.actionId(), "not-in-world", "The Family AI client has no active world");
+            return;
+        }
+        var args = command.arguments();
+        var expectedBlock = Identifier.parse(args.get("blockId").getAsString());
+        var radius = args.get("maxDistance").getAsInt();
+        var origin = player.blockPosition();
+        BlockPos nearest = null;
+        var nearestDistance = Double.MAX_VALUE;
+        for (var x = -radius; x <= radius; x += 1) {
+            for (var y = -radius; y <= radius; y += 1) {
+                for (var z = -radius; z <= radius; z += 1) {
+                    var candidate = origin.offset(x, y, z);
+                    var distance = origin.distSqr(candidate);
+                    if (distance > (double) radius * radius || distance >= nearestDistance) continue;
+                    if (expectedBlock.equals(BuiltInRegistries.BLOCK.getKey(level.getBlockState(candidate).getBlock()))) {
+                        nearest = candidate.immutable();
+                        nearestDistance = distance;
+                    }
+                }
+            }
+        }
+        if (nearest == null) {
+            finishFailed(command.actionId(), "furnace-not-found", "No matching furnace is loaded inside the bounded search radius");
+            return;
+        }
+        var action = new FurnaceAction(command, nearest);
+        running = action;
+        action.start(nowNanos);
+    }
+
+    private int inventoryCount(Identifier expectedItem) {
+        var player = requirePlayer();
+        return player.getInventory().getNonEquipmentItems().stream()
+            .filter(stack -> !stack.isEmpty() && expectedItem.equals(itemId(stack)))
+            .mapToInt(ItemStack::getCount)
+            .sum();
+    }
+
+    private Identifier itemId(ItemStack stack) {
+        return BuiltInRegistries.ITEM.getKey(stack.getItem());
+    }
+
+    private void closeFurnaceScreen() {
+        var player = minecraft.player;
+        if (player != null && player.containerMenu instanceof AbstractFurnaceMenu) player.closeContainer();
     }
 
     private void finishSucceeded(UUID actionId, String code) {

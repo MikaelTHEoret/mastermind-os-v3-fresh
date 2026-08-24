@@ -136,8 +136,8 @@
         "version": "0.1.0",
         "fileName": "family-agent-bridge-0.1.0.jar",
         "source": "family-agent-bridge/build/libs/family-agent-bridge-0.1.0.jar",
-        "size": 114865,
-        "sha256": "ae02eabac2425ff6845804449b64109cd79954707c9040f3120f7f51016f84e4"
+        "size": 124563,
+        "sha256": "e982efd2badae4e56da367d1be957ce03ca6c25bde50551f432bb7f6fe0fca6e"
       },
       {
         "id": "mastermind-family-agent-baritone-provider",

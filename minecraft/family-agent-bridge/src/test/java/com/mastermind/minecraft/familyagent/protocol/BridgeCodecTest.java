@@ -149,6 +149,15 @@ final class BridgeCodecTest {
         var swingArgs = new JsonObject();
         swingArgs.addProperty("hand", "main");
         codec.decodeControl(execute("direct.swingHand", swingArgs, 11), SESSION, 10);
+
+        var smeltArgs = new JsonObject();
+        smeltArgs.addProperty("blockId", "minecraft:furnace");
+        smeltArgs.addProperty("inputItemId", "minecraft:chicken");
+        smeltArgs.addProperty("outputItemId", "minecraft:cooked_chicken");
+        smeltArgs.addProperty("fuelItemId", "minecraft:coal");
+        smeltArgs.addProperty("count", 4);
+        smeltArgs.addProperty("maxDistance", 16);
+        codec.decodeControl(execute("skill.smelt", smeltArgs, 12), SESSION, 11);
     }
 
     @Test

@@ -29,6 +29,7 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'place a supported hotbar block at nearby coordinates',
   'place one supported hotbar block on nearby ground',
   'drop the selected item or stack',
+  'cook raw chicken with coal in a nearby furnace and collect it',
   'select a named item already in the hotbar',
   'swing either hand, including punching air',
   'stop the current physical task',
@@ -38,6 +39,7 @@ const PLANNABLE_ACTIONS = Object.freeze([
   'direct.interactEntity', 'direct.attack', 'direct.swingHand', 'direct.jump',
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
   'skill.navigateTo', 'skill.followPlayer', 'skill.gatherBlock', 'skill.explore',
+  'skill.smelt',
 ]);
 const PHYSICAL_REQUEST_HINT = /\b(?:stop|cancel|follow|come|walk|go|navigate|look|explore|scout|gather|collect|mine|chop|get|place|put|drop|throw|toss|select|choose|switch|slot|use|open|press|interact|punch|hit|attack|jump|inventory|find|give|bring|cook|smelt|bake|roast|furnace|smoker)\b/iu;
 const UNVERIFIED_PHYSICAL_CLAIM = /\b(?:i(?:'ll|\s+will|\s+am\s+going\s+to)|i(?:'m|\s+am))\b.{0,96}\b(?:walk|move|follow|navigate|come|go|use|open|cook|smelt|craft|build|place|break|mine|gather|collect|attack|fight|drop|give|deliver|sleep|eat|interact|jump)(?:ing)?\b|\b(?:sitting|standing)\s+at\s+(?:a|the)\s+furnace\b|\bstarting\s+(?:a|the)?\s*smelt\b/iu;
@@ -83,7 +85,7 @@ Use direct.use only when the requested object/item interaction is consistent wit
 Prefer direct.interactBlock over direct.lookAt plus direct.use when one exact nearbyBlocks target matches. Copy its exact blockId and coordinates; the client revalidates both identity and reach before interacting.
 Use direct.interactEntity for an exact nearbyEntities target such as an observed boat. Copy its exact entityUuid and typeId and use hand main. Never invent or reuse an entity UUID from an earlier observation.
 Opening a container does not reveal its contents. Container inspection and item transfer are unavailable; clarify that exact limitation rather than claiming to see or move items.
-Furnace, smoker, blast-furnace, and campfire cooking or smelting are unavailable because screen inventory transfer and result verification do not exist yet. Never reduce such a request to merely walking to or opening the block.
+Use skill.smelt only for a complete supported recipe with exact registered block, input, output, and fuel IDs. It navigates, transfers bounded items, waits, collects, and verifies the result; never replace it with a partial walk or open action.
 nearbyEntities distinguishes hostile, passive, dropped-item, and other entities and includes visibility. nearbyPlayers includes visibility and held items. Prefer visible targets and exact IDs; clarify when several targets match.
 Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
 Use direct.dropItemById when the player names the item to throw or drop. Prefer an exact item ID present in inventory and set all true only for the whole stack.
@@ -145,7 +147,7 @@ function capabilityReply(flags) {
     return "I can chat with you, but my movement and task controls aren't enabled right now.";
   }
   const survival = flags.survivalAutomation === true ? ', and handle basic survival' : '';
-  return `I can chat, follow you, navigate, scout, gather, use nearby blocks or entities, place blocks, drop items, stop${survival}. I can't sleep reliably, inspect storage, craft, build, or deliver yet.`;
+  return `I can chat, follow you, navigate, scout, gather, cook chicken, use blocks and entities, place blocks, drop items, stop${survival}. I can't sleep reliably or inspect storage, craft, build, or deliver yet.`;
 }
 
 export function isCompanionSelfMessage(value) {
@@ -506,7 +508,7 @@ export class CompanionConversationCoordinator {
             enabledPhysicalSkills: this.flags.physicalTaskPlanning === true ? ENABLED_PHYSICAL_SKILLS : [],
             survivalAutomation: this.flags.survivalAutomation === true,
             persistentMemory: false,
-            limitations: ['sleeping', 'container management', 'furnace cooking and smelting', 'crafting', 'building', 'item delivery'],
+            limitations: ['sleeping', 'general container management', 'unsupported furnace recipes', 'crafting', 'building', 'item delivery'],
           },
           currentGameState: (() => {
             const snapshot = this.sessionStatus()?.latestSnapshot ?? null;

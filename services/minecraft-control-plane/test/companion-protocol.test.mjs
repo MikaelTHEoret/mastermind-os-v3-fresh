@@ -90,6 +90,14 @@ test('the action union accepts only bounded typed direct actions and Baritone sk
     { kind: 'skill.followPlayer', args: { playerUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', distance: 4 } },
     { kind: 'skill.gatherBlock', args: { blockId: 'minecraft:oak_log', count: 10, maxDistance: 64 } },
     { kind: 'skill.explore', args: { radius: 128 } },
+    {
+      kind: 'skill.smelt',
+      args: {
+        blockId: 'minecraft:furnace', inputItemId: 'minecraft:chicken',
+        outputItemId: 'minecraft:cooked_chicken', fuelItemId: 'minecraft:coal',
+        count: 4, maxDistance: 16,
+      },
+    },
     { kind: 'skill.escapeDanger', args: {} },
     { kind: 'skill.returnToKnownSafePoint', args: { safePointId: 'family-home' } },
   ];

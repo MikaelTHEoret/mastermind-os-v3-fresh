@@ -63,8 +63,15 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   });
   assert.equal(compileDeterministicCompanionTask('stop').intent, 'cancel-current');
   assert.equal(compileDeterministicCompanionTask('sleep now').unavailable, true);
-  assert.equal(compileDeterministicCompanionTask('can you cook me some chicken in one of the furnaces').intent, 'furnace-management-unavailable');
-  assert.equal(compileDeterministicCompanionTask('any furnace will do').intent, 'furnace-management-unavailable');
+  assert.deepEqual(compileDeterministicCompanionTask('can you cook me some chicken in one of the furnaces').action, {
+    kind: 'skill.smelt',
+    args: {
+      blockId: 'minecraft:furnace', inputItemId: 'minecraft:chicken', outputItemId: 'minecraft:cooked_chicken',
+      fuelItemId: 'minecraft:coal', count: null, maxDistance: 16,
+    },
+  });
+  assert.equal(compileDeterministicCompanionTask('cook 3 raw chicken').action.args.count, 3);
+  assert.equal(compileDeterministicCompanionTask('any furnace will do').intent, 'smelt-chicken');
   assert.equal(compileDeterministicCompanionTask('enter the boat with me'), null);
   assert.equal(compileDeterministicCompanionTask('take the first item in the chest').intent, 'container-management-unavailable');
   assert.equal(compileDeterministicCompanionTask('get me something useful'), null);
@@ -96,6 +103,35 @@ test('physical task supervisor dispatches one typed action and narrates briefly'
     ['say', "Okay, I'll follow you."],
   ]);
   assert.equal(supervisor.status().accepted, 1);
+});
+
+test('chicken cooking resolves bounded inventory counts before dispatch', async () => {
+  const calls = [];
+  const supervisor = new CompanionPhysicalTaskSupervisor({
+    dispatchAction: async (action, options) => {
+      calls.push(['dispatch', action, options]);
+      return { actionId: '11111111-1111-4111-8111-111111111111', kind: action.kind, status: 'dispatched' };
+    },
+    waitForActionActivation: async () => {},
+    cancelAction: async () => { throw new Error('must not cancel'); },
+    sessionStatus: () => ({
+      activeAction: null,
+      latestSnapshot: { inventory: { items: [
+        { itemId: 'minecraft:chicken', count: 4 }, { itemId: 'minecraft:coal', count: 14 },
+      ] } },
+    }),
+    sendChat: async (text) => calls.push(['say', text]),
+  });
+  const result = await supervisor.handle({ role: 'parent', minecraftUuid: PLAYER_UUID, text: 'cook my chicken' });
+  assert.equal(result.code, 'PHYSICAL_TASK_DISPATCHED');
+  assert.deepEqual(calls[0], ['dispatch', {
+    kind: 'skill.smelt',
+    args: {
+      blockId: 'minecraft:furnace', inputItemId: 'minecraft:chicken', outputItemId: 'minecraft:cooked_chicken',
+      fuelItemId: 'minecraft:coal', count: 4, maxDistance: 16,
+    },
+  }, { timeoutMs: 600_000 }]);
+  assert.match(calls[1][1], /cook the chicken/u);
 });
 
 test('planned physical tasks execute a bounded sequence and wait between steps', async () => {

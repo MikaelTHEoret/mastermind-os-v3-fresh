@@ -32,6 +32,7 @@ export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'skill.followPlayer',
   'skill.gatherBlock',
   'skill.explore',
+  'skill.smelt',
   'skill.escapeDanger',
   'skill.returnToKnownSafePoint',
 ]);
@@ -235,6 +236,14 @@ function validateActionArgs(action) {
     case 'skill.explore':
       exactObject(args, `${kind}.args`, ['radius']);
       numberValue(args.radius, `${kind}.args.radius`, 16, 1_024, { integer: true });
+      break;
+    case 'skill.smelt':
+      exactObject(args, `${kind}.args`, ['blockId', 'inputItemId', 'outputItemId', 'fuelItemId', 'count', 'maxDistance']);
+      for (const field of ['blockId', 'inputItemId', 'outputItemId', 'fuelItemId']) {
+        stringValue(args[field], `${kind}.args.${field}`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      }
+      numberValue(args.count, `${kind}.args.count`, 1, 64, { integer: true });
+      numberValue(args.maxDistance, `${kind}.args.maxDistance`, 1, 16, { integer: true });
       break;
     case 'skill.returnToKnownSafePoint':
       exactObject(args, `${kind}.args`, ['safePointId']);
