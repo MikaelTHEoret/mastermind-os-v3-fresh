@@ -1590,6 +1590,20 @@ function sanitizedCompanionAction(input: unknown): Record<string, unknown> {
       exactKeys(args, ['blockId', 'count', 'maxDistance'], `${kind} arguments`);
       if (typeof args.blockId !== 'string' || args.blockId.length > 128 || !REGISTRY_ID.test(args.blockId) || !boundedNumber(args.count, 1, 64, true) || !boundedNumber(args.maxDistance, 1, 128, true)) break;
       return { kind, args: { blockId: args.blockId, count: args.count, maxDistance: args.maxDistance } };
+    case 'skill.smelt':
+      exactKeys(args, ['blockId', 'inputItemId', 'outputItemId', 'fuelItemId', 'count', 'maxDistance'], `${kind} arguments`);
+      if (typeof args.blockId !== 'string' || args.blockId.length > 128 || !REGISTRY_ID.test(args.blockId)
+        || typeof args.inputItemId !== 'string' || args.inputItemId.length > 128 || !REGISTRY_ID.test(args.inputItemId)
+        || typeof args.outputItemId !== 'string' || args.outputItemId.length > 128 || !REGISTRY_ID.test(args.outputItemId)
+        || typeof args.fuelItemId !== 'string' || args.fuelItemId.length > 128 || !REGISTRY_ID.test(args.fuelItemId)
+        || !boundedNumber(args.count, 1, 64, true) || !boundedNumber(args.maxDistance, 1, 16, true)) break;
+      return {
+        kind,
+        args: {
+          blockId: args.blockId, inputItemId: args.inputItemId, outputItemId: args.outputItemId,
+          fuelItemId: args.fuelItemId, count: args.count, maxDistance: args.maxDistance,
+        },
+      };
     case 'skill.explore':
       exactKeys(args, ['radius'], `${kind} arguments`);
       if (!boundedNumber(args.radius, 16, 1_024, true)) break;
