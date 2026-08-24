@@ -63,6 +63,8 @@ test('deterministic task compiler accepts only bounded explicit task phrases', (
   });
   assert.equal(compileDeterministicCompanionTask('stop').intent, 'cancel-current');
   assert.equal(compileDeterministicCompanionTask('sleep now').unavailable, true);
+  assert.equal(compileDeterministicCompanionTask('can you cook me some chicken in one of the furnaces').intent, 'furnace-management-unavailable');
+  assert.equal(compileDeterministicCompanionTask('any furnace will do').intent, 'furnace-management-unavailable');
   assert.equal(compileDeterministicCompanionTask('enter the boat with me'), null);
   assert.equal(compileDeterministicCompanionTask('take the first item in the chest').intent, 'container-management-unavailable');
   assert.equal(compileDeterministicCompanionTask('get me something useful'), null);

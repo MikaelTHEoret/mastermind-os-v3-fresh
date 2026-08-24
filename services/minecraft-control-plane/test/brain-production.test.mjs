@@ -273,6 +273,47 @@ test('conversation coordinator handles deterministic physical tasks without a mo
   assert.equal(coordinator.status().activeCompanionSessions, 1);
 });
 
+test('furnace cooking is rejected honestly before planning or conversational role-play', async () => {
+  let modelCalls = 0;
+  const sent = [];
+  const brain = createFamilyCompanionBrain({
+    environment: { OPENAI_API_KEY: 'sk-test-abcdefghijklmnopqrstuvwxyz' },
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: true },
+    provider: { async reason() { modelCalls += 1; throw new Error('must not run'); } },
+    canSendChat: () => true,
+    sendChat: async (text) => sent.push(text),
+    dispatchAction: async () => { throw new Error('must not dispatch'); },
+    cancelAction: async () => { throw new Error('must not cancel'); },
+    sessionStatus: () => ({ activeAction: null }),
+  });
+  const result = await brain.ingestChat(chat({ text: 'Alchemist, can you cook me some chicken in one of the furnaces' }));
+  assert.equal(result.execution.code, 'PHYSICAL_SKILL_UNAVAILABLE');
+  assert.equal(modelCalls, 0);
+  assert.equal(sent.length, 1);
+  assert.match(sent[0], /can't put food or fuel/u);
+});
+
+test('conversation output guard blocks unverified embodied action claims', async () => {
+  const sent = [];
+  const coordinator = new CompanionConversationCoordinator({
+    flags: { companionConversation: true, modelReasoning: true, physicalTaskPlanning: false },
+    provider: {
+      async reason(request) {
+        return {
+          requestId: request.requestId, status: 'succeeded', model: 'fixture', completedAt: new Date().toISOString(),
+          output: { text: "I'll walk to the furnace now and start cooking." },
+        };
+      },
+    },
+    canSendChat: () => true,
+    sendChat: async (text) => sent.push(text),
+  });
+  const result = await coordinator.ingest(chat({ text: 'Alchemist, tell me what happens next' }));
+  assert.equal(result.execution.ok, false);
+  assert.equal(result.execution.code, 'UNVERIFIED_PHYSICAL_CLAIM_BLOCKED');
+  assert.deepEqual(sent, ["I can't claim a game action unless the action system actually starts and verifies it."]);
+});
+
 test('unmatched natural physical requests become validated typed actions instead of chat promises', async () => {
   const planned = [];
   const requests = [];

@@ -105,6 +105,12 @@ export function compileDeterministicCompanionTask(text) {
   if (/\b(?:sleep|go to bed|use (?:a|the|that)?\s*bed)\b/u.test(request)) {
     return unavailableTask('sleep-unavailable', "I can see beds now, but I can't reliably walk to one and sleep in it yet.");
   }
+  if (/\b(?:cook|smelt|bake|roast)\b/u.test(request)
+    || /\b(?:use|load|fill|start)\b.*\b(?:furnace|smoker|blast furnace|campfire)\b/u.test(request)
+    || /\b(?:any|either|nearest|closest|that|the|this|one)\s+(?:furnace|smoker)\b.*\b(?:will do|works?|is fine|doesn'?t matter)\b/u.test(request)) {
+    return unavailableTask('furnace-management-unavailable',
+      "I can walk to and open a furnace, but I can't put food or fuel into it, collect the result, or verify cooking yet.");
+  }
   if (/\b(?:what|which)\b.*\b(?:inside|in|contents?|items?)\b.*\b(?:chest|barrel|container)\b|\b(?:take|move|put|store|deposit)\b.*\b(?:chest|barrel|container)\b/u.test(request)) {
     return unavailableTask('container-management-unavailable', "I can open a nearby container, but I can't inspect or move its contents yet.");
   }

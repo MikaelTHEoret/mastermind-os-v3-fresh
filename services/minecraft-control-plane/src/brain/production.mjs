@@ -39,7 +39,8 @@ const PLANNABLE_ACTIONS = Object.freeze([
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
   'skill.navigateTo', 'skill.followPlayer', 'skill.gatherBlock', 'skill.explore',
 ]);
-const PHYSICAL_REQUEST_HINT = /\b(?:stop|cancel|follow|come|walk|go|navigate|look|explore|scout|gather|collect|mine|chop|get|place|put|drop|throw|toss|select|choose|switch|slot|use|open|press|interact|punch|hit|attack|jump|inventory|find|give|bring)\b/iu;
+const PHYSICAL_REQUEST_HINT = /\b(?:stop|cancel|follow|come|walk|go|navigate|look|explore|scout|gather|collect|mine|chop|get|place|put|drop|throw|toss|select|choose|switch|slot|use|open|press|interact|punch|hit|attack|jump|inventory|find|give|bring|cook|smelt|bake|roast|furnace|smoker)\b/iu;
+const UNVERIFIED_PHYSICAL_CLAIM = /\b(?:i(?:'ll|\s+will|\s+am\s+going\s+to)|i(?:'m|\s+am))\b.{0,96}\b(?:walk|move|follow|navigate|come|go|use|open|cook|smelt|craft|build|place|break|mine|gather|collect|attack|fight|drop|give|deliver|sleep|eat|interact|jump)(?:ing)?\b|\b(?:sitting|standing)\s+at\s+(?:a|the)\s+furnace\b|\bstarting\s+(?:a|the)?\s*smelt\b/iu;
 const CAPABILITY_QUESTION = /^(?:what can you do|what are (?:your )?(?:abilities|capabilities)|what are you capable of(?: doing)?|what do you have access to)(?: now)?[?!.]*$/u;
 const PRIVATE_ENV_KEYS = Object.freeze([
   'OPENAI_API_KEY',
@@ -61,6 +62,7 @@ Never claim you performed, observed, remembered, or can perform an action unless
 Use recentTurns to maintain the conversational subject and resolve ordinary pronouns or corrections. Use currentGameState only as the companion's own observed state; never describe its inventory as the human player's inventory.
 The supplied capabilities object is authoritative. If physicalActions is true, you can move through the Minecraft world and perform exactly the listed enabledPhysicalSkills. Never broadly claim that you cannot move, follow, gather, or use Baritone when those skills are listed.
 Do not claim that a physical request started or succeeded merely because the player asked; deterministic task execution is handled outside this conversation lane.
+Conversation replies must never contain a first-person promise or present-tense claim of walking, moving, using, cooking, crafting, building, gathering, or any other embodied action. The physical-action lane supplies its own acknowledgement only after validated dispatch.
 When asked what you are or what you can do, answer naturally as the embodied Minecraft companion using only the supplied identity and capability facts. Clearly distinguish enabled skills from listed limitations without mentioning internal architecture.
 Never issue Minecraft commands, URLs, secrets, purchases, or requests for private information. Do not infer diagnoses, protected traits, psychographics, or commercial intent.
 If asked for an unavailable physical action, say naturally and briefly that you cannot do that one yet, then continue the conversation if useful.
@@ -81,6 +83,7 @@ Use direct.use only when the requested object/item interaction is consistent wit
 Prefer direct.interactBlock over direct.lookAt plus direct.use when one exact nearbyBlocks target matches. Copy its exact blockId and coordinates; the client revalidates both identity and reach before interacting.
 Use direct.interactEntity for an exact nearbyEntities target such as an observed boat. Copy its exact entityUuid and typeId and use hand main. Never invent or reuse an entity UUID from an earlier observation.
 Opening a container does not reveal its contents. Container inspection and item transfer are unavailable; clarify that exact limitation rather than claiming to see or move items.
+Furnace, smoker, blast-furnace, and campfire cooking or smelting are unavailable because screen inventory transfer and result verification do not exist yet. Never reduce such a request to merely walking to or opening the block.
 nearbyEntities distinguishes hostile, passive, dropped-item, and other entities and includes visibility. nearbyPlayers includes visibility and held items. Prefer visible targets and exact IDs; clarify when several targets match.
 Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
 Use direct.dropItemById when the player names the item to throw or drop. Prefer an exact item ID present in inventory and set all true only for the whole stack.
@@ -117,6 +120,17 @@ function boundedReply(value) {
     throw Object.assign(new Error('Model reply violated the Minecraft chat boundary'), { code: 'MODEL_OUTPUT_INVALID' });
   }
   return text;
+}
+
+function verifiedConversationReply(value) {
+  const text = boundedReply(value);
+  if (UNVERIFIED_PHYSICAL_CLAIM.test(text)) {
+    return Object.freeze({
+      text: "I can't claim a game action unless the action system actually starts and verifies it.",
+      blocked: true,
+    });
+  }
+  return Object.freeze({ text, blocked: false });
 }
 
 function isCapabilityQuestion(value) {
@@ -492,7 +506,7 @@ export class CompanionConversationCoordinator {
             enabledPhysicalSkills: this.flags.physicalTaskPlanning === true ? ENABLED_PHYSICAL_SKILLS : [],
             survivalAutomation: this.flags.survivalAutomation === true,
             persistentMemory: false,
-            limitations: ['sleeping', 'container management', 'crafting', 'building', 'item delivery'],
+            limitations: ['sleeping', 'container management', 'furnace cooking and smelting', 'crafting', 'building', 'item delivery'],
           },
           currentGameState: (() => {
             const snapshot = this.sessionStatus()?.latestSnapshot ?? null;
@@ -519,13 +533,15 @@ export class CompanionConversationCoordinator {
         this.intake.markExecution(code, value.occurredAt);
         return { ...intake, execution: { ok: false, code } };
       }
-      const text = boundedReply(result.output?.text);
+      const reply = verifiedConversationReply(result.output?.text);
+      const text = reply.text;
       await this.sendChat(text);
       this.#appendContextTurn(context, 'companion', text);
       this.replies += 1;
-      this.intake.markExecution('REPLY_DISPATCHED', value.occurredAt);
+      const code = reply.blocked ? 'UNVERIFIED_PHYSICAL_CLAIM_BLOCKED' : 'REPLY_DISPATCHED';
+      this.intake.markExecution(code, value.occurredAt);
       this.#markCompanionResponse(value);
-      return { ...intake, execution: { ok: true, code: 'REPLY_DISPATCHED' } };
+      return { ...intake, execution: { ok: !reply.blocked, code } };
     } catch (error) {
       this.failures += 1;
       const failure = publicFailure(error, 'COMPANION_OUTPUT_FAILED');
