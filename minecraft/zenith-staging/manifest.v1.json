@@ -136,6 +136,33 @@
       "biomePaletteBits": 7
     }
   },
+  "mineflayerControllerCompatibility": {
+    "verifiedAt": "2026-08-24T18:35:00.000Z",
+    "controllerVersion": "0.1.0",
+    "mineflayerVersion": "4.37.1",
+    "mineflayerProtocolVersion": "1.21.11",
+    "zenithUpstreamMinecraftVersion": "26.2.0",
+    "transport": "authenticated-loopback-player-client-via-zenith-viaversion",
+    "arbitraryCodeExecution": false,
+    "credentialsInArgumentsEnvironmentLogsOrFiles": false,
+    "authenticated": true,
+    "playReady": true,
+    "mastermindControllerLease": true,
+    "navigationObserved": true,
+    "chestOpenObserved": true,
+    "furnaceOpenObserved": true,
+    "inventoryRoundTripObserved": true,
+    "controllerCleanStop": true,
+    "controllerProcessLeak": false,
+    "zenithRemainedUpstream": true,
+    "dependencyAudit": {
+      "critical": 0,
+      "high": 0,
+      "moderate": 6,
+      "promotionDisposition": "required"
+    },
+    "promotionState": "compatibility-live-verified-management-pending"
+  },
   "protocolFixture": {
     "familyCredentialsUsed": false,
     "familyServerUsed": false,

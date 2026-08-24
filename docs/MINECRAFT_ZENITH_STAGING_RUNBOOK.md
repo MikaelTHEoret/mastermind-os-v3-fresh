@@ -16,6 +16,8 @@ A disposable loopback-only protocol fixture now provides stronger evidence witho
 
 The machine-readable hashes and acceptance measurements are recorded in `minecraft/zenith-staging/manifest.v1.json`. Binary JARs, generated configuration, logs, identities, and credentials stay outside Git.
 
+On 2026-08-24 the loopback Player Client ViaVersion lane was enabled for a bounded enhanced-controller compatibility test. Mineflayer 4.37.1 connected as Minecraft 1.21.11 while the pinned Zenith body remained connected upstream to the Minecraft 26.2 Family Server. The authenticated controller reached play as `MASTERMIND_CONTROLLER`, navigated to the existing chest and furnace, verified both opened windows, completed and observed a one-coal chest deposit/withdrawal round trip, and stopped cleanly. Zenith remained upstream and no controller process leaked. This is accepted compatibility evidence only; the command center does not yet manage this controller as its production companion.
+
 ## Integrity and offline acceptance
 
 - The runtime JAR embeds Zenith release `26.2.0` and commit `550257ac`.
@@ -83,6 +85,7 @@ The first loopback-only Family activation is complete. Before gameplay or unatte
 6. Preserve the verified stopped snapshot before installing `family-core` or changing live-world artifacts.
 7. Keep all behavior flags off and enable only one tested bounded lane at a time.
 8. Family parent takeover, service revocation, and stable signed handback are isolated-live-verified. Promote them through the managed snapshot/rollback gate, then live-test the kill switch and gameplay safe stop before any unattended behavior.
+9. Before promoting the Mineflayer enhanced controller, integrate it through the body-independent adapter, prove continuous observation and survival preemption, repeat parent preemption with a long-lived controller, disposition all dependency advisories, and pass a bounded idle/action resource soak. Do not expose the translated Player Client listener beyond loopback.
 
 ## Stop and rollback
 
