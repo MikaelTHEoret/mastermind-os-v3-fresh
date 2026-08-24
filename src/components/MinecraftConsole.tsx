@@ -175,6 +175,7 @@ type LanFirewallEnvelope = { ok?: boolean; lanFirewall?: LanFirewallResult };
 type CompanionLifecycle = {
   state?: 'stopped' | 'starting' | 'running' | 'stopping' | 'failed' | 'orphaned';
   versionManifest?: {
+    clientId?: string;
     bridgeVersion?: string;
     minecraftVersion?: string;
     loaderVersion?: string;
@@ -6249,6 +6250,7 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
     ));
   const companionTargetMatches = companion?.targetInstanceId === undefined || companion.targetInstanceId === 'family-server';
   const companionLifecycleState = companion?.lifecycle?.state ?? 'stopped';
+  const headlessZenithBody = companion?.lifecycle?.versionManifest?.clientId === 'mineflayer-via-zenith';
   const worldCompanionLifecycleState = companion?.lifecycle?.state ?? 'unknown';
   const worldCompanionBridgeState = companion?.bridge?.state ?? 'unknown';
   const companionBridgeReady = companion?.bridge?.ready === true || companion?.bridge?.state === 'ready';
@@ -6274,7 +6276,7 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
     && [companionPosition.x, companionPosition.y, companionPosition.z].every((value) => typeof value === 'number')
     ? `${Number(companionPosition.x).toFixed(1)}, ${Number(companionPosition.y).toFixed(1)}, ${Number(companionPosition.z).toFixed(1)}`
     : 'NO FRESH POSITION';
-  const launchBlockedReason = !clientInstalled
+  const launchBlockedReason = !headlessZenithBody && !clientInstalled
     ? 'Install and verify the managed client first.'
     : account?.signedIn !== true || account.sessionReady !== true
       ? 'Complete Microsoft Minecraft sign-in and refresh a usable session first.'
@@ -6826,8 +6828,10 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
           <div aria-live="polite" style={{ color: companionKillSwitch ? C.red : C.muted, fontSize: 11, lineHeight: 1.6 }}>
             {companionMessage || (
               companionBridgeReady
-                ? `Authenticated bridge connected${companion?.bridge?.client?.bridgeVersion ? ` · v${companion.bridge.client.bridgeVersion}` : ''}. Actions are accepted only with a fresh in-world Family Server snapshot.`
-                : 'The bridge and exact process lifecycle are installed in the command center. Managed client installation and Microsoft device-code sign-in must complete before launch.'
+                ? `Authenticated ${headlessZenithBody ? 'headless Zenith body' : 'bridge'} connected${companion?.bridge?.client?.bridgeVersion ? ` · v${companion.bridge.client.bridgeVersion}` : ''}. Actions are accepted only with a fresh in-world Family Server snapshot.`
+                : headlessZenithBody
+                  ? 'The non-rendering Zenith body is managed by the command center. Microsoft Minecraft sign-in and the Family Server must be ready before launch.'
+                  : 'The bridge and exact process lifecycle are installed in the command center. Managed client installation and Microsoft device-code sign-in must complete before launch.'
             )}
           </div>
           {companion?.bridge?.activeAction ? (
@@ -6843,7 +6847,7 @@ export default function MinecraftConsole({ active = true }: { active?: boolean }
             >
               {companionBusy ? 'WORKING...' : 'LAUNCH COMPANION'}
             </Button>
-            <Button disabled={companionBusy || !companionActive} color={C.gold} onClick={() => void operateCompanion('stop')}>SAFE STOP CLIENT</Button>
+            <Button disabled={companionBusy || !companionActive} color={C.gold} onClick={() => void operateCompanion('stop')}>SAFE STOP {headlessZenithBody ? 'BODY' : 'CLIENT'}</Button>
             <Button disabled={companionBusy || !companion?.bridge?.activeAction?.actionId} color={C.red} onClick={() => void cancelCompanionAction()}>CANCEL ACTION</Button>
             <Button
               disabled={companionBusy || !companionBridgeReady || companionKillSwitch || !companionCapabilities.has('direct.jump')}
