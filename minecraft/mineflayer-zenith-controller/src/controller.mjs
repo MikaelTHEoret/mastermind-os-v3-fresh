@@ -316,7 +316,7 @@ async function main() {
         emit({ type: 'command.result', commandId: command.commandId, kind: command.kind, ok: false, code: safeCode(error) });
       }
     };
-    if (command.kind === 'action.cancel' || command.kind === 'controller.stop') {
+    if (['action.cancel', 'controller.stop', 'direct.say', 'observe.snapshot'].includes(command.kind)) {
       void operation().catch((error) => emit({ type: 'controller.status', state: 'failed', code: safeCode(error, 'COMMAND_LOOP_FAILED') }));
     } else {
       queue = queue.then(operation)
@@ -342,6 +342,10 @@ async function main() {
       drainCompleteCommands();
     }
     if (buffered.trim()) acceptLine(buffered.trim());
+    state.stopping = true;
+    bot.pathfinder.stop();
+    await closeContainer(state);
+    bot.quit('Mastermind controller input closed');
   })().catch((error) => emit({ type: 'controller.status', state: 'failed', code: safeCode(error, 'COMMAND_LOOP_FAILED') }));
 
   await new Promise((resolve) => bot.once('end', resolve));

@@ -31,6 +31,7 @@ import { CompanionLifecycleManager } from './companion/lifecycle-manager.mjs';
 import { FamilyBridgeProtocolError, validateFamilyBridgeAction } from './companion/protocol.mjs';
 import { CompanionSessionManager } from './companion/session-manager.mjs';
 import { SessionEmbodimentAdapter } from './companion/embodiment.mjs';
+import { MineflayerZenithControllerManager } from './companion/headless-controller-manager.mjs';
 import { FamilyCoreBridgeServer } from './family-core/bridge-server.mjs';
 import { FamilyCoreCredentialManager } from './family-core/credential-manager.mjs';
 import { FamilyCoreSessionManager } from './family-core/session-manager.mjs';
@@ -63,6 +64,10 @@ const BACKUP_RECOVERY_SAFE_ACCOUNT_POST_PATHS = new Set([
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 const BACKUP_ID_PATTERN = /^bkp-[a-f0-9]{32}$/;
 const FAMILY_CORE_CANDIDATE_PATH = fileURLToPath(new URL('../../../minecraft/family-core/build/libs/family-core-0.5.0.jar', import.meta.url));
+const HEADLESS_CONTROLLER_MAIN = fileURLToPath(new URL('../../../minecraft/mineflayer-zenith-controller/src/controller.mjs', import.meta.url));
+const HEADLESS_CONTROLLER_ROOT = path.dirname(path.dirname(HEADLESS_CONTROLLER_MAIN));
+const FAMILY_COMPANION_PROFILE_NAME = 'The_AlChemist___';
+const FAMILY_COMPANION_PROFILE_UUID = '996a56dd-fb3c-4f90-9158-1a608652ec77';
 const FAMILY_CORE_BRIDGE_SHA256 = '9c3138dc8c7830b514a9714d4f1df329a220fa87ec06f53d6bc516a03b333ac8';
 const FAMILY_CORE_DETERMINISTIC_COMPUTER_COMMAND_ENABLED = true;
 const FAMILY_CORE_IDENTITY_EVENTS_ENABLED = true;
@@ -398,11 +403,12 @@ function publicCompanionBridge(value) {
 }
 
 function publicCompanionStatus({ lifecycle, sessions, launchAvailable, targetInstanceId = 'family-server' }) {
+  const lifecycleStatus = typeof lifecycle.lifecycleStatus === 'function' ? lifecycle.lifecycleStatus() : lifecycle.status();
   return {
     projectId: 'family-server',
     targetInstanceId,
     launchAvailable: launchAvailable === true,
-    lifecycle: publicCompanionLifecycle(lifecycle.status()),
+    lifecycle: publicCompanionLifecycle(lifecycleStatus),
     bridge: publicCompanionBridge(sessions.status()),
   };
 }
@@ -1084,11 +1090,30 @@ export async function createControlPlane(options = {}) {
   const companionSessions = options.companionSessions ?? new CompanionSessionManager({
     verifyHello: (payload, context) => companionLifecycle.verifyHello(payload, context),
   });
-  const companionEmbodiment = options.companionEmbodiment ?? new SessionEmbodimentAdapter(companionSessions, {
-    kind: 'fabric-client',
+  const companionEnvironment = options.companionEnvironment ?? {};
+  const headlessControllerEnabled = companionEnvironment.MASTERMIND_MINECRAFT_HEADLESS_CONTROLLER_ENABLED === 'true';
+  const headlessController = options.headlessController ?? (headlessControllerEnabled
+    ? new MineflayerZenithControllerManager({
+      controllerMain: HEADLESS_CONTROLLER_MAIN,
+      controllerRoot: HEADLESS_CONTROLLER_ROOT,
+      executable: process.execPath,
+      expectedProfileName: FAMILY_COMPANION_PROFILE_NAME,
+      expectedProfileUuid: FAMILY_COMPANION_PROFILE_UUID,
+      getSession: async () => {
+        await minecraftAuth.silentRefresh();
+        return minecraftAuth.minecraftSession();
+      },
+    })
+    : null);
+  if (headlessController) {
+    if (typeof headlessController.initialize !== 'function') throw new TypeError('The headless controller must expose initialize()');
+    await headlessController.initialize();
+  }
+  const executionSessions = headlessController ?? companionSessions;
+  const companionEmbodiment = options.companionEmbodiment ?? new SessionEmbodimentAdapter(executionSessions, {
+    kind: headlessController ? 'mineflayer-via-zenith' : 'fabric-client',
   });
   const embodimentBindings = companionEmbodiment.brainBindings();
-  const companionEnvironment = options.companionEnvironment ?? {};
   const familyCompanionBrain = options.familyCompanionBrain ?? createFamilyCompanionBrain({
     environment: companionEnvironment,
     disabledFactory: createFamilyCompanionSkeleton,
@@ -1098,9 +1123,11 @@ export async function createControlPlane(options = {}) {
     const queueSurvivalTick = () => {
       Promise.resolve().then(() => familyCompanionBrain.tickSurvival()).catch(() => {});
     };
-    companionSessions.on('ready', queueSurvivalTick);
-    companionSessions.on('heartbeat', queueSurvivalTick);
-    companionSessions.on('snapshot', queueSurvivalTick);
+    if (typeof executionSessions.on === 'function') {
+      executionSessions.on('ready', queueSurvivalTick);
+      executionSessions.on('heartbeat', queueSurvivalTick);
+      executionSessions.on('snapshot', queueSurvivalTick);
+    }
   }
   const familyCoreSessions = options.familyCoreSessions ?? new FamilyCoreSessionManager({
     verifyHello: options.verifyFamilyCoreHello ?? (async (payload, context) => {
@@ -1144,6 +1171,13 @@ export async function createControlPlane(options = {}) {
     throw new TypeError('The companion lifecycle manager must expose initialize()');
   }
   await companionLifecycle.initialize();
+  const managedCompanionIsActive = () => companionLifecycleIsActive(companionLifecycle)
+    || (headlessController !== null && companionLifecycleIsActive(headlessController));
+  const stopManagedCompanions = async (stopOptions = {}) => {
+    if (headlessController) await headlessController.stop(stopOptions);
+    await companionLifecycle.stop(stopOptions);
+    companionSessions.closeConnection?.(1001, 'companion-stopped');
+  };
   const worlds = options.worlds ?? new FamilyWorldManager(managedRoot, store, {
     withInstanceLock: withStrictUpdateLifecycleLock,
     assertQuiescentWithinInstanceLock: (id) => processes.assertQuiescentWithinInstanceLock(id),
@@ -1154,7 +1188,7 @@ export async function createControlPlane(options = {}) {
       return backups.createRescueWithinInstanceLock(id);
     },
     assertCompanionInactiveWithinInstanceLock: async () => {
-      if (companionLifecycleIsActive(companionLifecycle)) {
+      if (managedCompanionIsActive()) {
         throw Object.assign(new Error('Stop the managed Family AI client before changing worlds.'), { code: 'WORLD_COMPANION_NOT_QUIESCENT', statusCode: 409 });
       }
       return true;
@@ -1795,7 +1829,7 @@ export async function createControlPlane(options = {}) {
         if (id !== familyServerInstanceId) {
           return json(response, 400, { ok: false, code: 'FAMILY_CORE_INSTANCE_INVALID', message: 'First-party core artifacts are restricted to family-server.' });
         }
-        if (companionLifecycleIsActive(companionLifecycle)) {
+        if (managedCompanionIsActive()) {
           throw Object.assign(new Error('Stop the managed Family AI client before changing first-party server artifacts.'), {
             code: 'FAMILY_CORE_STATE_CHANGED', statusCode: 409,
           });
@@ -1960,8 +1994,8 @@ export async function createControlPlane(options = {}) {
         return json(response, 200, {
           ok: true,
           companion: publicCompanionStatus({
-            lifecycle: companionLifecycle,
-            sessions: companionSessions,
+            lifecycle: headlessController ?? companionLifecycle,
+            sessions: executionSessions,
             launchAvailable: true,
             targetInstanceId: trustedCompanionLaunchFactory.familyServerInstanceId,
           }),
@@ -2025,7 +2059,7 @@ export async function createControlPlane(options = {}) {
         }
         draining = true;
         try {
-          await companionLifecycle.stop({ gracefulTimeoutMs: SUPERVISOR_DRAIN_TIMEOUT_MS });
+          await stopManagedCompanions({ gracefulTimeoutMs: SUPERVISOR_DRAIN_TIMEOUT_MS });
           await processes.shutdown(SUPERVISOR_DRAIN_TIMEOUT_MS);
         } catch (error) {
           draining = false;
@@ -2039,7 +2073,7 @@ export async function createControlPlane(options = {}) {
       if (request.method === 'POST' && url.pathname === '/v1/companion/start' && url.search === '') {
         if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
         await processes.withInstanceLock(trustedCompanionLaunchFactory.familyServerInstanceId, async () => {
-          if (companionLifecycleIsActive(companionLifecycle)) {
+          if (managedCompanionIsActive()) {
             throw Object.assign(new Error('A managed Family AI companion launch is already active or orphaned.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
           }
           await requireExactOwnedFamilyServerChild({
@@ -2048,6 +2082,20 @@ export async function createControlPlane(options = {}) {
             instanceId: trustedCompanionLaunchFactory.familyServerInstanceId,
           });
           await withAccountLock(async () => {
+            if (headlessController) {
+              await headlessController.start();
+              try {
+                await requireExactOwnedFamilyServerChild({
+                  processes,
+                  store,
+                  instanceId: trustedCompanionLaunchFactory.familyServerInstanceId,
+                });
+              } catch (error) {
+                await headlessController.stop();
+                throw error;
+              }
+              return;
+            }
             const specification = await trustedCompanionLaunchFactory.create();
             try {
               if (specification.familyServerInstanceId !== trustedCompanionLaunchFactory.familyServerInstanceId) {
@@ -2075,7 +2123,7 @@ export async function createControlPlane(options = {}) {
         });
         return json(response, 200, {
           ok: true,
-          companion: publicCompanionStatus({ lifecycle: companionLifecycle, sessions: companionSessions, launchAvailable: true, targetInstanceId: trustedCompanionLaunchFactory.familyServerInstanceId }),
+          companion: publicCompanionStatus({ lifecycle: headlessController ?? companionLifecycle, sessions: executionSessions, launchAvailable: true, targetInstanceId: trustedCompanionLaunchFactory.familyServerInstanceId }),
         });
       }
       if (request.method === 'POST' && url.pathname === '/v1/companion/actions' && url.search === '') {
@@ -2088,13 +2136,13 @@ export async function createControlPlane(options = {}) {
               store,
               instanceId: trustedCompanionLaunchFactory.familyServerInstanceId,
             });
-            return companionSessions.dispatchAction(
+            return executionSessions.dispatchAction(
               input.action,
               input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs },
             );
           });
         } catch (error) {
-          if (error?.code === 'COMPANION_SERVER_NOT_READY') {
+          if (executionSessions === companionSessions && error?.code === 'COMPANION_SERVER_NOT_READY') {
             companionSessions.closeConnection(4408, 'family-server-ownership-lost');
           }
           throw error;
@@ -2110,17 +2158,16 @@ export async function createControlPlane(options = {}) {
         if (!UUID_PATTERN.test(actionId)) {
           return json(response, 400, { ok: false, code: 'INVALID_ACTION_ID', message: 'Companion action id is invalid.' });
         }
-        return json(response, 200, { ok: true, cancellation: companionSessions.cancelAction(actionId.toLowerCase(), 'operator') });
+        return json(response, 200, { ok: true, cancellation: await executionSessions.cancelAction(actionId.toLowerCase(), 'operator') });
       }
       if (request.method === 'POST' && url.pathname === '/v1/companion/stop' && url.search === '') {
         if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
-        await companionLifecycle.stop();
-        companionSessions.closeConnection(1001, 'companion-stopped');
+        await stopManagedCompanions();
         return json(response, 200, {
           ok: true,
           companion: publicCompanionStatus({
-            lifecycle: companionLifecycle,
-            sessions: companionSessions,
+            lifecycle: headlessController ?? companionLifecycle,
+            sessions: executionSessions,
             launchAvailable: true,
             targetInstanceId: trustedCompanionLaunchFactory.familyServerInstanceId,
           }),
@@ -2159,7 +2206,7 @@ export async function createControlPlane(options = {}) {
         }
         const clientId = validateMinecraftPublicClientId(input.clientId);
         await withAccountLock(async () => {
-          if (companionLifecycleIsActive(companionLifecycle)) {
+          if (managedCompanionIsActive()) {
             throw Object.assign(new Error('Stop the managed Family AI client before changing its account registration.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
           }
           await minecraftAuth.signOut();
@@ -2173,7 +2220,7 @@ export async function createControlPlane(options = {}) {
       if (request.method === 'POST' && url.pathname === '/v1/account/device/start' && url.search === '') {
         if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
         const flow = await withAccountLock(() => {
-          if (companionLifecycleIsActive(companionLifecycle)) {
+          if (managedCompanionIsActive()) {
             throw Object.assign(new Error('Stop the managed Family AI client before starting sign-in.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
           }
           return minecraftAuth.startDeviceFlow();
@@ -2186,7 +2233,7 @@ export async function createControlPlane(options = {}) {
         const flowId = decodeURIComponent(devicePoll[1]);
         if (!UUID_PATTERN.test(flowId)) return json(response, 404, { ok: false, code: 'MINECRAFT_AUTH_FLOW_NOT_FOUND', message: 'The Minecraft sign-in flow was not found.' });
         const flow = await withAccountLock(() => {
-          if (companionLifecycleIsActive(companionLifecycle)) {
+          if (managedCompanionIsActive()) {
             throw Object.assign(new Error('Stop the managed Family AI client before completing sign-in.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
           }
           return minecraftAuth.pollDeviceFlow(flowId);
@@ -2201,7 +2248,7 @@ export async function createControlPlane(options = {}) {
       if (request.method === 'POST' && url.pathname === '/v1/account/signout' && url.search === '') {
         if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
         await withAccountLock(async () => {
-          if (companionLifecycleIsActive(companionLifecycle)) {
+          if (managedCompanionIsActive()) {
             throw Object.assign(new Error('Stop the managed Family AI client before signing out.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
           }
           await minecraftAuth.signOut();
@@ -2223,7 +2270,7 @@ export async function createControlPlane(options = {}) {
           return json(response, 200, { ok: true, ...inventory });
         }
         if (requestHasBody(request)) return json(response, 400, { ok: false, code: 'UNEXPECTED_BODY', message: 'This action does not accept a request body.' });
-        if (companionLifecycleIsActive(companionLifecycle)) {
+        if (managedCompanionIsActive()) {
           throw Object.assign(new Error('Stop the managed Family AI client before changing Family Server backups.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
         }
         return json(response, 201, { ok: true, backup: await backups.create({ instanceId: id }) });
@@ -2234,7 +2281,7 @@ export async function createControlPlane(options = {}) {
         const id = decodeURIComponent(backupPolicy[1]);
         if (!validateInstanceId(id)) return json(response, 400, { ok: false, code: 'INVALID_INSTANCE_ID', message: 'Invalid instance id.' });
         const input = await readJsonBody(request);
-        if (companionLifecycleIsActive(companionLifecycle)) {
+        if (managedCompanionIsActive()) {
           throw Object.assign(new Error('Stop the managed Family AI client before changing the backup policy.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
         }
         const result = await backups.setPolicy({ instanceId: id, ...input });
@@ -2250,7 +2297,7 @@ export async function createControlPlane(options = {}) {
         const actionName = backupAction[3];
         if (!validateInstanceId(id)) return json(response, 400, { ok: false, code: 'INVALID_INSTANCE_ID', message: 'Invalid instance id.' });
         if (!BACKUP_ID_PATTERN.test(backupId)) return json(response, 400, { ok: false, code: 'INVALID_BACKUP_ID', message: 'Invalid backup id.' });
-        if (companionLifecycleIsActive(companionLifecycle)) {
+        if (managedCompanionIsActive()) {
           throw Object.assign(new Error('Stop the managed Family AI client before changing Family Server backups.'), { statusCode: 409, code: 'COMPANION_ALREADY_ACTIVE' });
         }
         if (actionName === 'verify') {
@@ -2294,7 +2341,7 @@ export async function createControlPlane(options = {}) {
           result = await processes.withInstanceLock(id, async () => {
             if (typeof updater.assertSafeForLifecycle === 'function') await updater.assertSafeForLifecycle(id);
             await assertBackupSafeForLifecycle(id);
-            await companionLifecycle.stop();
+            await stopManagedCompanions();
             companionSessions.closeConnection(1001, 'family-server-updating');
             return updater.updateWithinInstanceLock(updateRequest);
           });
@@ -2374,7 +2421,7 @@ export async function createControlPlane(options = {}) {
               throw new Error('The companion-aware process manager does not share the process lifecycle lock');
             }
             instance = await processes.withInstanceLock(id, async () => {
-              await companionLifecycle.stop();
+              await stopManagedCompanions();
               companionSessions.closeConnection(1001, 'family-server-stopping');
               const stopped = await processes.stopWithinInstanceLock(id);
               if (stopped?.status === 'stopped' && stopped?.pid === null && stopped?.managedProcess == null) {
@@ -2501,7 +2548,7 @@ export async function createControlPlane(options = {}) {
     : 60_000;
   const runScheduledBackups = () => {
     if (backupRunInFlight || managedLifecycleRuns > 0 || draining || globalRecoveryFence
-      || companionLifecycleIsActive(companionLifecycle)) return;
+      || managedCompanionIsActive()) return;
     const run = Promise.resolve()
       .then(async () => {
         await latchLiveBackupRecoveryFence();
@@ -2569,6 +2616,9 @@ export async function createControlPlane(options = {}) {
     legacyMigration,
     companionLifecycle,
     companionSessions,
+    headlessController,
+    companionExecutionSessions: executionSessions,
+    stopManagedCompanions,
     familyCoreSessions,
     familyCoreCredentials,
     familyCoreIdentities,
@@ -2620,7 +2670,7 @@ async function main() {
     if (stopping) return;
     stopping = true;
     try {
-      await app.companionLifecycle.stop({ gracefulTimeoutMs: SUPERVISOR_DRAIN_TIMEOUT_MS });
+      await app.stopManagedCompanions({ gracefulTimeoutMs: SUPERVISOR_DRAIN_TIMEOUT_MS });
       await app.processes.shutdown(SUPERVISOR_DRAIN_TIMEOUT_MS);
       await app.close();
       process.exit(0);

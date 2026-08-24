@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-08-24T14:35:00.000-04:00",
+  "updatedAt": "2026-08-24T15:14:09.200-04:00",
   "states": ["planned", "stubbed", "implemented", "live-verified"],
   "features": {
     "familyServer.lifecycle": "live-verified",
@@ -22,7 +22,7 @@
     "companion.mineflayerViaZenith": "live-verified",
     "companion.genericContainerAccess": "live-verified",
     "companion.genericInventoryTransfer": "live-verified",
-    "companion.enhancedControllerIntegration": "stubbed",
+    "companion.enhancedControllerIntegration": "implemented",
     "companion.hybridTelemetry": "stubbed",
     "familyCore.protocol": "live-verified",
     "familyCore.serverMod": "live-verified",

@@ -34,6 +34,24 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'swing either hand, including punching air',
   'stop the current physical task',
 ]);
+const PHYSICAL_SKILL_CAPABILITIES = Object.freeze([
+  ['skill.followPlayer', 'follow the requesting player'],
+  ['skill.navigateTo', 'walk to supplied coordinates'],
+  ['skill.explore', 'explore a bounded nearby radius'],
+  ['skill.gatherBlock', 'gather supported blocks'],
+  ['direct.lookAt', 'look at supplied coordinates'],
+  ['direct.moveFor', 'move briefly forward, backward, or sideways'],
+  ['direct.selectSlot', 'select a numbered hotbar slot'],
+  ['direct.use', 'use the item or object under the crosshair'],
+  ['direct.interactBlock', 'interact with an exact nearby observed block or entity'],
+  ['direct.placeBlock', 'place a supported hotbar block at nearby coordinates'],
+  ['direct.placeNearbyBlock', 'place one supported hotbar block on nearby ground'],
+  ['direct.dropItem', 'drop the selected item or stack'],
+  ['skill.smelt', 'cook raw chicken with coal in a nearby furnace and collect it'],
+  ['direct.selectItem', 'select a named item already in the hotbar'],
+  ['direct.swingHand', 'swing either hand, including punching air'],
+  ['action.cancel', 'stop the current physical task'],
+]);
 const PLANNABLE_ACTIONS = Object.freeze([
   'direct.lookAt', 'direct.moveFor', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
   'direct.interactEntity', 'direct.attack', 'direct.swingHand', 'direct.jump',
@@ -51,6 +69,7 @@ const PRIVATE_ENV_KEYS = Object.freeze([
   'MASTERMIND_MINECRAFT_OPENAI_MODEL',
   'MASTERMIND_MINECRAFT_PHYSICAL_TASK_PLANNING_ENABLED',
   'MASTERMIND_MINECRAFT_SURVIVAL_AUTOMATION_ENABLED',
+  'MASTERMIND_MINECRAFT_HEADLESS_CONTROLLER_ENABLED',
 ]);
 
 const COMPANION_INSTRUCTIONS = `You are The_AlChemist___, a Minecraft player and companion.
@@ -142,11 +161,33 @@ function isCapabilityQuestion(value) {
   return CAPABILITY_QUESTION.test(normalized);
 }
 
-function capabilityReply(flags) {
+function sessionCapabilities(sessionStatus) {
+  if (sessionStatus === null || sessionStatus === undefined) return null;
+  const values = sessionStatus?.client?.capabilities ?? sessionStatus?.capabilities ?? [];
+  return new Set(Array.isArray(values) ? values : []);
+}
+
+function enabledPhysicalSkills(flags, sessionStatus) {
+  if (flags.physicalTaskPlanning !== true) return [];
+  const capabilities = sessionCapabilities(sessionStatus);
+  if (capabilities === null) return [...ENABLED_PHYSICAL_SKILLS];
+  return PHYSICAL_SKILL_CAPABILITIES.filter(([capability]) => capabilities.has(capability)).map(([, description]) => description);
+}
+
+function capabilityReply(flags, sessionStatus) {
   if (flags.physicalTaskPlanning !== true) {
     return "I can chat with you, but my movement and task controls aren't enabled right now.";
   }
-  const survival = flags.survivalAutomation === true ? ', and handle basic survival' : '';
+  const capabilities = sessionCapabilities(sessionStatus);
+  if (capabilities !== null && capabilities.has('skill.navigateTo')
+    && [...capabilities].every((value) => ['action.cancel', 'direct.say', 'skill.navigateTo'].includes(value))) {
+    return "I can chat and navigate to coordinates with this body. Following, gathering, building, crafting, and storage work aren't connected to it yet.";
+  }
+  if (enabledPhysicalSkills(flags, sessionStatus).length === 0) {
+    return "I can chat with you, but this body isn't advertising any verified physical skills right now.";
+  }
+  const survival = flags.survivalAutomation === true
+    && (capabilities?.has('skill.escapeDanger') ?? true) ? ', and handle basic survival' : '';
   return `I can chat, follow you, navigate, scout, gather, cook chicken, use blocks and entities, place blocks, drop items, stop${survival}. I can't sleep reliably or inspect storage, craft, build, or deliver yet.`;
 }
 
@@ -468,7 +509,7 @@ export class CompanionConversationCoordinator {
     }
     if (isCapabilityQuestion(value.text)) {
       try {
-        await this.sendChat(capabilityReply(this.flags));
+        await this.sendChat(capabilityReply(this.flags, this.sessionStatus()));
         this.replies += 1;
         this.intake.markExecution('CAPABILITY_REPLY_DISPATCHED', value.occurredAt);
         this.#markCompanionResponse(value);
@@ -504,9 +545,10 @@ export class CompanionConversationCoordinator {
           },
           capabilities: {
             conversation: true,
-            physicalActions: this.flags.physicalTaskPlanning === true,
-            enabledPhysicalSkills: this.flags.physicalTaskPlanning === true ? ENABLED_PHYSICAL_SKILLS : [],
-            survivalAutomation: this.flags.survivalAutomation === true,
+            physicalActions: enabledPhysicalSkills(this.flags, this.sessionStatus()).length > 0,
+            enabledPhysicalSkills: enabledPhysicalSkills(this.flags, this.sessionStatus()),
+            survivalAutomation: this.flags.survivalAutomation === true
+              && (sessionCapabilities(this.sessionStatus())?.has('skill.escapeDanger') ?? true),
             persistentMemory: false,
             limitations: ['sleeping', 'general container management', 'unsupported furnace recipes', 'crafting', 'building', 'item delivery'],
           },
@@ -585,7 +627,10 @@ export class CompanionConversationCoordinator {
             baritone: snapshot?.baritone ?? null,
           },
         },
-        authorizedTools: [...PLANNABLE_ACTIONS],
+        authorizedTools: (() => {
+          const capabilities = sessionCapabilities(session);
+          return capabilities === null ? [...PLANNABLE_ACTIONS] : PLANNABLE_ACTIONS.filter((tool) => capabilities.has(tool));
+        })(),
         deadlineAt: new Date(Date.now() + 20_000).toISOString(),
       });
       this.lastModel = result.model;
@@ -677,7 +722,7 @@ export function companionFlagsFromEnvironment(environment = process.env) {
     inGameApprovals: false,
     visionRecovery: false,
     zenithBody: false,
-    enhancedHeadlessController: false,
+    enhancedHeadlessController: environment.MASTERMIND_MINECRAFT_HEADLESS_CONTROLLER_ENABLED === 'true',
     hybridTelemetry: false,
   };
 }
@@ -702,6 +747,7 @@ export function createFamilyCompanionBrain(options = {}) {
       dispatchAction: options.dispatchAction,
       cancelAction: options.cancelAction,
       waitForActionActivation: options.waitForActionActivation,
+      waitForPhysicalIdle: options.waitForPhysicalIdle,
       sessionStatus: options.sessionStatus,
       sendChat: options.sendChat,
     }))
@@ -725,7 +771,7 @@ export function createFamilyCompanionBrain(options = {}) {
   const states = {
     computerChat: 'stubbed', companionConversation: 'implemented', modelReasoning: 'implemented', profileCapture: 'stubbed',
     physicalTaskPlanning: 'implemented', survivalAutomation: 'implemented', modRequestExecution: 'stubbed', inGameApprovals: 'planned',
-    visionRecovery: 'planned', zenithBody: 'stubbed', enhancedHeadlessController: 'stubbed', hybridTelemetry: 'stubbed',
+    visionRecovery: 'planned', zenithBody: 'stubbed', enhancedHeadlessController: 'implemented', hybridTelemetry: 'stubbed',
   };
   return {
     ingestChat: (value) => coordinator.ingest(value),

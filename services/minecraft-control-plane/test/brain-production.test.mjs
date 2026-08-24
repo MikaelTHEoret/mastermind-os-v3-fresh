@@ -231,6 +231,43 @@ test('conversation context describes the companion identity and exact enabled ph
   assert.ok(request.input.capabilities.limitations.includes('sleeping'));
 });
 
+test('headless embodiment capabilities restrict both self-description and model planning tools', async () => {
+  const requests = [];
+  const coordinator = new CompanionConversationCoordinator({
+    flags: {
+      companionConversation: true, modelReasoning: true, physicalTaskPlanning: true, survivalAutomation: false,
+    },
+    provider: {
+      async reason(value) {
+        requests.push(value);
+        if (value.kind === 'plan') {
+          return {
+            requestId: value.requestId, status: 'succeeded',
+            output: { decision: 'conversation', actionsJson: '[]', acknowledgement: '', message: '' },
+            model: 'fixture', completedAt: new Date().toISOString(),
+          };
+        }
+        return {
+          requestId: value.requestId, status: 'succeeded', output: { text: 'I can walk to coordinates.' },
+          model: 'fixture', completedAt: new Date().toISOString(),
+        };
+      },
+    },
+    canSendChat: () => true,
+    sendChat: async () => {},
+    sessionStatus: () => ({
+      state: 'ready', client: { capabilities: ['action.cancel', 'direct.say', 'skill.navigateTo'] }, latestSnapshot: null,
+    }),
+    taskSupervisor: { async handle() { return { handled: false }; }, async handlePlanned() { return { handled: false }; } },
+  });
+  await coordinator.ingest(chat({ text: 'Alchemist, tell me about yourself' }));
+  assert.deepEqual(requests[0].input.capabilities.enabledPhysicalSkills, [
+    'walk to supplied coordinates', 'stop the current physical task',
+  ]);
+  await coordinator.ingest(chat({ text: 'Alchemist, find the kitchen' }));
+  assert.deepEqual(requests[1].authorizedTools, ['skill.navigateTo']);
+});
+
 test('capability questions use the authoritative manifest without a model call', async () => {
   let modelCalls = 0;
   const sent = [];

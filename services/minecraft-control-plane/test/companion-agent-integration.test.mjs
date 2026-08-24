@@ -85,6 +85,7 @@ function sessionFixture(overrides = {}) {
       calls.push(['cancel', id, reason]);
       return { action: { actionId: id, kind: 'direct.jump', status: 'dispatched' }, alreadyTerminal: false, alreadyRequested: false };
     },
+    async waitForActionActivation(id) { return { actionId: id, status: 'dispatched' }; },
     closeConnection(code, reason) { calls.push(['close', code, reason]); return true; },
     ...overrides,
   };

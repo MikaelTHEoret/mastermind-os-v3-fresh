@@ -184,6 +184,9 @@ export class SessionEmbodimentAdapter {
       dispatchAction: (action, options) => this.dispatch(action, options),
       cancelAction: (actionId, reason) => this.cancel(actionId, reason),
       waitForActionActivation: (actionId, options) => this.waitForActivation(actionId, options),
+      ...(typeof this.sessionManager.waitForPhysicalIdle === 'function'
+        ? { waitForPhysicalIdle: (actionId, options) => this.sessionManager.waitForPhysicalIdle(actionId, options) }
+        : {}),
       sessionStatus: () => this.sessionManager.status(),
     });
   }
