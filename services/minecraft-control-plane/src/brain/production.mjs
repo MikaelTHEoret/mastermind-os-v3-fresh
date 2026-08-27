@@ -32,6 +32,7 @@ const ENABLED_PHYSICAL_SKILLS = Object.freeze([
   'cook raw chicken with coal in a nearby furnace and collect it',
   'select a named item already in the hotbar',
   'swing either hand, including punching air',
+  'move a bounded quantity between inventory and an exact nearby chest or workstation slot',
   'stop the current physical task',
 ]);
 const PHYSICAL_SKILL_CAPABILITIES = Object.freeze([
@@ -50,12 +51,13 @@ const PHYSICAL_SKILL_CAPABILITIES = Object.freeze([
   ['skill.smelt', 'cook raw chicken with coal in a nearby furnace and collect it'],
   ['direct.selectItem', 'select a named item already in the hotbar'],
   ['direct.swingHand', 'swing either hand, including punching air'],
+  ['direct.transferContainer', 'move a bounded quantity between inventory and an exact nearby chest or workstation slot'],
   ['action.cancel', 'stop the current physical task'],
 ]);
 const PLANNABLE_ACTIONS = Object.freeze([
   'direct.lookAt', 'direct.moveFor', 'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
   'direct.interactEntity', 'direct.attack', 'direct.swingHand', 'direct.jump',
-  'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+  'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById', 'direct.transferContainer',
   'skill.navigateTo', 'skill.followPlayer', 'skill.gatherBlock', 'skill.explore',
   'skill.smelt',
 ]);
@@ -103,7 +105,7 @@ Use direct.swingHand for punching or swinging at air. Use direct.attack only for
 Use direct.use only when the requested object/item interaction is consistent with crosshairTarget or the selected hotbar item. Never pretend a container, mob, dropped item, or block is present when it is absent from the supplied awareness.
 Prefer direct.interactBlock over direct.lookAt plus direct.use when one exact nearbyBlocks target matches. Copy its exact blockId and coordinates; the client revalidates both identity and reach before interacting.
 Use direct.interactEntity for an exact nearbyEntities target such as an observed boat. Copy its exact entityUuid and typeId and use hand main. Never invent or reuse an entity UUID from an earlier observation.
-Opening a container does not reveal its contents. Container inspection and item transfer are unavailable; clarify that exact limitation rather than claiming to see or move items.
+Use direct.transferContainer only for one exact nearby observed container and a clearly named item, direction, count, and slot role. Use storage for chests, barrels, and shulker boxes; use input, fuel, or output only for the matching workstation slot. The body revalidates the block ID, coordinates, reach, item delta, and closes the container. If the target or quantity is ambiguous, clarify instead of guessing.
 Use skill.smelt only for a complete supported recipe with exact registered block, input, output, and fuel IDs. It navigates, transfers bounded items, waits, collects, and verifies the result; never replace it with a partial walk or open action.
 nearbyEntities distinguishes hostile, passive, dropped-item, and other entities and includes visibility. nearbyPlayers includes visibility and held items. Prefer visible targets and exact IDs; clarify when several targets match.
 Use direct.dropItem for dropping the currently selected item. Set all true only when the player explicitly asks for the whole stack.
@@ -181,14 +183,16 @@ function capabilityReply(flags, sessionStatus) {
   const capabilities = sessionCapabilities(sessionStatus);
   if (capabilities !== null && capabilities.has('skill.navigateTo')
     && !capabilities.has('skill.followPlayer') && !capabilities.has('skill.gatherBlock') && !capabilities.has('skill.smelt')) {
-    return "I can chat, navigate, look and move, select or drop items, interact with nearby blocks, place blocks, and stop a task. I can't follow, gather, craft, or manage storage yet.";
+    const storage = capabilities.has('direct.transferContainer') ? ', and move specific items through nearby containers' : '';
+    return `I can chat, navigate, look, move, select or drop items, use nearby blocks, place blocks${storage}, and stop tasks. I can't follow, gather, craft, or freely organize storage yet.`;
   }
   if (enabledPhysicalSkills(flags, sessionStatus).length === 0) {
     return "I can chat with you, but this body isn't advertising any verified physical skills right now.";
   }
   const survival = flags.survivalAutomation === true
-    && (capabilities?.has('skill.escapeDanger') ?? true) ? ', and handle basic survival' : '';
-  return `I can chat, follow you, navigate, scout, gather, cook chicken, use blocks and entities, place blocks, drop items, stop${survival}. I can't sleep reliably or inspect storage, craft, build, or deliver yet.`;
+    && (capabilities?.has('skill.escapeDanger') ?? true) ? ', handle basic survival' : '';
+  const storage = (capabilities?.has('direct.transferContainer') ?? true) ? ', transfer container items' : '';
+  return `I can chat, follow you, navigate, scout, gather, cook, use/place blocks, drop items${storage}, stop${survival}. I can't sleep reliably, freely organize storage, craft, build, or deliver.`;
 }
 
 export function isCompanionSelfMessage(value) {
@@ -550,7 +554,7 @@ export class CompanionConversationCoordinator {
             survivalAutomation: this.flags.survivalAutomation === true
               && (sessionCapabilities(this.sessionStatus())?.has('skill.escapeDanger') ?? true),
             persistentMemory: false,
-            limitations: ['sleeping', 'general container management', 'unsupported furnace recipes', 'crafting', 'building', 'item delivery'],
+            limitations: ['sleeping', 'unbounded or unspecified container management', 'unsupported furnace recipes', 'crafting', 'building', 'item delivery'],
           },
           currentGameState: (() => {
             const snapshot = this.sessionStatus()?.latestSnapshot ?? null;

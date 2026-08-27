@@ -72,3 +72,34 @@ test('container detection routes storage and furnace blocks through verified win
   assert.equal(__test.isContainerBlock('red_shulker_box'), true);
   assert.equal(__test.isContainerBlock('oak_door'), false);
 });
+
+test('atomic container transfer verifies the player inventory delta and closes the window', async () => {
+  const chest = block('chest', new Vec3(1, 64, 0));
+  const slots = Array(63).fill(null);
+  slots[54] = { name: 'coal', type: 5, metadata: null, count: 3 };
+  const handle = {
+    slots, inventoryStart: 27, inventoryEnd: 63,
+    once() {},
+    close() { bot.currentWindow = null; },
+    async deposit(type, metadata, count) {
+      assert.equal(type, 5); assert.equal(metadata, null); assert.equal(count, 1);
+      slots[54].count -= count;
+      slots[0] = { name: 'coal', type, metadata, count };
+    },
+  };
+  const bot = {
+    entity: { position: new Vec3(0.5, 64, 0.5) }, currentWindow: null,
+    registry: { itemsByName: { coal: { id: 5 } } },
+    blockAt(position) { return position.equals(chest.position) ? chest : null; },
+    async openContainer() { bot.currentWindow = handle; return handle; },
+  };
+  const state = { container: null };
+  const result = await __test.transferContainer(bot, state, {
+    blockId: 'minecraft:chest', x: 1, y: 64, z: 0,
+    direction: 'player-to-container', slotRole: 'storage', itemId: 'minecraft:coal', count: 1,
+  });
+  assert.equal(result.observedCount, 1);
+  assert.equal(slots[54].count, 2);
+  assert.equal(state.container, null);
+  assert.equal(bot.currentWindow, null);
+});

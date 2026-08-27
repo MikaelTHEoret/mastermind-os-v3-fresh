@@ -41,23 +41,23 @@
       "enum": [
         "state.snapshot", "state.inventory", "state.localAwareness", "action.cancel", "client.shutdown",
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
-        "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
+        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand", "direct.transferContainer",
+        "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.smelt", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
     },
     "actionKind": {
       "enum": [
         "direct.say", "direct.respawn", "direct.lookAt", "direct.lookDelta", "direct.moveFor", "direct.jump", "direct.attack",
-        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand",
-        "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.escapeDanger",
+        "direct.selectSlot", "direct.use", "direct.interactBlock", "direct.interactEntity", "direct.placeBlock", "direct.placeNearbyBlock", "direct.dropItem", "direct.dropItemById", "direct.selectItem", "direct.swingHand", "direct.transferContainer",
+        "skill.navigateTo", "skill.followPlayer", "skill.gatherBlock", "skill.explore", "skill.smelt", "skill.escapeDanger",
         "skill.returnToKnownSafePoint"
       ]
     },
     "capabilities": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 28,
+      "maxItems": 30,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/capability" }
     },
@@ -605,6 +605,26 @@
         {
           "type": "object", "additionalProperties": false, "required": ["kind", "args"],
           "properties": {
+            "kind": { "const": "direct.transferContainer" },
+            "args": {
+              "type": "object", "additionalProperties": false,
+              "required": ["blockId", "x", "y", "z", "direction", "slotRole", "itemId", "count"],
+              "properties": {
+                "blockId": { "$ref": "#/$defs/registryId" },
+                "x": { "type": "integer", "minimum": -30000000, "maximum": 30000000 },
+                "y": { "type": "integer", "minimum": -2048, "maximum": 2048 },
+                "z": { "type": "integer", "minimum": -30000000, "maximum": 30000000 },
+                "direction": { "enum": ["player-to-container", "container-to-player"] },
+                "slotRole": { "enum": ["storage", "input", "fuel", "output"] },
+                "itemId": { "$ref": "#/$defs/registryId" },
+                "count": { "type": "integer", "minimum": 1, "maximum": 64 }
+              }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
             "kind": { "const": "skill.navigateTo" },
             "args": {
               "type": "object", "additionalProperties": false, "required": ["x", "y", "z", "tolerance"],
@@ -648,6 +668,24 @@
             "args": {
               "type": "object", "additionalProperties": false, "required": ["radius"],
               "properties": { "radius": { "type": "integer", "minimum": 16, "maximum": 1024 } }
+            }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "args"],
+          "properties": {
+            "kind": { "const": "skill.smelt" },
+            "args": {
+              "type": "object", "additionalProperties": false,
+              "required": ["blockId", "inputItemId", "outputItemId", "fuelItemId", "count", "maxDistance"],
+              "properties": {
+                "blockId": { "$ref": "#/$defs/registryId" },
+                "inputItemId": { "$ref": "#/$defs/registryId" },
+                "outputItemId": { "$ref": "#/$defs/registryId" },
+                "fuelItemId": { "$ref": "#/$defs/registryId" },
+                "count": { "type": "integer", "minimum": 1, "maximum": 64 },
+                "maxDistance": { "type": "integer", "minimum": 1, "maximum": 16 }
+              }
             }
           }
         },

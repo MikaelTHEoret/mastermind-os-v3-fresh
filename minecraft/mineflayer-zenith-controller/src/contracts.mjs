@@ -6,7 +6,7 @@ const ACTION_KINDS = new Set([
   'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
   'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
-  'direct.swingHand', 'skill.navigateTo', 'container.open',
+  'direct.swingHand', 'direct.transferContainer', 'skill.navigateTo', 'container.open',
   'inventory.transfer', 'container.close', 'action.cancel', 'controller.stop',
 ]);
 
@@ -125,6 +125,14 @@ export function parseControllerCommand(line) {
   } else if (value.kind === 'direct.swingHand') {
     exactObject(value.args, ['hand']);
     if (!['main', 'off'].includes(value.args.hand)) fail('INVALID_HAND');
+  } else if (value.kind === 'direct.transferContainer') {
+    exactObject(value.args, ['blockId', 'x', 'y', 'z', 'direction', 'slotRole', 'itemId', 'count']);
+    string(value.args.blockId, REGISTRY_ID, 3, 128);
+    validateCoordinates(value.args);
+    if (!['player-to-container', 'container-to-player'].includes(value.args.direction)) fail('INVALID_TRANSFER_DIRECTION');
+    if (!['storage', 'input', 'fuel', 'output'].includes(value.args.slotRole)) fail('INVALID_SLOT_ROLE');
+    string(value.args.itemId, REGISTRY_ID, 3, 128);
+    number(value.args.count, 1, 64, true);
   } else if (value.kind === 'skill.navigateTo') {
     exactObject(value.args, ['x', 'y', 'z', 'tolerance']);
     validateCoordinates(value.args);

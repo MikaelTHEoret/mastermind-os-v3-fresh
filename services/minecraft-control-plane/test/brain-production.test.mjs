@@ -226,6 +226,7 @@ test('conversation context describes the companion identity and exact enabled ph
     'cook raw chicken with coal in a nearby furnace and collect it',
     'select a named item already in the hotbar',
     'swing either hand, including punching air',
+    'move a bounded quantity between inventory and an exact nearby chest or workstation slot',
     'stop the current physical task',
   ]);
   assert.ok(request.input.capabilities.limitations.includes('sleeping'));

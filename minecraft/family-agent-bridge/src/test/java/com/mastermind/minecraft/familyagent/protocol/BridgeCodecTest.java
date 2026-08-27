@@ -150,6 +150,17 @@ final class BridgeCodecTest {
         swingArgs.addProperty("hand", "main");
         codec.decodeControl(execute("direct.swingHand", swingArgs, 11), SESSION, 10);
 
+        var transferArgs = new JsonObject();
+        transferArgs.addProperty("blockId", "minecraft:chest");
+        transferArgs.addProperty("x", 10);
+        transferArgs.addProperty("y", 64);
+        transferArgs.addProperty("z", -20);
+        transferArgs.addProperty("direction", "player-to-container");
+        transferArgs.addProperty("slotRole", "storage");
+        transferArgs.addProperty("itemId", "minecraft:coal");
+        transferArgs.addProperty("count", 1);
+        codec.decodeControl(execute("direct.transferContainer", transferArgs, 12), SESSION, 11);
+
         var smeltArgs = new JsonObject();
         smeltArgs.addProperty("blockId", "minecraft:furnace");
         smeltArgs.addProperty("inputItemId", "minecraft:chicken");
@@ -157,7 +168,7 @@ final class BridgeCodecTest {
         smeltArgs.addProperty("fuelItemId", "minecraft:coal");
         smeltArgs.addProperty("count", 4);
         smeltArgs.addProperty("maxDistance", 16);
-        codec.decodeControl(execute("skill.smelt", smeltArgs, 12), SESSION, 11);
+        codec.decodeControl(execute("skill.smelt", smeltArgs, 13), SESSION, 12);
     }
 
     @Test

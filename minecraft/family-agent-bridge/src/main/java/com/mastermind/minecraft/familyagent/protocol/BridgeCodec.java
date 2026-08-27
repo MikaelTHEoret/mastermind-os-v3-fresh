@@ -251,6 +251,17 @@ public final class BridgeCodec {
                 exactObject(args, kind + ".args", "hand");
                 enumString(args, "hand", Set.of("main", "off"));
             }
+            case "direct.transferContainer" -> {
+                exactObject(args, kind + ".args", "blockId", "x", "y", "z", "direction", "slotRole", "itemId", "count");
+                patternedString(args, "blockId", 3, 128, REGISTRY_ID);
+                integer(args, "x", -30_000_000, 30_000_000);
+                integer(args, "y", -2_048, 2_048);
+                integer(args, "z", -30_000_000, 30_000_000);
+                enumString(args, "direction", Set.of("player-to-container", "container-to-player"));
+                enumString(args, "slotRole", Set.of("storage", "input", "fuel", "output"));
+                patternedString(args, "itemId", 3, 128, REGISTRY_ID);
+                integer(args, "count", 1, 64);
+            }
             case "skill.navigateTo" -> {
                 exactObject(args, kind + ".args", "x", "y", "z", "tolerance");
                 integer(args, "x", -30_000_000, 30_000_000);

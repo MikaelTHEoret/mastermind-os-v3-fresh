@@ -1598,6 +1598,23 @@ function sanitizedCompanionAction(input: unknown): Record<string, unknown> {
       exactKeys(args, ['itemId', 'all'], `${kind} arguments`);
       if (typeof args.itemId !== 'string' || args.itemId.length > 128 || !REGISTRY_ID.test(args.itemId) || typeof args.all !== 'boolean') break;
       return { kind, args: { itemId: args.itemId, all: args.all } };
+    case 'direct.transferContainer':
+      exactKeys(args, ['blockId', 'x', 'y', 'z', 'direction', 'slotRole', 'itemId', 'count'], `${kind} arguments`);
+      if (typeof args.blockId !== 'string' || args.blockId.length > 128 || !REGISTRY_ID.test(args.blockId)
+        || !boundedNumber(args.x, -30_000_000, 30_000_000, true)
+        || !boundedNumber(args.y, -2_048, 2_048, true)
+        || !boundedNumber(args.z, -30_000_000, 30_000_000, true)
+        || !['player-to-container', 'container-to-player'].includes(String(args.direction))
+        || !['storage', 'input', 'fuel', 'output'].includes(String(args.slotRole))
+        || typeof args.itemId !== 'string' || args.itemId.length > 128 || !REGISTRY_ID.test(args.itemId)
+        || !boundedNumber(args.count, 1, 64, true)) break;
+      return {
+        kind,
+        args: {
+          blockId: args.blockId, x: args.x, y: args.y, z: args.z, direction: args.direction,
+          slotRole: args.slotRole, itemId: args.itemId, count: args.count,
+        },
+      };
     case 'direct.interactEntity':
       exactKeys(args, ['entityUuid', 'typeId', 'hand'], `${kind} arguments`);
       if (typeof args.entityUuid !== 'string' || !ACTION_ID.test(args.entityUuid)

@@ -59,7 +59,8 @@ function fakeController() {
             'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
             'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
             'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
-            'direct.swingHand', 'skill.navigateTo', 'container.open', 'action.cancel', 'controller.stop',
+            'direct.swingHand', 'direct.transferContainer', 'skill.navigateTo', 'container.open',
+            'action.cancel', 'controller.stop',
           ],
         }));
         continue;
@@ -125,7 +126,7 @@ test('manages a headless controller and exposes only brain-compatible proven cap
     'action.cancel', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
     'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
     'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
-    'direct.swingHand', 'skill.navigateTo',
+    'direct.swingHand', 'direct.transferContainer', 'skill.navigateTo',
   ]);
   await new Promise((resolve) => setTimeout(resolve, 5));
   assert.equal(body.status().latestSnapshot.phase, 'in-world');

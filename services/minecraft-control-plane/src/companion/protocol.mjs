@@ -28,6 +28,7 @@ export const FAMILY_BRIDGE_CAPABILITIES = Object.freeze([
   'direct.dropItemById',
   'direct.selectItem',
   'direct.swingHand',
+  'direct.transferContainer',
   'skill.navigateTo',
   'skill.followPlayer',
   'skill.gatherBlock',
@@ -214,6 +215,17 @@ function validateActionArgs(action) {
     case 'direct.swingHand':
       exactObject(args, `${kind}.args`, ['hand']);
       stringValue(args.hand, `${kind}.args.hand`, { values: new Set(['main', 'off']) });
+      break;
+    case 'direct.transferContainer':
+      exactObject(args, `${kind}.args`, ['blockId', 'x', 'y', 'z', 'direction', 'slotRole', 'itemId', 'count']);
+      stringValue(args.blockId, `${kind}.args.blockId`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(args.x, `${kind}.args.x`, -30_000_000, 30_000_000, { integer: true });
+      numberValue(args.y, `${kind}.args.y`, -2_048, 2_048, { integer: true });
+      numberValue(args.z, `${kind}.args.z`, -30_000_000, 30_000_000, { integer: true });
+      stringValue(args.direction, `${kind}.args.direction`, { values: new Set(['player-to-container', 'container-to-player']) });
+      stringValue(args.slotRole, `${kind}.args.slotRole`, { values: new Set(['storage', 'input', 'fuel', 'output']) });
+      stringValue(args.itemId, `${kind}.args.itemId`, { min: 3, max: 128, pattern: REGISTRY_ID });
+      numberValue(args.count, `${kind}.args.count`, 1, 64, { integer: true });
       break;
     case 'skill.navigateTo':
       exactObject(args, `${kind}.args`, ['x', 'y', 'z', 'tolerance']);

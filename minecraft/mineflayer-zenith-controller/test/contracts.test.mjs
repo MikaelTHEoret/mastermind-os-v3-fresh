@@ -37,6 +37,13 @@ test('controller exposes typed general primitives and rejects arbitrary code or 
     schemaVersion: 1, commandId: UUID, kind: 'direct.placeBlock',
     args: { blockId: 'minecraft:oak_planks', x: 2, y: 64, z: 2 },
   })).kind, 'direct.placeBlock');
+  assert.equal(parseControllerCommand(JSON.stringify({
+    schemaVersion: 1, commandId: UUID, kind: 'direct.transferContainer',
+    args: {
+      blockId: 'minecraft:chest', x: 1, y: 64, z: 2,
+      direction: 'player-to-container', slotRole: 'storage', itemId: 'minecraft:coal', count: 1,
+    },
+  })).kind, 'direct.transferContainer');
   assert.throws(() => parseControllerCommand(JSON.stringify({
     schemaVersion: 1, commandId: UUID, kind: 'javascript.execute', args: { code: 'process.exit()' },
   })), (error) => error.code === 'UNSUPPORTED_CONTROLLER_COMMAND');
@@ -61,4 +68,11 @@ test('unknown fields and unbounded transfers fail closed', () => {
     schemaVersion: 1, commandId: UUID, kind: 'direct.moveFor',
     args: { forward: 1, strafe: 0, durationMs: 100, sprint: true, sneak: true },
   })), (error) => error.code === 'INVALID_MOVEMENT');
+  assert.throws(() => parseControllerCommand(JSON.stringify({
+    schemaVersion: 1, commandId: UUID, kind: 'direct.transferContainer',
+    args: {
+      blockId: 'minecraft:chest', x: 1, y: 64, z: 2,
+      direction: 'player-to-container', slotRole: 'storage', itemId: 'minecraft:coal', count: 65,
+    },
+  })), (error) => error.code === 'INVALID_NUMBER');
 });

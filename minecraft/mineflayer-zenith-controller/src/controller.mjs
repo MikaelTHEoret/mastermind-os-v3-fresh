@@ -283,6 +283,7 @@ function isContainerBlock(name) {
 async function openContainer(bot, state, args) {
   await closeContainer(state);
   const { block, blockId } = resolveBlock(bot, args);
+  requireReach(bot, block.position);
   const workstationKind = ['furnace', 'blast_furnace', 'smoker'].includes(block.name) ? block.name : 'storage';
   const handle = workstationKind === 'storage' ? await bot.openContainer(block) : await bot.openFurnace(block);
   state.container = { kind: workstationKind, blockId, handle };
@@ -326,6 +327,26 @@ async function transfer(bot, state, args) {
   });
   if (observedDelta === null) throw Object.assign(new Error('Transfer was not observed'), { code: 'TRANSFER_UNVERIFIED' });
   return { observedDelta };
+}
+
+async function transferContainer(bot, state, args) {
+  try {
+    await openContainer(bot, state, {
+      x: args.x, y: args.y, z: args.z, expectedBlockId: args.blockId,
+    });
+    const result = await transfer(bot, state, args);
+    return {
+      blockId: args.blockId,
+      x: args.x, y: args.y, z: args.z,
+      direction: args.direction,
+      slotRole: args.slotRole,
+      itemId: args.itemId,
+      requestedCount: args.count,
+      observedCount: result.observedDelta,
+    };
+  } finally {
+    await closeContainer(state);
+  }
 }
 
 async function execute(bot, state, command) {
@@ -453,6 +474,8 @@ async function execute(bot, state, command) {
     } else if (command.kind === 'direct.swingHand') {
       bot.swingArm(command.args.hand === 'off' ? 'left' : 'right');
       evidence = { kind: 'hand.swung', hand: command.args.hand };
+    } else if (command.kind === 'direct.transferContainer') {
+      evidence = { kind: 'container.transfer', ...await transferContainer(bot, state, command.args) };
     } else if (command.kind === 'skill.navigateTo') {
       const movements = new Movements(bot);
       bot.pathfinder.setMovements(movements);
@@ -542,7 +565,7 @@ async function main() {
       'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
       'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
       'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
-      'direct.swingHand', 'skill.navigateTo', 'container.open',
+      'direct.swingHand', 'direct.transferContainer', 'skill.navigateTo', 'container.open',
       'inventory.transfer', 'container.close', 'action.cancel', 'controller.stop',
     ] });
   });
@@ -621,4 +644,4 @@ if (invokedDirectly) {
   });
 }
 
-export const __test = Object.freeze({ registryId, localAwareness, snapshot, placeAt, isContainerBlock });
+export const __test = Object.freeze({ registryId, localAwareness, snapshot, placeAt, isContainerBlock, transferContainer });

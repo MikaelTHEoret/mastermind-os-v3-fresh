@@ -12,13 +12,13 @@ const READY_CAPABILITIES = Object.freeze([
   'action.cancel', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
   'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
-  'direct.swingHand', 'skill.navigateTo',
+  'direct.swingHand', 'direct.transferContainer', 'skill.navigateTo',
 ]);
 const CONTROLLER_CAPABILITIES = new Set([
   'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
   'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
   'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
-  'direct.swingHand', 'skill.navigateTo', 'container.open',
+  'direct.swingHand', 'direct.transferContainer', 'skill.navigateTo', 'container.open',
   'inventory.transfer', 'container.close', 'action.cancel', 'controller.stop',
 ]);
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);

@@ -86,6 +86,13 @@ test('the action union accepts only bounded typed direct actions and Baritone sk
     { kind: 'direct.dropItemById', args: { itemId: 'minecraft:cooked_beef', all: false } },
     { kind: 'direct.selectItem', args: { itemId: 'minecraft:oak_planks' } },
     { kind: 'direct.swingHand', args: { hand: 'main' } },
+    {
+      kind: 'direct.transferContainer',
+      args: {
+        blockId: 'minecraft:chest', x: 11, y: 64, z: 20,
+        direction: 'player-to-container', slotRole: 'storage', itemId: 'minecraft:coal', count: 1,
+      },
+    },
     { kind: 'skill.navigateTo', args: { x: 10, y: 64, z: 20, tolerance: 2 } },
     { kind: 'skill.followPlayer', args: { playerUuid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', distance: 4 } },
     { kind: 'skill.gatherBlock', args: { blockId: 'minecraft:oak_log', count: 10, maxDistance: 64 } },
@@ -112,6 +119,16 @@ test('actions cannot smuggle commands, paths, URLs, raw key names, or unbounded 
     { value: { kind: 'skill.navigateTo', args: { x: 1, y: 2, z: 3, tolerance: 1, command: '#goto 1 2 3' } }, code: 'UNKNOWN_FIELD' },
     { value: { kind: 'skill.gatherBlock', args: { blockId: 'https://example.test/a.jar', count: 1, maxDistance: 8 } }, code: 'INVALID_MESSAGE' },
     { value: { kind: 'direct.jump', args: { key: 'space' } }, code: 'UNKNOWN_FIELD' },
+    {
+      value: {
+        kind: 'direct.transferContainer',
+        args: {
+          blockId: 'minecraft:chest', x: 1, y: 64, z: 2,
+          direction: 'player-to-container', slotRole: 'storage', itemId: 'minecraft:coal', count: 65,
+        },
+      },
+      code: 'INVALID_MESSAGE',
+    },
     { value: { kind: 'baritone.command', args: { command: '#mine diamond_ore' } }, code: 'INVALID_MESSAGE' },
   ];
   for (const entry of unsafe) expectProtocolError(() => validateFamilyBridgeAction(entry.value), entry.code);
