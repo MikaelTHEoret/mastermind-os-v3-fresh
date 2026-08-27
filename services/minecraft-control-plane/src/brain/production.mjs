@@ -180,8 +180,8 @@ function capabilityReply(flags, sessionStatus) {
   }
   const capabilities = sessionCapabilities(sessionStatus);
   if (capabilities !== null && capabilities.has('skill.navigateTo')
-    && [...capabilities].every((value) => ['action.cancel', 'direct.say', 'skill.navigateTo'].includes(value))) {
-    return "I can chat and navigate to coordinates with this body. Following, gathering, building, crafting, and storage work aren't connected to it yet.";
+    && !capabilities.has('skill.followPlayer') && !capabilities.has('skill.gatherBlock') && !capabilities.has('skill.smelt')) {
+    return "I can chat, navigate, look and move, select or drop items, interact with nearby blocks, place blocks, and stop a task. I can't follow, gather, craft, or manage storage yet.";
   }
   if (enabledPhysicalSkills(flags, sessionStatus).length === 0) {
     return "I can chat with you, but this body isn't advertising any verified physical skills right now.";

@@ -55,7 +55,12 @@ function fakeController() {
         assert.equal(value.accessToken, PROFILE.accessToken);
         child.stdout.write(output({
           type: 'controller.status', state: 'ready', code: 'PLAY_READY',
-          capabilities: ['observe.snapshot', 'direct.say', 'skill.navigateTo', 'container.open', 'action.cancel', 'controller.stop'],
+          capabilities: [
+            'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
+            'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
+            'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+            'direct.swingHand', 'skill.navigateTo', 'container.open', 'action.cancel', 'controller.stop',
+          ],
         }));
         continue;
       }
@@ -63,7 +68,11 @@ function fakeController() {
       if (value.kind === 'observe.snapshot') {
         child.stdout.write(output({
           type: 'command.result', commandId: value.commandId, kind: value.kind, ok: true,
-          result: { observation: { phase: 'in-world', player: { position: { x: 1, y: 64, z: 2 } }, inventory: { items: [] }, container: null } },
+          result: { observation: {
+            phase: 'in-world', serverAlias: 'family-server',
+            player: { position: { x: 1, y: 64, z: 2 }, health: 20, maxHealth: 20, hunger: 20 },
+            inventory: { items: [], hotbar: [], selectedSlot: 0 }, awareness: { radius: 8, blocks: [], players: [], entities: [], crosshairTarget: { kind: 'miss' } }, container: null,
+          } },
         }));
       } else if (value.kind === 'direct.say') {
         child.stdout.write(output({ type: 'command.result', commandId: value.commandId, kind: value.kind, ok: true, result: { spoken: true } }));
@@ -72,6 +81,12 @@ function fakeController() {
         setTimeout(() => child.stdout.write(output({
           type: 'action.status', actionId: value.commandId, kind: value.kind, status: 'succeeded',
           evidence: { kind: 'position.within', observedDistance: 0 },
+        })), 10);
+      } else if (value.kind.startsWith('direct.')) {
+        child.stdout.write(output({ type: 'action.status', actionId: value.commandId, kind: value.kind, status: 'started' }));
+        setTimeout(() => child.stdout.write(output({
+          type: 'action.status', actionId: value.commandId, kind: value.kind, status: 'succeeded',
+          evidence: { kind: 'primitive.verified' },
         })), 10);
       } else if (value.kind === 'controller.stop') {
         child.stdout.write(output({ type: 'command.result', commandId: value.commandId, kind: value.kind, ok: true, result: { stopping: true } }));
@@ -106,7 +121,12 @@ test('manages a headless controller and exposes only brain-compatible proven cap
   await body.initialize();
   const started = await body.start();
   assert.equal(started.state, 'ready');
-  assert.deepEqual(started.capabilities, ['action.cancel', 'direct.say', 'skill.navigateTo']);
+  assert.deepEqual(started.capabilities, [
+    'action.cancel', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
+    'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
+    'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+    'direct.swingHand', 'skill.navigateTo',
+  ]);
   await new Promise((resolve) => setTimeout(resolve, 5));
   assert.equal(body.status().latestSnapshot.phase, 'in-world');
 
@@ -120,7 +140,14 @@ test('manages a headless controller and exposes only brain-compatible proven cap
   assert.equal((await body.waitForPhysicalIdle(navigation.actionId, { timeoutMs: 1_000 })).status, 'succeeded');
   assert.equal(body.status().activeAction, null);
 
-  assert.throws(() => body.dispatchAction({ kind: 'direct.jump', args: {} }), { code: 'CAPABILITY_UNAVAILABLE' });
+  const interaction = await body.dispatchAction({
+    kind: 'direct.interactBlock',
+    args: { blockId: 'minecraft:furnace', x: 1, y: 64, z: 2, hand: 'main' },
+  });
+  assert.equal((await body.waitForActionActivation(interaction.actionId)).status, 'started');
+  assert.equal((await body.waitForPhysicalIdle(interaction.actionId, { timeoutMs: 1_000 })).status, 'succeeded');
+
+  assert.throws(() => body.dispatchAction({ kind: 'direct.attack', args: {} }), { code: 'CAPABILITY_UNAVAILABLE' });
   const stopped = await body.stop();
   assert.equal(stopped.state, 'disconnected');
   assert.equal(body.pendingResults.size, 0);

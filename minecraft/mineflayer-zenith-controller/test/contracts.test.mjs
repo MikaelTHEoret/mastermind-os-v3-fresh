@@ -29,6 +29,14 @@ test('controller exposes typed general primitives and rejects arbitrary code or 
     schemaVersion: 1, commandId: UUID, kind: 'inventory.transfer',
     args: { direction: 'player-to-container', slotRole: 'fuel', itemId: 'minecraft:coal', count: 2 },
   })).args.slotRole, 'fuel');
+  assert.equal(parseControllerCommand(JSON.stringify({
+    schemaVersion: 1, commandId: UUID, kind: 'direct.interactBlock',
+    args: { blockId: 'minecraft:furnace', x: 1, y: 64, z: 2, hand: 'main' },
+  })).args.blockId, 'minecraft:furnace');
+  assert.equal(parseControllerCommand(JSON.stringify({
+    schemaVersion: 1, commandId: UUID, kind: 'direct.placeBlock',
+    args: { blockId: 'minecraft:oak_planks', x: 2, y: 64, z: 2 },
+  })).kind, 'direct.placeBlock');
   assert.throws(() => parseControllerCommand(JSON.stringify({
     schemaVersion: 1, commandId: UUID, kind: 'javascript.execute', args: { code: 'process.exit()' },
   })), (error) => error.code === 'UNSUPPORTED_CONTROLLER_COMMAND');
@@ -45,4 +53,12 @@ test('unknown fields and unbounded transfers fail closed', () => {
     schemaVersion: 1, commandId: UUID, kind: 'inventory.transfer',
     args: { direction: 'container-to-player', slotRole: 'storage', itemId: 'minecraft:coal', count: 9999 },
   })), (error) => error.code === 'INVALID_NUMBER');
+  assert.throws(() => parseControllerCommand(JSON.stringify({
+    schemaVersion: 1, commandId: UUID, kind: 'direct.interactBlock',
+    args: { blockId: 'minecraft:furnace', x: 1, y: 64, z: 2, hand: 'third' },
+  })), (error) => error.code === 'INVALID_HAND');
+  assert.throws(() => parseControllerCommand(JSON.stringify({
+    schemaVersion: 1, commandId: UUID, kind: 'direct.moveFor',
+    args: { forward: 1, strafe: 0, durationMs: 100, sprint: true, sneak: true },
+  })), (error) => error.code === 'INVALID_MOVEMENT');
 });

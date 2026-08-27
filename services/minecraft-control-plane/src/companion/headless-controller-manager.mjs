@@ -8,9 +8,17 @@ import { validateFamilyBridgeAction } from './protocol.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const SAFE_CODE = /^[A-Z][A-Z0-9_]{2,63}$/u;
-const READY_CAPABILITIES = Object.freeze(['action.cancel', 'direct.say', 'skill.navigateTo']);
+const READY_CAPABILITIES = Object.freeze([
+  'action.cancel', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
+  'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
+  'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+  'direct.swingHand', 'skill.navigateTo',
+]);
 const CONTROLLER_CAPABILITIES = new Set([
-  'observe.snapshot', 'direct.say', 'skill.navigateTo', 'container.open',
+  'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
+  'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
+  'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+  'direct.swingHand', 'skill.navigateTo', 'container.open',
   'inventory.transfer', 'container.close', 'action.cancel', 'controller.stop',
 ]);
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
@@ -59,8 +67,9 @@ function wait(ms) {
 }
 
 function actionCommand(action, commandId) {
-  if (action.kind === 'direct.say') return { schemaVersion: 1, commandId, kind: action.kind, args: action.args };
-  if (action.kind === 'skill.navigateTo') return { schemaVersion: 1, commandId, kind: action.kind, args: action.args };
+  if (READY_CAPABILITIES.includes(action.kind) && action.kind !== 'action.cancel') {
+    return { schemaVersion: 1, commandId, kind: action.kind, args: action.args };
+  }
   fail(409, 'CAPABILITY_UNAVAILABLE', `The headless controller does not advertise ${action.kind}.`);
 }
 

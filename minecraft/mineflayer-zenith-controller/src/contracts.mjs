@@ -3,7 +3,10 @@ const PLAYER_NAME = /^[A-Za-z0-9_]{3,16}$/u;
 const REGISTRY_ID = /^(?!https?:|file:)[a-z0-9_.-]+:[a-z0-9_][a-z0-9_./-]*$/u;
 const SUPPORTED_VERSIONS = new Set(['1.21.11']);
 const ACTION_KINDS = new Set([
-  'observe.snapshot', 'direct.say', 'skill.navigateTo', 'container.open',
+  'observe.snapshot', 'direct.say', 'direct.lookAt', 'direct.moveFor', 'direct.jump',
+  'direct.selectSlot', 'direct.selectItem', 'direct.use', 'direct.interactBlock',
+  'direct.placeBlock', 'direct.placeNearbyBlock', 'direct.dropItem', 'direct.dropItemById',
+  'direct.swingHand', 'skill.navigateTo', 'container.open',
   'inventory.transfer', 'container.close', 'action.cancel', 'controller.stop',
 ]);
 
@@ -78,6 +81,50 @@ export function parseControllerCommand(line) {
     exactObject(value.args, ['text']);
     string(value.args.text, null, 1, 220);
     if (value.args.text.startsWith('/')) fail('UNSAFE_CHAT');
+  } else if (value.kind === 'direct.lookAt') {
+    exactObject(value.args, ['x', 'y', 'z', 'durationMs']);
+    validateCoordinates(value.args);
+    number(value.args.durationMs, 50, 5_000, true);
+  } else if (value.kind === 'direct.moveFor') {
+    exactObject(value.args, ['forward', 'strafe', 'durationMs', 'sprint', 'sneak']);
+    number(value.args.forward, -1, 1);
+    number(value.args.strafe, -1, 1);
+    number(value.args.durationMs, 50, 5_000, true);
+    if (typeof value.args.sprint !== 'boolean' || typeof value.args.sneak !== 'boolean'
+      || (value.args.sprint && value.args.sneak)) fail('INVALID_MOVEMENT');
+  } else if (value.kind === 'direct.jump') {
+    exactObject(value.args, []);
+  } else if (value.kind === 'direct.selectSlot') {
+    exactObject(value.args, ['slot']);
+    number(value.args.slot, 0, 8, true);
+  } else if (value.kind === 'direct.selectItem') {
+    exactObject(value.args, ['itemId']);
+    string(value.args.itemId, REGISTRY_ID, 3, 128);
+  } else if (value.kind === 'direct.use') {
+    exactObject(value.args, ['hand']);
+    if (!['main', 'off'].includes(value.args.hand)) fail('INVALID_HAND');
+  } else if (value.kind === 'direct.interactBlock') {
+    exactObject(value.args, ['blockId', 'x', 'y', 'z', 'hand']);
+    string(value.args.blockId, REGISTRY_ID, 3, 128);
+    validateCoordinates(value.args);
+    if (!['main', 'off'].includes(value.args.hand)) fail('INVALID_HAND');
+  } else if (value.kind === 'direct.placeBlock') {
+    exactObject(value.args, ['blockId', 'x', 'y', 'z']);
+    string(value.args.blockId, REGISTRY_ID, 3, 128);
+    validateCoordinates(value.args);
+  } else if (value.kind === 'direct.placeNearbyBlock') {
+    exactObject(value.args, ['blockId']);
+    string(value.args.blockId, REGISTRY_ID, 3, 128);
+  } else if (value.kind === 'direct.dropItem') {
+    exactObject(value.args, ['all']);
+    if (typeof value.args.all !== 'boolean') fail('INVALID_BOOLEAN');
+  } else if (value.kind === 'direct.dropItemById') {
+    exactObject(value.args, ['itemId', 'all']);
+    string(value.args.itemId, REGISTRY_ID, 3, 128);
+    if (typeof value.args.all !== 'boolean') fail('INVALID_BOOLEAN');
+  } else if (value.kind === 'direct.swingHand') {
+    exactObject(value.args, ['hand']);
+    if (!['main', 'off'].includes(value.args.hand)) fail('INVALID_HAND');
   } else if (value.kind === 'skill.navigateTo') {
     exactObject(value.args, ['x', 'y', 'z', 'tolerance']);
     validateCoordinates(value.args);

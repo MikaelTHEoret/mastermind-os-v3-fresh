@@ -1558,6 +1558,19 @@ function sanitizedCompanionAction(input: unknown): Record<string, unknown> {
       exactKeys(args, ['forward', 'strafe', 'durationMs', 'sprint', 'sneak'], `${kind} arguments`);
       if (!boundedNumber(args.forward, -1, 1) || !boundedNumber(args.strafe, -1, 1) || !boundedNumber(args.durationMs, 50, 5_000, true) || typeof args.sprint !== 'boolean' || typeof args.sneak !== 'boolean' || (args.sprint && args.sneak)) break;
       return { kind, args: { forward: args.forward, strafe: args.strafe, durationMs: args.durationMs, sprint: args.sprint, sneak: args.sneak } };
+    case 'direct.selectSlot':
+      exactKeys(args, ['slot'], `${kind} arguments`);
+      if (!boundedNumber(args.slot, 0, 8, true)) break;
+      return { kind, args: { slot: args.slot } };
+    case 'direct.selectItem':
+      exactKeys(args, ['itemId'], `${kind} arguments`);
+      if (typeof args.itemId !== 'string' || args.itemId.length > 128 || !REGISTRY_ID.test(args.itemId)) break;
+      return { kind, args: { itemId: args.itemId } };
+    case 'direct.use':
+    case 'direct.swingHand':
+      exactKeys(args, ['hand'], `${kind} arguments`);
+      if (!['main', 'off'].includes(String(args.hand))) break;
+      return { kind, args: { hand: args.hand } };
     case 'direct.interactBlock':
       exactKeys(args, ['blockId', 'x', 'y', 'z', 'hand'], `${kind} arguments`);
       if (typeof args.blockId !== 'string' || args.blockId.length > 128 || !REGISTRY_ID.test(args.blockId)
@@ -1566,6 +1579,25 @@ function sanitizedCompanionAction(input: unknown): Record<string, unknown> {
         || !boundedNumber(args.z, -30_000_000, 30_000_000, true)
         || !['main', 'off'].includes(String(args.hand))) break;
       return { kind, args: { blockId: args.blockId, x: args.x, y: args.y, z: args.z, hand: args.hand } };
+    case 'direct.placeBlock':
+      exactKeys(args, ['blockId', 'x', 'y', 'z'], `${kind} arguments`);
+      if (typeof args.blockId !== 'string' || args.blockId.length > 128 || !REGISTRY_ID.test(args.blockId)
+        || !boundedNumber(args.x, -30_000_000, 30_000_000, true)
+        || !boundedNumber(args.y, -2_048, 2_048, true)
+        || !boundedNumber(args.z, -30_000_000, 30_000_000, true)) break;
+      return { kind, args: { blockId: args.blockId, x: args.x, y: args.y, z: args.z } };
+    case 'direct.placeNearbyBlock':
+      exactKeys(args, ['blockId'], `${kind} arguments`);
+      if (typeof args.blockId !== 'string' || args.blockId.length > 128 || !REGISTRY_ID.test(args.blockId)) break;
+      return { kind, args: { blockId: args.blockId } };
+    case 'direct.dropItem':
+      exactKeys(args, ['all'], `${kind} arguments`);
+      if (typeof args.all !== 'boolean') break;
+      return { kind, args: { all: args.all } };
+    case 'direct.dropItemById':
+      exactKeys(args, ['itemId', 'all'], `${kind} arguments`);
+      if (typeof args.itemId !== 'string' || args.itemId.length > 128 || !REGISTRY_ID.test(args.itemId) || typeof args.all !== 'boolean') break;
+      return { kind, args: { itemId: args.itemId, all: args.all } };
     case 'direct.interactEntity':
       exactKeys(args, ['entityUuid', 'typeId', 'hand'], `${kind} arguments`);
       if (typeof args.entityUuid !== 'string' || !ACTION_ID.test(args.entityUuid)
