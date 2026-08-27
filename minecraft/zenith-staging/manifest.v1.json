@@ -1,0 +1,289 @@
+{
+  "schemaVersion": 1,
+  "status": "isolated-family-account-parent-preemption-and-signed-handback-verified-managed-promotion-pending",
+  "verifiedAt": "2026-08-21T20:08:07.202Z",
+  "zenith": {
+    "release": "3.5.8+26.2.0",
+    "minecraftVersion": "26.2.0",
+    "sourceRepository": "https://github.com/rfresh2/ZenithProxy",
+    "releasePage": "https://github.com/rfresh2/ZenithProxy/releases/tag/3.5.8%2B26.2.0",
+    "sourceCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "runtimeFile": "ZenithProxy.jar",
+    "runtimeBytes": 61674658,
+    "runtimeSha256": "CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2",
+    "buildJava": "25.0.4",
+    "upstreamTests": {
+      "tests": 74,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    }
+  },
+  "corePatchCandidate": {
+    "patchFile": "minecraft/zenith-core-patches/0001-controller-admission-preemption-hook.patch",
+    "patchBytes": 6521,
+    "patchSha256": "616598AFDE4AA976DEF6008FDD929BC837AD9F545C3835B73AE7AE2DFEBB7934",
+    "baseCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "changedFiles": 4,
+    "additions": 99,
+    "deletions": 7,
+    "runtimeBytes": 61675883,
+    "runtimeSha256": "700E9E91F38725A068D1F8E93D3B6F56F36221BB6F25EC174A36ED59110D8161",
+    "testResultFiles": {
+      "tests": 75,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    },
+    "fullSuiteExit": "gradle-result-socket-reset-after-all-result-files-were-written",
+    "targetedHookTestExit": "success"
+  },
+  "secureSessionPatch": {
+    "patchFile": "minecraft/zenith-core-patches/0002-secure-session-injection.patch",
+    "patchBytes": 6109,
+    "patchSha256": "19FB42E12441C838D7585817F67A4CE6C5B951BDFB7FADFB7D619DB24DC935AC",
+    "baseCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "credentialSource": "current-user-dpapi-vault",
+    "credentialTransport": "bounded-mfc1-stdin-frame",
+    "refreshTokenSharedWithZenith": false,
+    "commandLineCredential": false,
+    "environmentCredential": false,
+    "plaintextAuthCache": false,
+    "normalAuthenticationFallbackAllowed": false
+  },
+  "nativeBotTickAdmissionPatch": {
+    "patchFile": "minecraft/zenith-core-patches/0003-native-bot-tick-admission-gate.patch",
+    "patchBytes": 2834,
+    "patchSha256": "37FD01424395880104376A5256AA1C9E0A7C33358D814400ECCF3149315E6230",
+    "baseCommit": "550257ac720c06e4902c8d5dcbc7869b898ea7bd",
+    "changedFiles": 3,
+    "additions": 39,
+    "deletions": 1,
+    "stockBehaviorWhenPluginAbsent": "allow",
+    "mastermindRecoveryHoldBehavior": "deny"
+  },
+  "combinedLiveCandidate": {
+    "runtimeFile": "ZenithProxy.jar",
+    "runtimeBytes": 61678737,
+    "runtimeSha256": "C11FF1A6B69DF5AD99C95203605AB5389D21BE8CCB919130CF8AC279A3F20A17",
+    "bootstrapFile": "mastermind-zenith-secure-bootstrap-0.1.0.jar",
+    "bootstrapBytes": 9227,
+    "bootstrapSha256": "53D611DA8C8796184D05741DEE21160FBD4C23E0E35194502C8861DAF313F433",
+    "bootstrapTests": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "freshPinnedCheckoutPatchValidation": true,
+    "focusedCombinedPatchTests": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "jvmInitialHeapMb": 64,
+    "jvmMaximumHeapMb": 512
+  },
+  "mastermindPlugin": {
+    "version": "0.2.0",
+    "file": "mastermind-zenith-companion-0.2.0.jar",
+    "bytes": 35436,
+    "sha256": "FAFD35F0B28A7F1D520EC47DA44AB7706DAA13E6D17558A8EA0CAC8ED1CDD10A",
+    "tests": {
+      "tests": 20,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "familyCoreHandbackTelemetry": {
+    "version": "0.2.0",
+    "file": "family-core-0.2.0.jar",
+    "bytes": 18481,
+    "sha256": "755B4E01F2C268C92F1BDC95FB8295602C0EB064EFC227A30D6264BE9E4870BE",
+    "tests": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "transport": "bounded-atomic-local-file",
+    "authentication": "hmac-sha256-32-byte-private-key",
+    "serverSessionAndSequenceBound": true,
+    "staleReplayAndTamperFailClosed": true
+  },
+  "headlessController": {
+    "version": "0.1.0",
+    "file": "mastermind-zenith-headless-controller-0.1.0-all.jar",
+    "bytes": 29479224,
+    "sha256": "E1C397C69A4B1C6545E459F80CD464063F1D86F256A2CD3F42853B27B6DB3581",
+    "tests": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "loopbackOnly": true,
+    "credentialTransport": "bounded-stdin-envelope",
+    "actionSurface": "none",
+    "pinnedPalette": {
+      "blockStateRegistrySize": 32366,
+      "defaultBlockStateId": 0,
+      "biomeRegistrySize": 66,
+      "defaultBiomeStateId": 40,
+      "blockPaletteBits": 15,
+      "biomePaletteBits": 7
+    }
+  },
+  "mineflayerControllerCompatibility": {
+    "verifiedAt": "2026-08-24T18:35:00.000Z",
+    "controllerVersion": "0.1.0",
+    "mineflayerVersion": "4.37.1",
+    "mineflayerProtocolVersion": "1.21.11",
+    "zenithUpstreamMinecraftVersion": "26.2.0",
+    "transport": "authenticated-loopback-player-client-via-zenith-viaversion",
+    "arbitraryCodeExecution": false,
+    "credentialsInArgumentsEnvironmentLogsOrFiles": false,
+    "authenticated": true,
+    "playReady": true,
+    "mastermindControllerLease": true,
+    "navigationObserved": true,
+    "chestOpenObserved": true,
+    "furnaceOpenObserved": true,
+    "inventoryRoundTripObserved": true,
+    "controllerCleanStop": true,
+    "controllerProcessLeak": false,
+    "zenithRemainedUpstream": true,
+    "dependencyAudit": {
+      "critical": 0,
+      "high": 0,
+      "moderate": 6,
+      "promotionDisposition": "required"
+    },
+    "promotionState": "compatibility-live-verified-management-pending"
+  },
+  "protocolFixture": {
+    "familyCredentialsUsed": false,
+    "familyServerUsed": false,
+    "liveWorldUsed": false,
+    "listenerAddress": "127.0.0.1",
+    "zenithPort": 25566,
+    "upstreamPort": 25567,
+    "serviceReachedPlay": true,
+    "unknownIdentityRejected": true,
+    "parentPreemptedService": true,
+    "serviceSocketRevokedBeforeParentAdmission": true,
+    "parentExitedCleanly": true,
+    "serviceReentryAfterParentExit": true,
+    "stableTelemetryHandbackVerified": false
+  },
+  "offlineAcceptance": {
+    "resourceMeasurementRuntimeSha256": "CCA682A4B83E494DEF1F71E53CE056B912F0385809A92DD40843A700E709F3A2",
+    "upstreamAutoConnect": false,
+    "proxyListener": false,
+    "lanBroadcast": false,
+    "upnp": false,
+    "autoUpdate": false,
+    "pluginLoaded": true,
+    "pluginEnabled": false,
+    "patchedHookDetectedDuringOfflineFakeIdentitySimulation": true,
+    "stockRuntimeRefusedTakeoverPluginLoadDuringOfflineFakeIdentitySimulation": true,
+    "simulationRestoredToDisabledBlankIdentityState": true,
+    "observedTcpConnections": 0,
+    "workingSetAverageMb": 162.8,
+    "workingSetMaximumMb": 162.8,
+    "privateMemoryAverageMb": 216.3,
+    "privateMemoryMaximumMb": 216.3,
+    "normalizedCpuPercent": 0.015,
+    "leakedProcessAfterStop": false,
+    "listenerAfterStop": false
+  },
+  "familyLiveAcceptance": {
+    "managedInstanceSnapshot": {
+      "stoppedCopy": true,
+      "files": 180,
+      "bytes": 110315855,
+      "sourceAndCopyTreeDigestSha256": "EB6EE69B32FE7FB6E95F06D46285A074031689F54919D4DCA3BEE9BB0F206593"
+    },
+    "updateReceiptsAuthenticated": 9,
+    "updateManualRecoveryRequired": 0,
+    "backupManualRecoveryRequired": 0,
+    "worldManualRecoveryRequired": 0,
+    "familyServerReady": true,
+    "javaPort": 25565,
+    "bedrockUdpPort": 19132,
+    "zenithListenerAddress": "127.0.0.1",
+    "zenithListenerPort": 25568,
+    "companionUuidAuthenticated": true,
+    "upstreamConnectionVerified": true,
+    "fallbackDeviceFlowObserved": false,
+    "plaintextAuthCacheObserved": false,
+    "allBuiltinActionAutomationDisabled": true,
+    "exactStopVerified": true,
+    "listenerReleasedAfterStop": true,
+    "hardenedRelaunchVerified": true,
+    "fiveMinuteIdleSample": {
+      "samples": 60,
+      "sampleIntervalSeconds": 5,
+      "logicalProcessorNormalized": true,
+      "controlPlane": {
+        "averageCpuPercent": 0.006,
+        "averageWorkingSetMb": 84.3,
+        "peakWorkingSetMb": 84.3
+      },
+      "zenithBody": {
+        "averageCpuPercent": 0.106,
+        "averageWorkingSetMb": 235.4,
+        "peakWorkingSetMb": 245.2
+      },
+      "familyServer": {
+        "averageCpuPercent": 0.5,
+        "averageWorkingSetMb": 1437.4,
+        "peakWorkingSetMb": 1438.7
+      }
+    },
+    "familyParentPreemptionVerified": true,
+    "familyParentPhysicalControlUserConfirmed": true,
+    "serviceControllerRevokedBeforeParentControl": true,
+    "parentDisconnectObserved": true,
+    "safeRestartFallbackVerifiedAfterParentDisconnect": true,
+    "stableTelemetryHandbackVerified": false
+  },
+  "isolatedPairedHandbackAcceptance": {
+    "familyAccountUsed": true,
+    "managedFamilyServerMutated": false,
+    "serverSource": "verified-stopped-family-server-snapshot-copy",
+    "serverAddress": "127.0.0.1",
+    "serverPort": 25569,
+    "zenithListenerAddress": "127.0.0.1",
+    "zenithListenerPort": 25568,
+    "runtimeBytes": 61679343,
+    "runtimeSha256": "00C2AE1ED1D74C2B3AFF4E3872C69CA034D7FB3CB91032FC7E8A0C0ED5A050B5",
+    "controllerAdmissionHookDetected": true,
+    "nativeBotTickAdmissionHookDetected": true,
+    "signedAttestationFrameBytes": 133,
+    "serviceControllerReachedPlay": true,
+    "parentPreemptedService": true,
+    "serviceSocketRevokedBeforeParentAdmission": true,
+    "parentReachedHumanLease": true,
+    "parentPhysicalControlUserConfirmed": true,
+    "parentDisconnectEnteredRecoveryHold": true,
+    "stableSignedTelemetryAdmittedNativeFallback": true,
+    "restartRequiredForHandback": false,
+    "finalArtifactServiceDisconnectReplayVerified": true,
+    "allBuiltinActionAutomationDisabled": true,
+    "candidateProcessesStoppedWithoutLeak": true,
+    "normalSafeProxyRestored": true
+  },
+  "activationGates": {
+    "parentPreemptionCoreHook": "loopback-two-controller-protocol-verified",
+    "accountLogin": "family-live-verified-secure-injection",
+    "proxyListener": "family-live-verified-loopback-only",
+    "familyServerConnection": "family-live-verified-after-stopped-snapshot",
+    "liveWorldMutation": "parent-manual-movement-only-no-action-automation",
+    "familyParentPreemption": "family-live-verified",
+    "stableTelemetryHandback": "isolated-family-account-live-verified-managed-promotion-pending",
+    "gameplayActions": "disabled"
+  }
+}

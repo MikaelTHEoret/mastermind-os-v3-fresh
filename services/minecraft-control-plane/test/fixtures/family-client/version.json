@@ -1,0 +1,16 @@
+{
+  "id": "26.2",
+  "type": "release",
+  "mainClass": "net.minecraft.client.main.Main",
+  "javaVersion": { "component": "java-runtime-epsilon", "majorVersion": 25 },
+  "downloads": { "client": {} },
+  "assetIndex": {},
+  "logging": { "client": { "file": {} } },
+  "libraries": [
+    { "name": "example:client-library:1", "downloads": { "artifact": {} } },
+    { "name": "example:native:1:natives-windows", "rules": [{ "action": "allow", "os": { "name": "windows" } }], "downloads": { "artifact": {} } },
+    { "name": "example:native:1:natives-windows-arm64", "rules": [{ "action": "allow", "os": { "name": "windows" } }], "downloads": { "artifact": {} } },
+    { "name": "example:native:1:natives-windows-x86", "rules": [{ "action": "allow", "os": { "name": "windows" } }], "downloads": { "artifact": {} } },
+    { "name": "example:linux-only:1", "rules": [{ "action": "allow", "os": { "name": "linux" } }], "downloads": { "artifact": {} } }
+  ]
+}

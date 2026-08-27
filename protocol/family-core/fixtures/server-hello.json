@@ -1,0 +1,19 @@
+{
+  "protocol": "mastermind.family-core",
+  "version": 1,
+  "messageId": "01919a62-8e84-7c6b-8eb0-4f79592f3abe",
+  "sessionId": "01919a62-8e84-7c6b-8eb0-4f79592f3abf",
+  "seq": 1,
+  "sentAt": "2026-08-21T12:00:00.000Z",
+  "source": "family-core",
+  "type": "server.hello",
+  "correlationId": null,
+  "payload": {
+    "serverId": "family-server",
+    "instanceId": "01919a62-8e84-7c6b-8eb0-4f79592f3ac0",
+    "modVersion": "0.1.0",
+    "minecraftVersion": "26.2",
+    "capabilities": [],
+    "commandEnabled": false
+  }
+}

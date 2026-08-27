@@ -63,6 +63,20 @@ Every archive chunk has a **dual address**:
 4. `log_memory(...)` as decisions/builds/facts happen.
 5. Keep `MASTERMIND-STATE.md` (the human-readable source of truth) in sync; mirror changes into memory.
 
+## Family-scoped extension
+
+The Minecraft/family work reuses this database and pgvector capability without writing family data into the globally hydrated `harmonic_memories` authority.
+
+Apply the additive migrations in order only after review:
+
+1. `migrations/001_mastermind_domain_events_v1.sql` adds effect-once event receipts, structured companion session/action state, and rebuildable sanitized session-rollup projection jobs.
+2. `migrations/002_mastermind_family_identity_v1.sql` adds households, internal player identities, canonical external bindings, purpose-specific consent, idempotent identity commands, and the default-deny pre-ranking read predicate.
+3. `migrations/003_mastermind_memory_operator_v1.sql` adds parent-authorized search over sanitized projection rows, rebuild-stable soft-forget lifecycle state, short-lived digest-bound forget plans, and effect-once forget/restore receipts.
+4. `migrations/004_mastermind_node_exchange_v1.sql` adds one-time portable-node pairing, hashed node credentials, redacted node inventory, typed expiring jobs, renewable leases, and effect-once progress/terminal receipts for the routine family-ecosystem start command.
+5. `migrations/005_mastermind_node_exchange_lease_presence_v1.sql` replaces only the exchange function so lease dispatch tests row presence by the job primary key instead of PostgreSQL composite-null semantics.
+
+Apply all five once with `npm run memory:migrate`; the runner pins the reviewed migration hashes and executes each file as one transaction. Portable nodes pair once, generate and retain their own credential, and thereafter exchange outbound HTTPS requests without recurring token or UUID entry. Memory-event synchronization is off by default and additionally requires a canonical internal player UUID whose active identity has `capture` and `session_summary` consent. An unbound control plane does not create companion outbox records; any legacy playerless files are preserved and fenced for explicit migration. The parent Memory console uses a separate same-origin, short-lived PIN unlock and never receives the control-plane bearer. This private-PC build includes the retained plan's parent identity and a salted scrypt verifier for family code `795200`, so no PIN verifier or operator player UUID needs to be copied into `.env.local`; explicit server-only overrides remain available for later rotation. Its current search is bounded text/recent search because embeddings are still pending; player-facing recall, embedding backfill, and Obsidian projection remain later layers and must not bypass the structured identity/consent authority.
+
 ## Provenance
 
 The archive layer reuses the chunked-extraction + hierarchical-addressing design from

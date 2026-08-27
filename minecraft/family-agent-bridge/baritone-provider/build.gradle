@@ -1,0 +1,162 @@
+import groovy.json.JsonSlurper
+import java.security.MessageDigest
+import java.util.zip.ZipFile
+
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'java'
+}
+
+version = rootProject.version
+group = rootProject.group
+
+base {
+    archivesName = 'family-agent-baritone-provider'
+}
+
+def baritoneArtifact = layout.projectDirectory.file('libs/baritone-api-fabric-1.18.0.jar')
+def expectedBaritoneSha256 = 'B0E67DCD272453E5DBD7D264CA35E18902D63B87605C3470D95ABE2C970526E9'
+def serviceName = 'META-INF/services/com.mastermind.minecraft.familyagent.navigation.NavigationProvider'
+def serviceImplementation = 'com.mastermind.minecraft.familyagent.baritone.BaritoneNavigationProviderBootstrap'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+
+    // The provider is a separate compatibility JAR. It compiles against the
+    // bridge API without embedding any bridge classes.
+    compileOnly files(rootProject.sourceSets.main.output)
+
+    // This one official artifact is both the Fabric runtime and the stable API
+    // surface. It is verified before compilation and is never nested here.
+    compileOnly files(baritoneArtifact)
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    dependsOn rootProject.tasks.named('classes')
+    dependsOn tasks.named('verifyBaritoneApiArtifact')
+    options.release = 25
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    dependsOn tasks.named('verifyBaritoneApiArtifact')
+    systemProperty 'mastermind.baritone.artifact', baritoneArtifact.asFile.absolutePath
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.register('verifyBaritoneApiArtifact') {
+    group = 'verification'
+    description = 'Rejects missing, modified, stripped, or version-incompatible Baritone runtime artifacts.'
+    inputs.file(baritoneArtifact)
+
+    doLast {
+        def artifact = baritoneArtifact.asFile
+        if (!artifact.isFile()) {
+            throw new GradleException("Required Baritone artifact is missing: ${artifact}")
+        }
+
+        def digest = MessageDigest.getInstance('SHA-256')
+        artifact.withInputStream { stream ->
+            byte[] buffer = new byte[8192]
+            for (int count; (count = stream.read(buffer)) != -1;) {
+                digest.update(buffer, 0, count)
+            }
+        }
+        def actualHash = digest.digest().encodeHex().toString().toUpperCase(Locale.ROOT)
+        if (actualHash != expectedBaritoneSha256) {
+            throw new GradleException("Baritone SHA-256 mismatch: expected ${expectedBaritoneSha256}, got ${actualHash}")
+        }
+
+        new ZipFile(artifact).withCloseable { archive ->
+            [
+                'fabric.mod.json',
+                'mixins.baritone.json',
+                'baritone/BaritoneProvider.class',
+                'baritone/api/BaritoneAPI.class',
+                'baritone/api/IBaritone.class',
+                'baritone/api/process/ICustomGoalProcess.class',
+                'baritone/api/process/IFollowProcess.class',
+                'baritone/api/process/IMineProcess.class'
+            ].each { entryName ->
+                if (archive.getEntry(entryName) == null) {
+                    throw new GradleException("Baritone artifact is stripped or incomplete; missing ${entryName}")
+                }
+            }
+
+            def metadataEntry = archive.getEntry('fabric.mod.json')
+            def metadata = archive.getInputStream(metadataEntry).withCloseable { new JsonSlurper().parse(it) }
+            if (metadata.id != 'baritone' || metadata.version != '1.18.0') {
+                throw new GradleException("Expected Baritone mod 1.18.0, got ${metadata.id} ${metadata.version}")
+            }
+            if (metadata.depends?.minecraft != ['26.2'] || metadata.depends?.fabricloader != '>=0.19.3') {
+                throw new GradleException('Baritone metadata is not the verified Minecraft 26.2 / Fabric Loader 0.19.3 build')
+            }
+        }
+    }
+}
+
+tasks.register('verifyProviderJar') {
+    group = 'verification'
+    description = 'Checks ServiceLoader packaging and proves Baritone is not accidentally embedded.'
+    dependsOn tasks.named('jar')
+    inputs.file(tasks.named('jar').flatMap { it.archiveFile })
+
+    doLast {
+        def artifact = tasks.named('jar').get().archiveFile.get().asFile
+        new ZipFile(artifact).withCloseable { archive ->
+            def service = archive.getEntry(serviceName)
+            if (service == null) {
+                throw new GradleException("Provider JAR is missing ${serviceName}")
+            }
+            def declaration = archive.getInputStream(service).getText('UTF-8').trim()
+            if (declaration != serviceImplementation) {
+                throw new GradleException("Unexpected provider declaration: ${declaration}")
+            }
+            if (archive.getEntry('com/mastermind/minecraft/familyagent/baritone/VerifiedBaritoneNavigationProvider.class') == null) {
+                throw new GradleException('Provider implementation class is missing')
+            }
+            if (archive.entries().any { it.name.startsWith('baritone/api/') || it.name == 'baritone/BaritoneProvider.class' }) {
+                throw new GradleException('Baritone classes must remain a separately verified runtime mod')
+            }
+        }
+    }
+}
+
+tasks.named('check').configure {
+    dependsOn tasks.named('verifyProviderJar')
+}
+
+jar {
+    from('BARITONE-LICENSE-LGPL-3.0.txt') {
+        into 'META-INF/licenses'
+    }
+}
+
+rootProject.tasks.named('check').configure {
+    dependsOn tasks.named('check')
+}

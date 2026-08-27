@@ -1,0 +1,21 @@
+{
+  "protocol": "mastermind.family-core",
+  "version": 1,
+  "messageId": "01919a62-8e84-7c6b-8eb0-4f79592f3ac3",
+  "sessionId": "01919a62-8e84-7c6b-8eb0-4f79592f3abf",
+  "seq": 2,
+  "sentAt": "2026-08-21T12:00:01.000Z",
+  "source": "family-core",
+  "type": "chat.received",
+  "correlationId": null,
+  "payload": {
+    "player": {
+      "minecraftUuid": "01919a62-8e84-7c6b-8eb0-4f79592f3ac1",
+      "displayName": "Kid_Player",
+      "role": "child",
+      "identityBound": true
+    },
+    "channel": "public",
+    "text": "Alchemist, can you help me?"
+  }
+}

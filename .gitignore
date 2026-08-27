@@ -27,6 +27,33 @@ next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+*.err.log
+*.out.log
+
+# Local caches and editor/session backups
+**/__pycache__/
+*.py[cod]
+*.bak-*
+*.bak-settings*
 
 # Temporary: Ignore package-lock.json to force fresh generation
 package-lock.json
+
+# Minecraft local manager output (machine-specific, never commit)
+services/minecraft-control-plane/dist/
+services/minecraft-control-plane/data/
+minecraft/**/build/
+minecraft/**/.gradle/
+
+# Generated Windows node-host and portable package activation artifacts
+native/windows/**/bin/
+native/windows/**/obj/
+mastermind-node-package.json
+
+# Machine-local context gateway settings (for example, Obsidian vault path)
+config/mastermind-context.local.json
+
+# Machine-local family identity/bootstrap plans and profile projections
+family-identity-bootstrap.json
+private/family-profiles/

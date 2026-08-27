@@ -1,0 +1,70 @@
+diff --git a/src/main/java/com/zenith/event/client/NativeBotTickAdmissionEvent.java b/src/main/java/com/zenith/event/client/NativeBotTickAdmissionEvent.java
+new file mode 100644
+index 0000000..8c585dd
+--- /dev/null
++++ b/src/main/java/com/zenith/event/client/NativeBotTickAdmissionEvent.java
+@@ -0,0 +1,17 @@
++package com.zenith.event.client;
++
++/**
++ * Synchronous fail-closed extension point posted immediately before native bot work.
++ * Stock behavior remains allowed unless a subscriber explicitly denies the tick.
++ */
++public final class NativeBotTickAdmissionEvent {
++    private boolean denied;
++
++    public void deny() {
++        denied = true;
++    }
++
++    public boolean isDenied() {
++        return denied;
++    }
++}
+diff --git a/src/main/java/com/zenith/network/client/ClientTickManager.java b/src/main/java/com/zenith/network/client/ClientTickManager.java
+index 543d697..10300c0 100644
+--- a/src/main/java/com/zenith/network/client/ClientTickManager.java
++++ b/src/main/java/com/zenith/network/client/ClientTickManager.java
+@@ -5,6 +5,7 @@
+ import com.zenith.event.client.ClientDisconnectEvent;
+ import com.zenith.event.client.ClientOnlineEvent;
+ import com.zenith.event.client.ClientTickEvent;
++import com.zenith.event.client.NativeBotTickAdmissionEvent;
+ import com.zenith.event.player.PlayerConnectedEvent;
+ import com.zenith.event.player.PlayerDisconnectedEvent;
+ import com.zenith.util.Wait;
+@@ -109,7 +110,11 @@ private void tick() {
+             long before = System.currentTimeMillis();
+             EVENT_BUS.post(ClientTickEvent.INSTANCE);
+             if (doBotTicks.get()) {
+-                EVENT_BUS.post(ClientBotTick.INSTANCE);
++                var admission = new NativeBotTickAdmissionEvent();
++                EVENT_BUS.post(admission);
++                if (!admission.isDenied()) {
++                    EVENT_BUS.post(ClientBotTick.INSTANCE);
++                }
+             }
+             long after = System.currentTimeMillis();
+             long elapsedMs = after - before;
+diff --git a/src/test/java/com/zenith/event/client/NativeBotTickAdmissionEventTest.java b/src/test/java/com/zenith/event/client/NativeBotTickAdmissionEventTest.java
+new file mode 100644
+index 0000000..3696d8a
+--- /dev/null
++++ b/src/test/java/com/zenith/event/client/NativeBotTickAdmissionEventTest.java
+@@ -0,0 +1,16 @@
++package com.zenith.event.client;
++
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++final class NativeBotTickAdmissionEventTest {
++    @Test
++    void nativeTicksRemainAllowedUntilASynchronousSubscriberDeniesThem() {
++        var event = new NativeBotTickAdmissionEvent();
++        assertFalse(event.isDenied());
++        event.deny();
++        assertTrue(event.isDenied());
++    }
++}

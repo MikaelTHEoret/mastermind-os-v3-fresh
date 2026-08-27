@@ -1,0 +1,132 @@
+diff --git a/src/main/java/com/zenith/event/player/ControllerAdmissionEvent.java b/src/main/java/com/zenith/event/player/ControllerAdmissionEvent.java
+new file mode 100644
+index 0000000..1c4bed1
+--- /dev/null
++++ b/src/main/java/com/zenith/event/player/ControllerAdmissionEvent.java
+@@ -0,0 +1,35 @@
++package com.zenith.event.player;
++
++import org.geysermc.mcprotocollib.auth.GameProfile;
++
++/**
++ * Fired synchronously after the candidate controller has authenticated and passed Zenith's
++ * whitelist, but before Zenith rejects it because another controller already owns the body.
++ * Preemption is denied unless a subscriber explicitly allows it.
++ */
++public final class ControllerAdmissionEvent {
++    private final GameProfile candidateProfile;
++    private final GameProfile currentProfile;
++    private boolean preemptionAllowed;
++
++    public ControllerAdmissionEvent(GameProfile candidateProfile, GameProfile currentProfile) {
++        this.candidateProfile = candidateProfile;
++        this.currentProfile = currentProfile;
++    }
++
++    public GameProfile candidateProfile() {
++        return candidateProfile;
++    }
++
++    public GameProfile currentProfile() {
++        return currentProfile;
++    }
++
++    public boolean isPreemptionAllowed() {
++        return preemptionAllowed;
++    }
++
++    public void allowPreemption() {
++        preemptionAllowed = true;
++    }
++}
+diff --git a/src/main/java/com/zenith/network/server/ServerSession.java b/src/main/java/com/zenith/network/server/ServerSession.java
+index ffbb896..d3730d9 100644
+--- a/src/main/java/com/zenith/network/server/ServerSession.java
++++ b/src/main/java/com/zenith/network/server/ServerSession.java
+@@ -94,0 +95 @@ public class ServerSession extends TcpServerSession {
++    protected volatile boolean controllerInputRevoked = false;
+@@ -160,0 +162,4 @@ public void callPacketReceived(Packet packet) {
++            if (controllerInputRevoked) {
++                disconnect(Component.text("[ZenithProxy] Controller lease revoked"));
++                return;
++            }
+@@ -268,0 +274,4 @@ public void callDisconnected(Component reason, @Nullable Throwable cause) {
++    public void revokeControllerInput() {
++        controllerInputRevoked = true;
++    }
++
+diff --git a/src/main/java/com/zenith/network/server/handler/shared/outgoing/SLoginFinishedOutgoingHandler.java b/src/main/java/com/zenith/network/server/handler/shared/outgoing/SLoginFinishedOutgoingHandler.java
+index a3598bb..99ecbce 100644
+--- a/src/main/java/com/zenith/network/server/handler/shared/outgoing/SLoginFinishedOutgoingHandler.java
++++ b/src/main/java/com/zenith/network/server/handler/shared/outgoing/SLoginFinishedOutgoingHandler.java
+@@ -4,0 +5 @@
++import com.zenith.event.player.ControllerAdmissionEvent;
+@@ -203,6 +204,3 @@ private boolean tryControllerLogin(ServerSession session, GameProfile clientGame
+-        if (Proxy.getInstance().getCurrentPlayer().compareAndSet(null, session)) {
+-            SERVER_LOG.info("Logging in {} [{}] ({}) as controlling player", clientGameProfile.getName(), clientGameProfile.getId().toString(), session.getMCVersion());
+-            session.getEventLoop().execute(() -> {
+-                session.send(new ClientboundLoginFinishedPacket(CACHE.getProfileCache().getProfile(), UUID.randomUUID()));
+-                session.switchOutboundState(ProtocolState.CONFIGURATION);
+-            });
++        var currentPlayer = Proxy.getInstance().getCurrentPlayer();
++        if (currentPlayer.compareAndSet(null, session)) {
++            completeControllerLogin(session, clientGameProfile);
+@@ -211 +209,25 @@ private boolean tryControllerLogin(ServerSession session, GameProfile clientGame
+-        return false;
++
++        var currentSession = currentPlayer.get();
++        if (currentSession == null) return false;
++        var currentProfile = currentSession.getProfileCache().getProfile();
++        if (currentProfile == null) return false;
++
++        var admissionEvent = new ControllerAdmissionEvent(clientGameProfile, currentProfile);
++        EVENT_BUS.post(admissionEvent);
++        if (!admissionEvent.isPreemptionAllowed()) return false;
++
++        // Revoke packet forwarding before publishing the new lease. The old session's later
++        // disconnect compare-and-set cannot clear the candidate after this exact replacement.
++        currentSession.revokeControllerInput();
++        if (!currentPlayer.compareAndSet(currentSession, session)) return false;
++        currentSession.disconnect("Controller lease preempted by an authenticated higher-priority controller");
++        completeControllerLogin(session, clientGameProfile);
++        return true;
++    }
++
++    private void completeControllerLogin(ServerSession session, GameProfile clientGameProfile) {
++        SERVER_LOG.info("Logging in {} [{}] ({}) as controlling player", clientGameProfile.getName(), clientGameProfile.getId().toString(), session.getMCVersion());
++        session.getEventLoop().execute(() -> {
++            session.send(new ClientboundLoginFinishedPacket(CACHE.getProfileCache().getProfile(), UUID.randomUUID()));
++            session.switchOutboundState(ProtocolState.CONFIGURATION);
++        });
+diff --git a/src/test/java/com/zenith/event/player/ControllerAdmissionEventTest.java b/src/test/java/com/zenith/event/player/ControllerAdmissionEventTest.java
+new file mode 100644
+index 0000000..f04278b
+--- /dev/null
++++ b/src/test/java/com/zenith/event/player/ControllerAdmissionEventTest.java
+@@ -0,0 +1,26 @@
++package com.zenith.event.player;
++
++import org.geysermc.mcprotocollib.auth.GameProfile;
++import org.junit.jupiter.api.Test;
++
++import java.util.UUID;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++final class ControllerAdmissionEventTest {
++    @Test
++    void preemptionIsDeniedUntilASynchronousSubscriberExplicitlyAllowsIt() {
++        var candidate = new GameProfile(UUID.fromString("22222222-2222-4222-8222-222222222222"), "parent");
++        var current = new GameProfile(UUID.fromString("11111111-1111-4111-8111-111111111111"), "service");
++        var event = new ControllerAdmissionEvent(candidate, current);
++
++        assertEquals(candidate, event.candidateProfile());
++        assertEquals(current, event.currentProfile());
++        assertFalse(event.isPreemptionAllowed());
++
++        event.allowPreemption();
++        assertTrue(event.isPreemptionAllowed());
++    }
++}

@@ -1,0 +1,17 @@
+{
+  "name": "@mastermind/minecraft-control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/agent.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "semver": "^7.8.1",
+    "ws": "^8.17.1"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

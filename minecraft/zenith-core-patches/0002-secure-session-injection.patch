@@ -1,0 +1,130 @@
+diff --git a/src/main/java/com/zenith/network/client/Authenticator.java b/src/main/java/com/zenith/network/client/Authenticator.java
+index ad11b87..24aaa81 100644
+--- a/src/main/java/com/zenith/network/client/Authenticator.java
++++ b/src/main/java/com/zenith/network/client/Authenticator.java
+@@ -58,2 +58,13 @@ public void clearAuthCache() {
+     public MinecraftProtocol login()  {
++        var injectedSession = MastermindInjectedSession.take();
++        if (injectedSession.isPresent()) {
++            var session = injectedSession.get();
++            CONFIG.authentication.username = session.username();
++            AUTH_LOG.info("Using the injected Mastermind session for '{}'", session.username());
++            return new MinecraftProtocol(
++                MinecraftCodec.CODEC,
++                new GameProfile(session.uuid(), session.username()),
++                session.accessToken()
++            );
++        }
+         if (CONFIG.authentication.accountType == OFFLINE) {
+diff --git a/src/main/java/com/zenith/network/client/MastermindInjectedSession.java b/src/main/java/com/zenith/network/client/MastermindInjectedSession.java
+new file mode 100644
+index 0000000..47dbc0e
+--- /dev/null
++++ b/src/main/java/com/zenith/network/client/MastermindInjectedSession.java
+@@ -0,0 +1,48 @@
++package com.zenith.network.client;
++
++import java.util.Optional;
++import java.util.UUID;
++import java.util.regex.Pattern;
++
++final class MastermindInjectedSession {
++    static final String USERNAME_PROPERTY = "mastermind.zenith.session.username";
++    static final String UUID_PROPERTY = "mastermind.zenith.session.uuid";
++    static final String ACCESS_TOKEN_PROPERTY = "mastermind.zenith.session.accessToken";
++    static final String REQUIRED_PROPERTY = "mastermind.zenith.session.required";
++
++    private static final Pattern USERNAME = Pattern.compile("[A-Za-z0-9_]{1,16}");
++    private static final Pattern ACCESS_TOKEN = Pattern.compile("[\\x21-\\x7e]{16,24576}");
++
++    private MastermindInjectedSession() {}
++
++    static Optional<Value> take() {
++        String username = System.getProperty(USERNAME_PROPERTY);
++        String uuid = System.getProperty(UUID_PROPERTY);
++        String accessToken = System.getProperty(ACCESS_TOKEN_PROPERTY);
++        try {
++            if (username == null && uuid == null && accessToken == null) {
++                if (Boolean.parseBoolean(System.getProperty(REQUIRED_PROPERTY))) {
++                    throw new IllegalStateException("The required Mastermind Minecraft session is no longer available");
++                }
++                return Optional.empty();
++            }
++            if (username == null || uuid == null || accessToken == null || !USERNAME.matcher(username).matches()
++                || !ACCESS_TOKEN.matcher(accessToken).matches()) {
++                throw new IllegalStateException("The injected Mastermind Minecraft session is invalid");
++            }
++            final UUID profileId;
++            try {
++                profileId = UUID.fromString(uuid);
++            } catch (RuntimeException error) {
++                throw new IllegalStateException("The injected Mastermind Minecraft session is invalid");
++            }
++            return Optional.of(new Value(username, profileId, accessToken));
++        } finally {
++            System.clearProperty(USERNAME_PROPERTY);
++            System.clearProperty(UUID_PROPERTY);
++            System.clearProperty(ACCESS_TOKEN_PROPERTY);
++        }
++    }
++
++    record Value(String username, UUID uuid, String accessToken) {}
++}
+diff --git a/src/test/java/com/zenith/network/client/MastermindInjectedSessionTest.java b/src/test/java/com/zenith/network/client/MastermindInjectedSessionTest.java
+new file mode 100644
+index 0000000..c32233f
+--- /dev/null
++++ b/src/test/java/com/zenith/network/client/MastermindInjectedSessionTest.java
+@@ -0,0 +1,52 @@
++package com.zenith.network.client;
++
++import org.junit.jupiter.api.AfterEach;
++import org.junit.jupiter.api.Test;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++
++class MastermindInjectedSessionTest {
++    @AfterEach
++    void clearProperties() {
++        System.clearProperty(MastermindInjectedSession.USERNAME_PROPERTY);
++        System.clearProperty(MastermindInjectedSession.UUID_PROPERTY);
++        System.clearProperty(MastermindInjectedSession.ACCESS_TOKEN_PROPERTY);
++        System.clearProperty(MastermindInjectedSession.REQUIRED_PROPERTY);
++    }
++
++    @Test
++    void absentSessionDoesNotChangeNormalAuthentication() {
++        assertFalse(MastermindInjectedSession.take().isPresent());
++    }
++
++    @Test
++    void consumesAndClearsCompleteSession() {
++        System.setProperty(MastermindInjectedSession.USERNAME_PROPERTY, "The_AlChemist___");
++        System.setProperty(MastermindInjectedSession.UUID_PROPERTY, "996a56dd-fb3c-4f90-9158-1a608652ec77");
++        System.setProperty(MastermindInjectedSession.ACCESS_TOKEN_PROPERTY, "safe-test-token-1234567890");
++
++        var value = MastermindInjectedSession.take().orElseThrow();
++
++        assertEquals("The_AlChemist___", value.username());
++        assertEquals("996a56dd-fb3c-4f90-9158-1a608652ec77", value.uuid().toString());
++        assertFalse(MastermindInjectedSession.take().isPresent());
++    }
++
++    @Test
++    void partialSessionFailsClosedAndClearsEveryProperty() {
++        System.setProperty(MastermindInjectedSession.USERNAME_PROPERTY, "The_AlChemist___");
++        System.setProperty(MastermindInjectedSession.ACCESS_TOKEN_PROPERTY, "safe-test-token-1234567890");
++
++        assertThrows(IllegalStateException.class, MastermindInjectedSession::take);
++        assertFalse(MastermindInjectedSession.take().isPresent());
++    }
++
++    @Test
++    void requiredSessionCannotFallBackToNormalAuthenticationAfterConsumption() {
++        System.setProperty(MastermindInjectedSession.REQUIRED_PROPERTY, "true");
++
++        assertThrows(IllegalStateException.class, MastermindInjectedSession::take);
++    }
++}
