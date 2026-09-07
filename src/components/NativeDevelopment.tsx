@@ -46,7 +46,7 @@ export default function NativeDevelopment() {
       const chosen=selection.current || saved.specifications[0]?.specificationId;
       const detail=chosen?await api('specification',{specificationId:chosen},signal):null;
       if(!alive.current || signal?.aborted || ticket!==generation.current || (selection.current && chosen!==selection.current))return;
-      setCatalog(availability as Catalog);setHistory(normalizeSummaries(saved.specifications));
+      setCatalog({available:availability.available,recipes:availability.recipes,holds:availability.holds});setHistory(normalizeSummaries(saved.specifications));
       setSelected(detail?normalizeSpecification(detail.held?{viewState:'held',specificationId:chosen,holds:detail.specification?.holds,buildPlans:detail.specification?.buildPlans}:detail.specification,chosen):null);
       selection.current=chosen ?? null;setObserved(new Date().toISOString());setError('');
     } catch(problem) {
