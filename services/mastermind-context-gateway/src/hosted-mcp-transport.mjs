@@ -4,6 +4,15 @@ import { HOSTED_TOOLS, callHostedTool, hostedToolEnvelope, hostedToolFailure } f
 import { ContextGatewayError } from './validation.mjs';
 
 // Inject authentication and the bounded body reader; tests exercise this exact SDK transport.
+/**
+ * @param {{
+ *   verifyToken: Parameters<typeof withMcpAuth>[1],
+ *   gatewayForSubject: (subject: string) => Promise<object>,
+ *   readBody: (request: Request) => Promise<string>,
+ *   requiredScopes?: string[],
+ *   resourceUrl?: string
+ * }} options
+ */
 export function createHostedMcpTransport({ verifyToken, gatewayForSubject, readBody, requiredScopes = undefined, resourceUrl = undefined }) {
   if ([verifyToken, gatewayForSubject, readBody].some((fn) => typeof fn !== 'function')) throw new TypeError('Verified auth, canonical gateway and bounded body reader are required.');
 const handler = createMcpHandler((server) => {
