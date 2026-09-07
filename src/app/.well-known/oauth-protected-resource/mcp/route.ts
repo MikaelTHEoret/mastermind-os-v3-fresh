@@ -1,7 +1,7 @@
-// Existing PR #2 OAuth discovery; actual subject/operator binding is enforced by the gateway.
-import { protectedResourceHandlerClerk, metadataCorsOptionsRequestHandler } from '@clerk/mcp-tools/next';
-const handler = protectedResourceHandlerClerk({
-  scopes_supported: ['openid', 'profile', 'email'], resource_name: 'Mastermind Embodiment Gateway',
-});
-const corsHandler = metadataCorsOptionsRequestHandler();
-export { handler as GET, corsHandler as OPTIONS };
+import { hostedOAuthPolicy, hostedOAuthFailure, metadataCorsHeaders, protectedHostedMetadata } from '../../../../../services/mastermind-context-gateway/src/hosted-oauth-policy.mjs';
+export const dynamic = 'force-dynamic';
+export function GET() {
+  try { return Response.json(protectedHostedMetadata(hostedOAuthPolicy(process.env)), { headers: metadataCorsHeaders }); }
+  catch (error) { return hostedOAuthFailure(error, undefined, { metadata: true }); }
+}
+export function OPTIONS() { return new Response(null, { status: 204, headers: metadataCorsHeaders }); }
