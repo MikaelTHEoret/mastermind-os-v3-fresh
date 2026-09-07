@@ -44,6 +44,36 @@ def fixture_environment(dsn):
     return env
 
 
+def failure_diagnostic(stderr, sensitive_values=()):
+    """Bounded synthetic error text; redact before cutting a possible secret."""
+    text=stderr.decode('utf-8',errors='replace')
+    original=text
+    values=set()
+    for value in sensitive_values:
+        if isinstance(value,str) and value:
+            values.add(value)
+            values.add(json.dumps(value,ensure_ascii=True)[1:-1])
+    # Recognize whole URIs before a short protected value can alter their scheme.
+    text=re.sub(r'''(?i)\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|rediss?)://[^\s'"<>]+''',
+                '[redacted-connection-uri]',text)
+    for value in sorted(values,key=len,reverse=True):
+        text=text.replace(value,'[redacted]')
+    redacted=text!=original
+    text=re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]','?',text)
+    return {'kind':'synthetic-postgres-stderr','message':text[:4096],
+            'truncated':len(text)>4096,'redacted':redacted,'limitCharacters':4096}
+
+
+def process_metadata(stdout,stderr,returncode,*,sensitive_values=(),timed_out=False):
+    accepted=(not timed_out and returncode==0
+              and stdout.strip()==b'CODING_PERMISSION_SQL_ROLLBACK_ACCEPTED')
+    return {'state':'passed' if accepted else 'held' if timed_out else 'failed',
+        'scope':'disposable-sql-rollback-only','returncode':returncode,'timedOut':timed_out,
+        'stdoutSha256':hashlib.sha256(stdout).hexdigest(),'stderrSha256':hashlib.sha256(stderr).hexdigest(),
+        'stdoutBytes':len(stdout),'stderrBytes':len(stderr),'canonicalDatabaseAccess':False,
+        'failureDiagnostic':None if accepted else failure_diagnostic(stderr,sensitive_values)}
+
+
 def compose_sql(fixture,v1_source,v2_source):
     task=fixture['taskId'];actor=fixture['actorId'];project=fixture['project']
     checkpoint=fixture['codingEntry']['taskBinding']['checkpointId']
@@ -210,15 +240,17 @@ def main():
     bodies=[path.read_bytes() for path in paths]
     fixture=json.loads(bodies[0].decode('utf-8-sig'))
     sql=compose_sql(fixture,*[body.decode('utf-8-sig') for body in bodies[1:]])
-    result=subprocess.run([args.psql,'-X','-q','-A','-t','-v','ON_ERROR_STOP=1'],input=sql.encode(),
-        stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,timeout=45,check=False)
-    accepted=result.returncode==0 and result.stdout.strip()==b'CODING_PERMISSION_SQL_ROLLBACK_ACCEPTED'
-    print(json.dumps({'state':'passed' if accepted else 'failed','scope':'disposable-sql-rollback-only',
-        'returncode':result.returncode,'sqlSha256':hashlib.sha256(sql.encode()).hexdigest(),
-        'sources':{str(path.relative_to(root)):hashlib.sha256(body).hexdigest() for path,body in zip(paths,bodies)},
-        'stdoutSha256':hashlib.sha256(result.stdout).hexdigest(),'stderrSha256':hashlib.sha256(result.stderr).hexdigest(),
-        'stdoutBytes':len(result.stdout),'stderrBytes':len(result.stderr),'canonicalDatabaseAccess':False}))
-    return 0 if accepted else 1
+    sensitive=(args.dsn,env['PGPASSWORD'],urlsplit(args.dsn).password or '')
+    try:
+        result=subprocess.run([args.psql,'-X','-q','-A','-t','-v','ON_ERROR_STOP=1'],input=sql.encode(),
+            stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,timeout=45,check=False)
+        record=process_metadata(result.stdout,result.stderr,result.returncode,sensitive_values=sensitive)
+    except subprocess.TimeoutExpired as error:
+        record=process_metadata(error.stdout or b'',error.stderr or b'',None,sensitive_values=sensitive,timed_out=True)
+    record.update(sqlSha256=hashlib.sha256(sql.encode()).hexdigest(),
+        sources={str(path.relative_to(root)):hashlib.sha256(body).hexdigest() for path,body in zip(paths,bodies)})
+    print(json.dumps(record))
+    return 0 if record['state']=='passed' else 1
 
 
 if __name__=='__main__':
