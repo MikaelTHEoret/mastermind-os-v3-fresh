@@ -6,11 +6,14 @@ import {validatePermissionScope,canonicalJson,permissionDigest,permissionGrantRe
   authorizeModuleFromTask,validateCodingSourceCheck,codingSourceScopeFromTask} from '../src/task-permissions.mjs';
 import {MastermindContextGateway} from '../src/context-gateway.mjs';
 import {NeonMemoryStore} from '../src/neon-store.mjs';
+import {CODING_SUPPRESSED_CLI_PROFILE,CODING_SUPPRESSED_CLI_SHA256} from '../src/coding-source-policy.mjs';
 
 const fixture=JSON.parse(fs.readFileSync(new URL('./fixtures/coding-source-permissions-v2.json',import.meta.url),'utf8').replace(/^\uFEFF/,''));
 const fresh=()=>structuredClone(fixture);
-function setup(){
- const f=fresh(),scope=validatePermissionScope({...f.v1,schemaVersion:2,codingSources:[f.codingEntry]});
+function setup({suppressed=false}={}){
+ const f=fresh();
+ if(suppressed) Object.assign(f.codingEntry.runtime,{cliProfile:CODING_SUPPRESSED_CLI_PROFILE,codexSha256:CODING_SUPPRESSED_CLI_SHA256});
+ const scope=validatePermissionScope({...f.v1,schemaVersion:2,codingSources:[f.codingEntry]});
  const task={taskId:f.taskId,project:f.project,state:'active',revision:'8',checkpointId:f.codingEntry.taskBinding.checkpointId,
   permissionScope:scope,permissionRevision:'2',permissionScopeSha256:permissionDigest(scope)};
  const grantRef=permissionGrantRef(task.taskId,task.permissionRevision,task.permissionScopeSha256);
@@ -49,6 +52,53 @@ test('scope eligibility never asserts CLI account proof or execution permission'
  assert.equal(value.requiresTrustedHostProfileProof,true);assert.equal(value.requiresExactReviewedPlanProof,true);
  assert.equal(value.requiresHostPathResolution,true);assert.equal(value.bindingSha256,permissionDigest(input.workerBinding));
  assert.match(value.authorityRef,/^coding-authority\//);assert.ok(!value.authorityRef.startsWith('task-grant/'));
+});
+
+test('suppressed profile retains its exact identity and executable without granting execution',()=>{
+ const {scope,task,input}=setup({suppressed:true});
+ assert.equal(scope.codingSources[0].runtime.cliProfile,CODING_SUPPRESSED_CLI_PROFILE);
+ assert.equal(input.workerBinding.cliProfile,CODING_SUPPRESSED_CLI_PROFILE);
+ assert.equal(validatePermissionScope(scope).codingSources[0].runtime.codexSha256,CODING_SUPPRESSED_CLI_SHA256);
+ const result=codingSourceScopeFromTask(task,input);
+ assert.equal(result.scopeAuthorized,true);assert.equal(result.executionAuthorized,false);
+ assert.equal(result.requiresTrustedHostProfileProof,true);
+ assert.equal(result.requiresExactReviewedPlanProof,true);
+ assert.deepEqual(scope.executionPolicy,fixture.v1.executionPolicy);
+ assert.deepEqual(scope.codingSources[0].executionPolicy,fixture.codingEntry.executionPolicy);
+ assert.deepEqual(scope.codingSources[0].limits,fixture.codingEntry.limits);
+});
+
+test('suppressed profile rejects unaccepted executables and arbitrary startup settings in scope and binding',()=>{
+ const {scope,input}=setup({suppressed:true});
+ for(const changedHash of ['0'.repeat(64),'a'.repeat(64),null,17]) {
+  const changedScope=structuredClone(scope);changedScope.codingSources[0].runtime.codexSha256=changedHash;
+  assert.throws(()=>validatePermissionScope(changedScope));
+  const changedInput=structuredClone(input);changedInput.workerBinding.codexSha256=changedHash;
+  assert.throws(()=>validateCodingSourceCheck(changedInput));
+ }
+ for(const profile of [CODING_SUPPRESSED_CLI_PROFILE+'-other','',null]) {
+  const changedScope=structuredClone(scope);changedScope.codingSources[0].runtime.cliProfile=profile;
+  assert.throws(()=>validatePermissionScope(changedScope));
+  const changedInput=structuredClone(input);changedInput.workerBinding.cliProfile=profile;
+  assert.throws(()=>validateCodingSourceCheck(changedInput));
+ }
+ const extraScope=structuredClone(scope);extraScope.codingSources[0].runtime.startupOverrides=['plugins=true'];
+ assert.throws(()=>validatePermissionScope(extraScope));
+ const extraInput=structuredClone(input);extraInput.workerBinding.startupOverrides=['plugins=true'];
+ assert.throws(()=>validateCodingSourceCheck(extraInput));
+});
+
+test('an old grant cannot be substituted for a suppressed-profile operation in either direction',()=>{
+ const old=setup(),current=setup({suppressed:true});
+ for(const [state,otherProfile,otherHash] of [
+   [current,fixture.codingEntry.runtime.cliProfile,CODING_SUPPRESSED_CLI_SHA256],
+   [old,CODING_SUPPRESSED_CLI_PROFILE,CODING_SUPPRESSED_CLI_SHA256]]) {
+  const altered=structuredClone(state.input);
+  Object.assign(altered.workerBinding,{cliProfile:otherProfile,codexSha256:otherHash});
+  const result=codingSourceScopeFromTask(state.task,validateCodingSourceCheck(altered));
+  assert.equal(result.scopeAuthorized,false);assert.equal(result.executionAuthorized,false);
+ }
+ assert.notEqual(permissionDigest(current.scope),permissionDigest(old.scope));
 });
 
 test('module-only scope, old grants, foreign owner and task advancement cannot admit source work',()=>{

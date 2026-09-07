@@ -5,6 +5,8 @@ export const CODING_SOURCE_POLICY = Object.freeze({ action:'coding.source-work',
   delivery:'private-local-branch-no-push', sandbox:'workspace-write', approval:'approve-for-me',
   targetEnforcement:'post-execution-acceptance', activate:false, push:false, deploy:false });
 export const CODING_CLI_PROFILE = 'codex-approve-for-me-workspace-write-v1';
+export const CODING_SUPPRESSED_CLI_PROFILE = 'codex-approve-for-me-workspace-write-suppressed-v2';
+export const CODING_SUPPRESSED_CLI_SHA256 = 'dacb96688b155e20dbbbc0bfd18bba7ce7920f1b239ab08a1627917f23b8d9cd';
 export const CODING_LIMITS = Object.freeze({wall_seconds:300,stdout_bytes:2097152,stderr_bytes:262144,
   memory_bytes:2147483648,active_processes:32,max_files:4096,max_file_bytes:8388608,
   max_inventory_bytes:67108864,diff_bytes:2097152});
@@ -15,6 +17,12 @@ const NAME=/^[a-z][a-z0-9_.-]{1,127}$/;
 const fail=()=>{throw new TypeError('CODING_SOURCE_SCOPE_INVALID');};
 const strict=(value,keys)=>{exactObject(value,keys);if(Object.keys(value).length!==keys.length)fail();return value;};
 const hash=(value,field)=>requiredString(value,field,64,HASH);
+function codingCliProfile(profile, executableHash) {
+  hash(executableHash,'CLI hash');
+  if(profile===CODING_CLI_PROFILE) return profile;
+  if(profile===CODING_SUPPRESSED_CLI_PROFILE && executableHash===CODING_SUPPRESSED_CLI_SHA256) return profile;
+  fail();
+}
 const utf8Order=(a,b)=>Buffer.compare(Buffer.from(a.path,'utf8'),Buffer.from(b.path,'utf8'));
 export function codingRelativePath(value) {
   requiredString(value,'source path',512);
@@ -72,8 +80,8 @@ export function validateCodingSources(raw, helpers) {
     const hostProfile={profileId:requiredString(host.profileId,'profileId',128,NAME),
       profileSha256:hash(host.profileSha256,'host profile hash'),accountEvidenceSha256:hash(host.accountEvidenceSha256,'account evidence hash')};
     const runtime=strict(entry.runtime,['codexSha256','cliProfile','worktreeRoot','artifactRoot']);
-    if(runtime.cliProfile!==CODING_CLI_PROFILE)fail();
-    const runtimeView={codexSha256:hash(runtime.codexSha256,'CLI hash'),cliProfile:CODING_CLI_PROFILE,
+    const cliProfile=codingCliProfile(runtime.cliProfile,runtime.codexSha256);
+    const runtimeView={codexSha256:runtime.codexSha256,cliProfile,
       worktreeRoot:windowsScopePath(runtime.worktreeRoot,'worktreeRoot'),artifactRoot:windowsScopePath(runtime.artifactRoot,'artifactRoot')};
     const roots=[repositoryRoot,runtimeView.worktreeRoot,runtimeView.artifactRoot].map(path=>path.toLowerCase());
     if(roots.some((path,i)=>roots.some((other,j)=>i!==j && (path===other || path.startsWith(other+'/')))))fail();
@@ -91,7 +99,8 @@ export function validateCodingBinding(value, helpers) {
   const {canonicalJson,windowsScopePath,permissionDigest}=helpers;
   strict(value,['schemaVersion','action','request','requestSha256','repositoryRoot','worktreeRoot','artifactRoot',
     'codexSha256','cliProfile','sandbox','approval','limits','delivery','targetEnforcement']);
-  if(value.schemaVersion!==1 || value.action!=='coding.source-work' || value.cliProfile!==CODING_CLI_PROFILE
+  codingCliProfile(value.cliProfile,value.codexSha256);
+  if(value.schemaVersion!==1 || value.action!=='coding.source-work'
     || value.sandbox!=='workspace-write' || value.approval!=='approve-for-me'
     || value.delivery!=='private-local-branch-no-push' || value.targetEnforcement!=='post-execution-acceptance')fail();
   const request=strict(value.request,['schemaVersion','operationId','taskRef','baseCommit','instructions','allowedTargets']);

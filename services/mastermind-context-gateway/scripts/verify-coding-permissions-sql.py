@@ -298,6 +298,31 @@ SELECT 'CODING_PERMISSION_SQL_ROLLBACK_ACCEPTED';
             +apply_guard+apply_guard+negative_guards+checks)
 
 
+def read_profile_source(name):
+    if name not in ('coding_permission_profile_extension.py','coding_permission_profile_fixture.py'):
+        raise ValueError('PROFILE_FIXTURE_SOURCE_NAME_CHANGED')
+    with Path(__file__).with_name(name).open('rb') as source:
+        raw=source.read(65537)
+    if len(raw)>65536: raise ValueError('PROFILE_FIXTURE_SOURCE_LIMIT')
+    return raw
+
+
+def compose_profile_sql(base_sql,fixture,raw_v2,raw_extension,*,guard_source,extension_source,fixture_source):
+    modules=[]
+    for name,raw in [('coding_permission_schema_guards.py',guard_source),
+                     ('coding_permission_profile_extension.py',extension_source),
+                     ('coding_permission_profile_fixture.py',fixture_source)]:
+        if not isinstance(raw,bytes) or len(raw)>65536:
+            raise ValueError('PROFILE_FIXTURE_SOURCE_LIMIT')
+        module=types.ModuleType(name.removesuffix('.py'))
+        module.__file__=str(Path(__file__).with_name(name))
+        exec(compile(raw,module.__file__,'exec'),module.__dict__)
+        modules.append(module)
+    guards,extension,checks=modules
+    addition=checks.compose(guards,extension,fixture,raw_v2,raw_extension)
+    return checks.insert_before_legacy_checks(base_sql,addition),list(checks.CONTROLS)
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dsn',required=True,help='Explicit empty loopback mastermind_fixture_* database only')
@@ -305,12 +330,18 @@ def main():
     args=parser.parse_args();env=fixture_environment(args.dsn)
     root=Path(__file__).resolve().parents[1]
     paths=[root/'test'/'fixtures'/'coding-source-permissions-v2.json',
-        root/'migrations'/'task-permissions-v1.sql',root/'migrations'/'task-permissions-v2.sql']
+        root/'migrations'/'task-permissions-v1.sql',root/'migrations'/'task-permissions-v2.sql',
+        root/'migrations'/'task-permissions-v2-suppressed-profile.sql']
     bodies=[path.read_bytes() for path in paths]
     guard_path=root/'scripts'/'coding_permission_schema_guards.py'
     guard_source=read_guard_source()
     fixture=json.loads(bodies[0].decode('utf-8-sig'))
-    sql=compose_sql(fixture,*[body.decode('utf-8-sig') for body in bodies[1:]],guard_source=guard_source)
+    sql=compose_sql(fixture,*[body.decode('utf-8-sig') for body in bodies[1:3]],guard_source=guard_source)
+    profile_sources={name:read_profile_source(name) for name in
+        ('coding_permission_profile_extension.py','coding_permission_profile_fixture.py')}
+    sql,profile_controls=compose_profile_sql(sql,fixture,bodies[2],bodies[3],guard_source=guard_source,
+        extension_source=profile_sources['coding_permission_profile_extension.py'],
+        fixture_source=profile_sources['coding_permission_profile_fixture.py'])
     sensitive=(args.dsn,env['PGPASSWORD'],urlsplit(args.dsn).password or '')
     try:
         result=subprocess.run([args.psql,'-X','-q','-A','-t','-v','ON_ERROR_STOP=1'],input=sql.encode(),
@@ -320,11 +351,14 @@ def main():
         record=process_metadata(error.stdout or b'',error.stderr or b'',None,sensitive_values=sensitive,timed_out=True)
     sources={str(path.relative_to(root)):hashlib.sha256(body).hexdigest() for path,body in zip(paths,bodies)}
     sources[str(guard_path.relative_to(root))]=hashlib.sha256(guard_source).hexdigest()
+    for name,raw in profile_sources.items():
+        sources['scripts/'+name]=hashlib.sha256(raw).hexdigest()
     record.update(sqlSha256=hashlib.sha256(sql.encode()).hexdigest(),sources=sources,
         guardedMigrationControls=['first_apply','same_source_replay','partial_installation_hold',
           'changed_function_hold','changed_acl_hold','protected_schema_change_hold',
           'current_v2_scope_rollback_hold','absent_functions_current_v2_scope_rollback_hold',
-          'guarded_rollback','rollback_replay','v1_and_history_preserved'])
+          'guarded_rollback','rollback_replay','v1_and_history_preserved'],
+        profileExtensionControls=profile_controls)
     print(json.dumps(record))
     return 0 if record['state']=='passed' else 1
 
