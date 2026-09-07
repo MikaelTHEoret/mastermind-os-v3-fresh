@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import types
 from urllib.parse import unquote, urlsplit
 
 
@@ -74,7 +75,48 @@ def process_metadata(stdout,stderr,returncode,*,sensitive_values=(),timed_out=Fa
         'failureDiagnostic':None if accepted else failure_diagnostic(stderr,sensitive_values)}
 
 
-def compose_sql(fixture,v1_source,v2_source):
+def read_guard_source():
+    with Path(__file__).with_name('coding_permission_schema_guards.py').open('rb') as source:
+        raw=source.read(65537)
+    if len(raw)>65536: raise ValueError('SHARED_GUARD_SOURCE_LIMIT')
+    return raw
+
+
+def compose_sql(fixture,v1_source,v2_source,*,guard_source=None):
+    # Compile the same trusted byte buffer recorded by main, without .pyc/cache
+    # reuse or a later source reread. Diagnostic-only import remains effect-free.
+    guard_path=Path(__file__).with_name('coding_permission_schema_guards.py')
+    if guard_source is None: guard_source=read_guard_source()
+    if not isinstance(guard_source,bytes) or len(guard_source)>65536:
+        raise ValueError('SHARED_GUARD_SOURCE_LIMIT')
+    guards=types.ModuleType('coding_permission_schema_guards')
+    guards.__file__=str(guard_path)
+    exec(compile(guard_source,str(guard_path),'exec'),guards.__dict__)
+    raw_v2=v2_source.encode('utf-8')
+    apply_guard=guards.transaction_body(guards.render_disposable(raw_v2,'apply'))
+    rollback_guard=guards.transaction_body(guards.render_disposable(raw_v2,'rollback'))
+    def negative_guard(change,expected):
+        return f"""DO $negative_guard$ BEGIN
+          BEGIN
+            {change}
+            EXECUTE {literal(apply_guard)};
+            RAISE EXCEPTION 'GUARD_NEGATIVE_FIXTURE_UNEXPECTEDLY_ACCEPTED';
+          EXCEPTION WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM<>{literal(expected)} THEN RAISE; END IF;
+          END;
+        END $negative_guard$;
+"""
+    negative_guards=''.join([
+        negative_guard('DROP FUNCTION public.validate_mastermind_coding_sources_v2(jsonb) RESTRICT;',
+                       'CODING_PERMISSION_V2_PARTIAL_OR_OVERLOADED_STATE'),
+        negative_guard("""CREATE OR REPLACE FUNCTION public.validate_mastermind_coding_sources_v2(p_scope jsonb)
+          RETURNS void LANGUAGE plpgsql IMMUTABLE SET search_path=public,pg_temp
+          AS $changed_body$ BEGIN NULL; END; $changed_body$;""",'CODING_PERMISSION_V2_FUNCTION_CHANGED'),
+        negative_guard('REVOKE EXECUTE ON FUNCTION public.validate_mastermind_coding_sources_v2(jsonb) FROM PUBLIC;',
+                       'CODING_PERMISSION_V2_FUNCTION_CHANGED'),
+        negative_guard('ALTER TABLE public.mastermind_context_tasks_v1 ADD COLUMN fixture_unexpected_column text;',
+                       'CODING_PERMISSION_V1_OR_SCHEMA_PREIMAGE_CHANGED'),
+    ])
     task=fixture['taskId'];actor=fixture['actorId'];project=fixture['project']
     checkpoint=fixture['codingEntry']['taskBinding']['checkpointId']
     v1=canonical(fixture['v1'])
@@ -189,6 +231,20 @@ BEGIN
   RAISE EXCEPTION 'Stale permission revision accepted';
  EXCEPTION WHEN SQLSTATE '40001' THEN NULL; END;
  IF pg_temp.command_scope(s,cp,7,1)<>'applied' THEN RAISE EXCEPTION 'v2 apply'; END IF;
+ BEGIN
+  EXECUTE {literal(rollback_guard)};
+  RAISE EXCEPTION 'CURRENT_V2_SCOPE_ROLLBACK_WAS_ACCEPTED';
+ EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  IF SQLERRM<>'RESTORE_CURRENT_TASK_SCOPES_WITH_EXISTING_OWNER_CAS_BEFORE_SCHEMA_ROLLBACK' THEN RAISE; END IF;
+ END;
+ BEGIN
+  DROP FUNCTION public.set_mastermind_context_task_permissions_v2(uuid,text,uuid,text,uuid,text,bigint,bigint,text,text) RESTRICT;
+  DROP FUNCTION public.validate_mastermind_coding_sources_v2(jsonb) RESTRICT;
+  EXECUTE {literal(rollback_guard)};
+  RAISE EXCEPTION 'ABSENT_FUNCTIONS_CURRENT_V2_SCOPE_ROLLBACK_WAS_ACCEPTED';
+ EXCEPTION WHEN SQLSTATE 'P0001' THEN
+  IF SQLERRM<>'RESTORE_CURRENT_TASK_SCOPES_WITH_EXISTING_OWNER_CAS_BEFORE_SCHEMA_ROLLBACK' THEN RAISE; END IF;
+ END;
  SELECT to_jsonb(t) INTO before_task FROM public.mastermind_context_tasks_v1 t;
  SELECT jsonb_agg(to_jsonb(t) ORDER BY sequence) INTO before_checkpoints FROM public.mastermind_context_checkpoints_v1 t;
  IF pg_temp.command_scope(s,cp,7,1)<>'duplicate' THEN RAISE EXCEPTION 'v2 replay'; END IF;
@@ -217,6 +273,18 @@ BEGIN
  IF pg_get_functiondef('public.set_mastermind_context_task_permissions_v1(uuid,text,uuid,text,uuid,text,bigint,bigint,text,text)'::regprocedure)<>function_before
  THEN RAISE EXCEPTION 'V1 definition changed'; END IF;
 END $$;
+{rollback_guard}
+{rollback_guard}
+DO $guard_rollback_preserved$ BEGIN
+ IF to_regprocedure('public.validate_mastermind_coding_sources_v2(jsonb)') IS NOT NULL
+  OR to_regprocedure('public.set_mastermind_context_task_permissions_v2(uuid,text,uuid,text,uuid,text,bigint,bigint,text,text)') IS NOT NULL
+ THEN RAISE EXCEPTION 'Guarded rollback left v2 functions'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.mastermind_context_checkpoints_v1
+   WHERE checkpoint_id='{checkpoint}'::uuid AND permission_scope={literal(v2)}::jsonb)
+  OR pg_get_functiondef('public.set_mastermind_context_task_permissions_v1(uuid,text,uuid,text,uuid,text,bigint,bigint,text,text)'::regprocedure)
+     IS DISTINCT FROM (SELECT definition FROM fixture_v1_definition)
+ THEN RAISE EXCEPTION 'Guarded rollback changed v1 or history'; END IF;
+END $guard_rollback_preserved$;
 ROLLBACK;
 DO $$ BEGIN
  IF to_regclass('public.mastermind_context_tasks_v1') IS NOT NULL
@@ -226,7 +294,8 @@ DO $$ BEGIN
 END $$;
 SELECT 'CODING_PERMISSION_SQL_ROLLBACK_ACCEPTED';
 """
-    return setup+migration_body(v1_source)+preserve_v1+migration_body(v2_source)+checks
+    return (setup+migration_body(v1_source)+preserve_v1+guards.fixture_context_capture()
+            +apply_guard+apply_guard+negative_guards+checks)
 
 
 def main():
@@ -238,8 +307,10 @@ def main():
     paths=[root/'test'/'fixtures'/'coding-source-permissions-v2.json',
         root/'migrations'/'task-permissions-v1.sql',root/'migrations'/'task-permissions-v2.sql']
     bodies=[path.read_bytes() for path in paths]
+    guard_path=root/'scripts'/'coding_permission_schema_guards.py'
+    guard_source=read_guard_source()
     fixture=json.loads(bodies[0].decode('utf-8-sig'))
-    sql=compose_sql(fixture,*[body.decode('utf-8-sig') for body in bodies[1:]])
+    sql=compose_sql(fixture,*[body.decode('utf-8-sig') for body in bodies[1:]],guard_source=guard_source)
     sensitive=(args.dsn,env['PGPASSWORD'],urlsplit(args.dsn).password or '')
     try:
         result=subprocess.run([args.psql,'-X','-q','-A','-t','-v','ON_ERROR_STOP=1'],input=sql.encode(),
@@ -247,8 +318,13 @@ def main():
         record=process_metadata(result.stdout,result.stderr,result.returncode,sensitive_values=sensitive)
     except subprocess.TimeoutExpired as error:
         record=process_metadata(error.stdout or b'',error.stderr or b'',None,sensitive_values=sensitive,timed_out=True)
-    record.update(sqlSha256=hashlib.sha256(sql.encode()).hexdigest(),
-        sources={str(path.relative_to(root)):hashlib.sha256(body).hexdigest() for path,body in zip(paths,bodies)})
+    sources={str(path.relative_to(root)):hashlib.sha256(body).hexdigest() for path,body in zip(paths,bodies)}
+    sources[str(guard_path.relative_to(root))]=hashlib.sha256(guard_source).hexdigest()
+    record.update(sqlSha256=hashlib.sha256(sql.encode()).hexdigest(),sources=sources,
+        guardedMigrationControls=['first_apply','same_source_replay','partial_installation_hold',
+          'changed_function_hold','changed_acl_hold','protected_schema_change_hold',
+          'current_v2_scope_rollback_hold','absent_functions_current_v2_scope_rollback_hold',
+          'guarded_rollback','rollback_replay','v1_and_history_preserved'])
     print(json.dumps(record))
     return 0 if record['state']=='passed' else 1
 

@@ -101,7 +101,8 @@ Rollback uses the existing owner/CAS setter with a new checkpoint to restore the
 exact prior complete v1 or v2 scope, retaining all historical permission snapshots.
 Reconcile started or unknown source work first. Do not roll readers back to a
 module-only parser while active v2 task scopes remain, or drop the function while
-an uncertain v2 command needs exact replay. No destructive rollback SQL is added.
+an uncertain v2 command needs exact replay. The guarded schema preparation below
+also refuses function removal while any current v2 scope remains.
 
 ## Off-machine acceptance proposal
 
@@ -117,14 +118,16 @@ import-safe and requires an explicit empty **loopback** database whose name star
 v1 and v2 sources inside one outer transaction, creates only synthetic owner/task/
 checkpoint fixtures, tests apply/replay/conflict, dual CAS, wrong owner, malformed
 module/source scopes, immutable progress/history, revoke and explicit v1 restore,
-then rolls everything back and checks schema absence. It prints only outcome and
-source/output hashes, never the DSN or raw SQL error content.
+then rolls everything back and checks schema absence. It prints outcome and
+source/output hashes, with a bounded sanitized failure excerpt when necessary;
+connection and password values are redacted before truncation.
 
 Use a separate GitHub Linux service job with an explicitly reviewed, immutable
 PostgreSQL container image digest and test-only credentials; pass the same digest
 for server and psql client if the client is run in that image. Check PostgreSQL and
-psql versions in that job before execution. No image digest or installed Windows
-PostgreSQL tooling has been assumed or verified here. The job must have no account
+psql versions in that job before execution. The existing isolated workflow pins
+both to its reviewed PostgreSQL 17.11 image and records their identities. No local
+PostgreSQL installation is required. The job must have no account
 secrets or canonical database settings and must not deploy or upload runtime data.
 Invoke the runner with the job's explicit loopback fixture DSN, then retain its
 JSON result and source hashes. Do not label SQL compiled/accepted until this job
@@ -133,3 +136,41 @@ actually passes. Root owns the final image pin and CI integration review.
 The prepared runner models the permission tables/append-only rules; it does not
 claim broad migration equivalence for every unrelated production table. Real
 destination activation remains a separately reviewed step after synthetic proof.
+
+## Shared guarded migration rehearsal
+
+`scripts/coding_permission_schema_guards.py` is the one pure renderer used by
+both the versioned canonical preparation and the disposable SQL runner. It admits
+only the exact reviewed two-function migration bytes. Canonical rendering embeds
+the separately pinned read-only catalog preimage as literal JSON. Disposable
+rendering instead captures the synthetic database's own catalog inside its outer
+rollback transaction; it cannot import a canonical receipt or connection setting.
+
+Both modes use the same owner/database/version checks, NOWAIT SHARE table locks,
+transaction advisory lock, protected v1/table catalog comparison, exact new
+function body/attribute/ACL checks, and finite statement/lock/idle limits. A
+same-source apply is a verified no-op. Partial, altered, overloaded or unexpected
+protected schema states hold. Rollback checks exact function identity, refuses
+while any current task scope has schemaVersion 2 (even if both functions are
+already absent), and drops only setter then
+validator with RESTRICT. Existing v1 functions, task rows and checkpoint history
+are preserved. The caller must separately resolve uncertain commands before
+dispatch; these guards do not prove absence of a retained undelivered command.
+
+The existing disposable job now rehearses first apply, replay, partial state,
+changed function body/ACL, changed protected table, refusal of rollback during a
+current v2 scope with installed or missing functions, explicit owner/CAS
+restoration to v1, guarded rollback and
+rollback replay. Its original permission/history/revocation tests and final
+outer rollback remain. The same pinned PostgreSQL image/client, no host ports,
+synthetic credentials and five-minute job bound are retained. Failure diagnostics
+are bounded to 4096 sanitized characters after connection/password redaction,
+with full output hashes and byte counts; successful output remains the exact
+acceptance sentinel. The initial source-only guard fixtures do not establish that
+the SQL has executed. A new passing disposable job is required for these guards.
+
+The earlier canonical preparation files and receipts are immutable historical
+evidence. The shared renderer produces separately versioned apply/rollback files
+and records its own exact source hash alongside the same pinned canonical
+preflight and authoritative migration. No migration or grant is applied by
+rendering or by ordinary service startup.

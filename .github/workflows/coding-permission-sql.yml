@@ -79,9 +79,9 @@ jobs:
           pathlib.Path(os.environ['RUNNER_TEMP'], 'coding-permission-sql-environment.json').write_text(text + '\n')
           print(text)
           PY
-      - name: Verify bounded diagnostic handling
+      - name: Verify shared guards and bounded diagnostic handling
         working-directory: services/mastermind-context-gateway
-        run: python -m unittest discover -s test -p test_coding_permission_sql_diagnostics.py -q
+        run: python -m unittest discover -s test -p 'test_coding_permission*.py' -q
       - name: Execute actual migrations against rollback-only synthetic fixtures
         env:
           FIXTURE_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
