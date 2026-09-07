@@ -210,3 +210,54 @@ test('whole-operation timeout remains armed through a stalled response body', as
     (error) => error?.code === 'NODE_HOSTED_TIMEOUT' && error.retryable === true,
   );
 });
+
+for (const kind of ['pair', 'exchange']) {
+  const value = () => kind === 'pair' ? pairRequest() : exchangeRequest();
+  const state = kind === 'pair' ? 'pending' : 'paired';
+
+  test(`${kind} bounds stalled credential loading and prevents a late HTTPS request`, { timeout: 2_000 }, async () => {
+    let finishLoad;
+    const pending = new Promise((resolve) => { finishLoad = resolve; });
+    const harness = requestHarness({ body: responseBody({}) });
+    const transport = new MastermindCoreNodeFixedHttpsTransport({
+      credentialStore: { load() { return pending; } },
+      requestImpl: harness.requestImpl,
+      timeoutMs: 100,
+    });
+    await assert.rejects(transport[kind](value()), (error) =>
+      error?.code === 'NODE_HOSTED_TIMEOUT' && error.retryable === true);
+    assert.equal(harness.calls.length, 0);
+    finishLoad(credentialRecord(state));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(harness.calls.length, 0);
+  });
+
+  test(`${kind} cancels stalled credential loading with the exact caller reason`, { timeout: 2_000 }, async () => {
+    const harness = requestHarness({ body: responseBody({}) });
+    const controller = new AbortController();
+    const reason = new Error('caller cancelled this operation');
+    const transport = new MastermindCoreNodeFixedHttpsTransport({
+      credentialStore: { load() { return new Promise(() => {}); } },
+      requestImpl: harness.requestImpl,
+    });
+    const operation = transport[kind](value(), { signal: controller.signal });
+    queueMicrotask(() => controller.abort(reason));
+    await assert.rejects(operation, (error) => error === reason);
+    assert.equal(harness.calls.length, 0);
+  });
+
+  test(`${kind} consumes a credential rejection after the deadline`, { timeout: 2_000 }, async () => {
+    let failLoad;
+    const pending = new Promise((_, reject) => { failLoad = reject; });
+    const harness = requestHarness({ body: responseBody({}) });
+    const transport = new MastermindCoreNodeFixedHttpsTransport({
+      credentialStore: { load() { return pending; } },
+      requestImpl: harness.requestImpl,
+      timeoutMs: 100,
+    });
+    await assert.rejects(transport[kind](value()), (error) => error?.code === 'NODE_HOSTED_TIMEOUT');
+    failLoad(new Error('credential read failed after its deadline'));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(harness.calls.length, 0);
+  });
+}

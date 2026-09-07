@@ -255,13 +255,22 @@ export class MastermindCoreNodeFixedHttpsTransport {
     const controller = new AbortController();
     const timeoutError = transportError('NODE_HOSTED_TIMEOUT', true);
     const timer = setTimeout(() => controller.abort(timeoutError), this.timeoutMs);
-    timer.unref?.();
     const forwardAbort = () => controller.abort(
       externalSignal.reason ?? new DOMException('Aborted', 'AbortError'),
     );
     externalSignal?.addEventListener('abort', forwardAbort, { once: true });
+    let rejectOnAbort;
+    const aborted = new Promise((_, reject) => {
+      rejectOnAbort = () => reject(controller.signal.reason);
+      controller.signal.addEventListener('abort', rejectOnAbort, { once: true });
+    });
     try {
-      return await operation(controller.signal);
+      // Credential stores may not support cancellation themselves. Bound the
+      // public operation while retaining its post-load no-request abort fence.
+      return await Promise.race([
+        Promise.resolve().then(() => operation(controller.signal)),
+        aborted,
+      ]);
     } catch (error) {
       if (externalSignal?.aborted) throw externalSignal.reason ?? new DOMException('Aborted', 'AbortError');
       if (error instanceof MastermindNodeHttpsTransportError) throw error;
@@ -269,6 +278,7 @@ export class MastermindCoreNodeFixedHttpsTransport {
       throw transportError('NODE_HOSTED_UNAVAILABLE', true);
     } finally {
       clearTimeout(timer);
+      controller.signal.removeEventListener('abort', rejectOnAbort);
       externalSignal?.removeEventListener('abort', forwardAbort);
     }
   }
