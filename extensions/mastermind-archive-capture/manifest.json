@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Mastermind Archive Capture",
+  "version": "1.4.4",
+  "description": "Captures digitized archive evidence into Mastermind without taking over the visible browser.",
+  "permissions": ["storage", "alarms", "scripting", "activeTab"],
+  "host_permissions": [
+    "http://127.0.0.1:3000/*",
+    "http://localhost:3000/*",
+    "https://registers.nli.ie/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Mastermind Archive Capture" }
+}

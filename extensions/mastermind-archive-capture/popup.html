@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header><span class="mark">M</span><div><h1>Archive Capture · 1.4.4</h1><p>Mastermind evidence acquisition</p></div><span id="pairBadge" class="badge">CHECKING</span></header>
+  <section class="connect"><label>Mastermind address<input id="apiBase" value="http://127.0.0.1:3000"></label><button id="connect" class="wide ghost">Connect to Mastermind</button></section>
+  <label>Archive source<select id="archiveKind"><option value="iiif">IIIF manifest (Morbihan)</option><option value="nli">National Library of Ireland</option></select></label>
+    <label id="manifestField">Archive viewer or IIIF manifest URL<input id="manifestUrl" value="https://rechercher.patrimoines-archives.morbihan.fr/ark:/15049/vta54487c774652a/manifest"></label>
+  <div class="grid">
+    <label>Matched job (automatic)<input id="jobId" type="number" min="1" value="1" readonly></label>
+    <label id="registerField">NLI register<input id="registerId" value="000631963"></label>
+    <label>From page<input id="pageFrom" type="number" min="1" value="1"></label>
+    <label>To page<input id="pageTo" type="number" min="1" value="1"></label>
+  </div>
+  <label>Delay between pages<input id="delayMs" type="number" min="1500" step="500" value="2500"></label>
+  <p class="note">A matching database job is found or created automatically. The ordered library stores each original once and indexes only dates/layout first.</p>
+  <div class="buttons"><button id="start">Start archive capture</button><button id="stop" class="ghost">Stop</button></div>
+  <button id="library" class="wide">Build ordered date library</button>
+  <button id="index" class="wide ghost">Fast-index names and dates</button>
+  <button id="extract" class="wide ghost">Extract structured records overnight</button>
+  <button id="capture" class="wide ghost">Save largest image on current page</button>
+  <section id="status"><strong>Idle</strong><span>Waiting for Mastermind.</span></section>
+  <script src="popup.js"></script>
+</body>
+</html>

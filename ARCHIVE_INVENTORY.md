@@ -205,7 +205,7 @@
 - 📊 **mcp-server-config.json** (1ch) — "port": 8001,  ·  _mcp, session_
 - ⚙ **cors_fix.py** (1ch) — Quick CORS fix for ChatGPT integration  ·  _nexus, architecture_
 - 💬 **passphrase.txt** (1ch) — pub rsa3360 2025-04-08 [SC]  ·  _mastermind, fractal-address_
-- 📊 **vector_config.json** (1ch) — "databaseUrl": "postgresql://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a5  ·  _memory, neon-db_
+- 📊 **vector_config.json** (1ch) — "databaseUrl": "[historical connection detail redacted; original retained in private local recovery evidence]  ·  _memory, neon-db_
 - 📊 **mcp-config.json** (1ch) — "version": "1.0.0",  ·  _neon-db, memory_
 - ⚙ **index.js** (1ch) — import React from 'react';  ·  _code_
 - 📊 **package-nexus.json** (1ch) — "name": "nexus-mirror-core-mcp",  ·  _nexus, memory, codex, scroll_

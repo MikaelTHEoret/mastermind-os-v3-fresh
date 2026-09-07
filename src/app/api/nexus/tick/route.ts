@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
 import { tick } from '@/lib/nexus';
+import { chatAccessError } from '../../chat/_boundary';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// One heartbeat of the nexus. Driven by the GUI poll, a Vercel cron, or a
-// local heartbeat loop — whichever is running. GET and POST both beat.
+// A heartbeat writes proposals and memory. Reading this URL never starts work.
 async function beat() {
     try {
         const result = await tick();
@@ -14,5 +14,10 @@ async function beat() {
         return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
     }
 }
-export async function GET() { return beat(); }
-export async function POST() { return beat(); }
+export async function GET() {
+    return NextResponse.json({ ok: false, code: 'POST_REQUIRED' }, { status: 405, headers: { Allow: 'POST', 'Cache-Control': 'no-store' } });
+}
+export async function POST(request: Request) {
+    const denied = await chatAccessError(request); if (denied) return denied;
+    return beat();
+}

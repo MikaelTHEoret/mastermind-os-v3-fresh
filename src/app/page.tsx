@@ -15,6 +15,13 @@ import AutonomicConsole from '@/components/AutonomicConsole';
 import NexusGraph3D from '@/components/NexusGraph3D';
 import SettingsConsole from '@/components/SettingsConsole';
 import TradingConsole from '@/components/TradingConsole';
+import GenealogyConsole from '@/components/GenealogyConsole';
+import AppLiveStatus from '@/components/AppLiveStatus';
+import MinecraftConsole from '@/components/MinecraftConsole';
+import MemoryConsole from '@/components/MemoryConsole';
+import NodeControlConsole from '@/components/NodeControlConsole';
+import { NODE_CONTROL_TAB_HASH } from '@/components/node-control-contract.mjs';
+import ServiceControlConsole from '@/components/ServiceControlConsole';
 import { registry } from '@/lib/modules/registry';
 import { useModules } from '@/lib/modules/useModules';
 import { seedModules } from '@/lib/modules/seed';
@@ -24,6 +31,10 @@ seedModules();
 type ChatMsg = { ts: string; username: string; message: string; is_bot_response: boolean; account_type: string; };
 type TpsPt   = { ts: string; tps: number; };
 type Chunk   = { event_type: string; world_x: number; world_z: number; ts: string; };
+type AppTab = 'operations'|'services'|'nodes'|'forge'|'modules'|'orchestrator'|'chat'|'autonomic'|'cymatics'|'graph'|'codex'|'genealogy'|'minecraft'|'memory'|'trading'|'settings';
+type MinecraftProject = 'family'|'2b2t';
+type TwoBTwoTView = 'overview'|'data';
+type TelemetryFetchState = 'idle'|'loading'|'ok'|'error';
 
 const C = { cyan:'#00ffff', magenta:'#ff00ff', gold:'#ffaa00', green:'#00ffaa', red:'#ff4444', dim:'rgba(0,255,255,0.35)', card:'rgba(0,15,35,0.75)' };
 const mono = 'Orbitron, monospace';
@@ -35,7 +46,7 @@ function Glow({ children, color=C.cyan }: { children:React.ReactNode; color?:str
 function Panel({ title, children, color=C.cyan, nopad }: { title:string; children:React.ReactNode; color?:string; nopad?:boolean }) {
     return (
         <div style={{background:C.card,border:`1px solid ${color}35`,borderRadius:8,marginBottom:8,backdropFilter:'blur(8px)',overflow:'hidden'}}>
-            <div style={{padding:'8px 12px',borderBottom:`1px solid ${color}25`,color,fontFamily:mono,fontSize:10,letterSpacing:2,textTransform:'uppercase',textShadow:`0 0 6px ${color}`}}>â—ˆ {title}</div>
+            <div style={{padding:'8px 12px',borderBottom:`1px solid ${color}25`,color,fontFamily:mono,fontSize:10,letterSpacing:2,textTransform:'uppercase',textShadow:`0 0 6px ${color}`}}>◈ {title}</div>
             <div style={{padding:nopad?0:'10px 12px'}}>{children}</div>
         </div>
     );
@@ -58,18 +69,40 @@ export default function Dashboard() {
     const [chunks5m, setChunks5m] = useState(0);
     const [online,   setOnline]   = useState(false);
     const [lastUpd,  setLastUpd]  = useState('');
-    const [tab,      setTab]      = useState<'command'|'operations'|'forge'|'modules'|'data'|'orchestrator'|'chat'|'autonomic'|'cymatics'|'graph'|'codex'|'trading'|'settings'>('command');
+    const [tab,      setTab]      = useState<AppTab>('minecraft');
+    const [minecraftProject, setMinecraftProject] = useState<MinecraftProject>('family');
+    const [twoBTwoTView, setTwoBTwoTView] = useState<TwoBTwoTView>('overview');
+    const [telemetryFetchState, setTelemetryFetchState] = useState<TelemetryFetchState>('idle');
+    const [lastSuccessfulTelemetryAt, setLastSuccessfulTelemetryAt] = useState<number|null>(null);
+    const [telemetryClock, setTelemetryClock] = useState(() => Date.now());
     const [dataSource, setDataSource] = useState<'chat'|'chunks'>('chat');
     const [dataForm,   setDataForm]   = useState<'conversation'|'table'|'log'|'feed'>('conversation');
     const chatRef = useRef<HTMLDivElement>(null);
 
-    const fetchAll = useCallback(async () => {
+    useEffect(() => {
+        const openLinkedNodeTab = () => {
+            if (window.location.hash === NODE_CONTROL_TAB_HASH) setTab('nodes');
+            const linkedTab = new URLSearchParams(window.location.search).get('tab');
+            if (linkedTab === 'genealogy') setTab('genealogy');
+        };
+        openLinkedNodeTab();
+        window.addEventListener('hashchange', openLinkedNodeTab);
+        return () => window.removeEventListener('hashchange', openLinkedNodeTab);
+    }, []);
+
+    const fetchAll = useCallback(async (signal: AbortSignal) => {
+        setTelemetryClock(Date.now());
+        setTelemetryFetchState((state) => state === 'idle' ? 'loading' : state);
         try {
-            const [intel, tpsRes, chunkRes] = await Promise.all([
-                fetch('/api/dashboard/intelligence', {cache:'no-store'}).then(r=>r.json()),
-                fetch('/api/tps/timeline',           {cache:'no-store'}).then(r=>r.json()),
-                fetch('/api/radar/chunks?minutes=15',{cache:'no-store'}).then(r=>r.json()),
+            const responses = await Promise.all([
+                fetch('/api/dashboard/intelligence', {cache:'no-store', signal}),
+                fetch('/api/tps/timeline',           {cache:'no-store', signal}),
+                fetch('/api/radar/chunks?minutes=15',{cache:'no-store', signal}),
             ]);
+            if (responses.some((response) => !response.ok)) throw new Error('2b2t telemetry request failed');
+            const [intel, tpsRes, chunkRes] = await Promise.all(responses.map((response) => response.json()));
+            if (signal.aborted) return;
+            if (intel?.ok === false || tpsRes?.ok === false || chunkRes?.ok === false) throw new Error('2b2t telemetry payload reported an error');
 
             if (intel.ok) {
                 setChat(intel.chat ?? []);
@@ -94,14 +127,35 @@ export default function Dashboard() {
             );
             setOnline(recentTps.length > 0 || freshChunks5m > 0);
             setLastUpd(new Date().toLocaleTimeString());
-        } catch { /* silent */ }
-    }, [chunks5m]);
+            setLastSuccessfulTelemetryAt(Date.now());
+            setTelemetryFetchState('ok');
+        } catch {
+            if (signal.aborted) return;
+            setOnline(false);
+            setTelemetryFetchState('error');
+        }
+    }, []);
 
     useEffect(() => {
-        fetchAll();
-        const t = setInterval(fetchAll, 5000);
-        return () => clearInterval(t);
-    }, [fetchAll]);
+        if (tab !== 'minecraft' || minecraftProject !== '2b2t') return;
+        const controller = new AbortController();
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const poll = async () => {
+            await fetchAll(controller.signal);
+            if (!controller.signal.aborted) timer = setTimeout(() => { void poll(); }, 5000);
+        };
+        void poll();
+        return () => {
+            controller.abort();
+            if (timer) clearTimeout(timer);
+        };
+    }, [fetchAll, minecraftProject, tab]);
+
+    useEffect(() => {
+        if (tab !== 'minecraft' || minecraftProject !== '2b2t') return;
+        const timer = setInterval(() => setTelemetryClock(Date.now()), 5000);
+        return () => clearInterval(timer);
+    }, [minecraftProject, tab]);
 
     useEffect(() => {
         if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -109,24 +163,44 @@ export default function Dashboard() {
 
     const chatAsc    = [...chat].reverse();
     const recentTps  = tpsHist.slice(-1)[0]?.tps ?? null;
-    const tpsStr     = recentTps !== null ? recentTps.toFixed(1) : 'â€”';
+    const tpsStr     = recentTps !== null ? recentTps.toFixed(1) : '—';
     const tpsColor   = recentTps === null ? C.dim : recentTps > 18 ? C.green : recentTps > 12 ? C.gold : C.red;
+    const isFamilyServer = tab === 'minecraft' && minecraftProject === 'family';
+    const isTwoBTwoT = tab === 'minecraft' && minecraftProject === '2b2t';
+    const isTwoBTwoTOverview = isTwoBTwoT && twoBTwoTView === 'overview';
+    const telemetryRequestIsFresh = lastSuccessfulTelemetryAt !== null && telemetryClock - lastSuccessfulTelemetryAt < 15_000;
+    const twoBTwoTIsLive = telemetryFetchState === 'ok' && telemetryRequestIsFresh && online;
+    const telemetryLabel = telemetryFetchState === 'idle' || telemetryFetchState === 'loading'
+        ? 'CHECKING'
+        : telemetryFetchState === 'error'
+        ? 'DATA ERROR'
+        : twoBTwoTIsLive
+        ? 'LIVE'
+        : 'NO RECENT DATA';
+    const telemetryColor = telemetryFetchState === 'error' ? C.red : twoBTwoTIsLive ? C.green : C.gold;
 
     // â”€â”€ TOP BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const topBar = (
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontFamily:mono,fontSize:11}}>
-            <div style={{display:'flex',alignItems:'center',gap:16}}>
-                <Glow>âµ MASTERMIND</Glow>
-                <span style={{color:C.dim}}>v3.0 â€” 2b2t COMMAND CENTER</span>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap',minWidth:0,fontFamily:mono,fontSize:11}}>
+            <div style={{display:'flex',alignItems:'center',gap:16,flexWrap:'wrap',minWidth:0}}>
+                <Glow>ⵐ MASTERMIND</Glow>
+                <span style={{color:C.dim}}>v3.0 — COMMAND CENTER</span>
             </div>
-            <div style={{display:'flex',gap:24,fontSize:12}}>
+            <span style={{color:C.dim}}>MULTI-PROJECT ENVIRONMENT</span>
+        </div>
+    );
+
+    const twoBTwoTStatusBar = (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,flexWrap:'wrap',minWidth:0,fontFamily:mono,fontSize:11}}>
+            <span style={{color:C.gold,letterSpacing:1.5}}>2B2T INTELLIGENCE · VERSION-PINNED PROJECT</span>
+            <div style={{display:'flex',gap:16,fontSize:12,flexWrap:'wrap',minWidth:0}}>
                 <span>TPS <Glow color={tpsColor}>{tpsStr}</Glow></span>
                 <span>CHUNKS/5m <Glow color={chunks5m>50?C.green:C.dim}>{chunks5m}</Glow></span>
                 <span>AC <Glow color={acCount?C.red:C.dim}>{acCount}</Glow></span>
-                <span style={{color:online?C.green:C.red, textShadow:`0 0 6px ${online?C.green:C.red}`}}>
-                    {online ? 'â— LIVE' : 'â—‹ OFFLINE'}
+                <span style={{color:telemetryColor, textShadow:`0 0 6px ${telemetryColor}`}}>
+                    {telemetryLabel}
                 </span>
-                <span style={{color:C.dim}}>â†º {lastUpd}</span>
+                <span style={{color:C.dim}}>LAST OK {lastUpd || '—'}</span>
             </div>
         </div>
     );
@@ -139,7 +213,7 @@ export default function Dashboard() {
             {registry.isEnabled('nexus-core') && <NexusCore/>}
             {registry.isEnabled('travel-telemetry') && <Panel title="Travel (5m)" color={C.gold}>
                 <StatRow label="Chunk loads"  value={chunks5m} color={C.green}/>
-                <StatRow label="Load rate"    value={chunks5m > 0 ? `${(chunks5m/300).toFixed(1)}/s` : 'â€”'} color={C.cyan}/>
+                <StatRow label="Load rate"    value={chunks5m > 0 ? `${(chunks5m/300).toFixed(1)}/s` : '—'} color={C.cyan}/>
                 <StatRow label="AC hits (10m)"value={acCount}  color={acCount ? C.red : C.dim}/>
             </Panel>}
             {registry.isEnabled('tps-history') && <Panel title="TPS History">
@@ -164,12 +238,12 @@ export default function Dashboard() {
             </div>)}
             {registry.isEnabled('tps-timeline') && (
             <div style={{background:C.card,border:`1px solid ${C.cyan}35`,borderRadius:8,padding:14,flex:'0 0 auto'}}>
-                <div style={{fontFamily:mono,color:C.cyan,fontSize:10,marginBottom:10,letterSpacing:2}}>â—ˆ TPS TIMELINE â€” BACKEND SIGNATURE</div>
+                <div style={{fontFamily:mono,color:C.cyan,fontSize:10,marginBottom:10,letterSpacing:2}}>◈ TPS TIMELINE — BACKEND SIGNATURE</div>
                 <TPSChart data={tpsHist}/>
             </div>)}
             {registry.isEnabled('chunk-radar') && (
             <div style={{background:C.card,border:`1px solid ${C.gold}35`,borderRadius:8,padding:14,flex:1}}>
-                <div style={{fontFamily:mono,color:C.gold,fontSize:10,marginBottom:10,letterSpacing:2}}>â—ˆ CHUNK RADAR â€” MOVEMENT TRACE</div>
+                <div style={{fontFamily:mono,color:C.gold,fontSize:10,marginBottom:10,letterSpacing:2}}>◈ CHUNK RADAR — MOVEMENT TRACE</div>
                 <ChunkRadar data={chunks}/>
             </div>)}
         </div>
@@ -184,7 +258,7 @@ export default function Dashboard() {
                         <div key={i} style={{fontSize:11,fontFamily:'monospace',borderBottom:`1px solid rgba(0,255,255,0.06)`,paddingBottom:4}}>
                             <span style={{color:C.dim}}>{new Date(m.ts).toLocaleTimeString()} </span>
                             <span style={{color:m.account_type==='pure_bot'?C.red:m.account_type==='auto_reply'?C.gold:C.green,fontWeight:'bold'}}>
-                                {m.account_type==='pure_bot'?'ðŸ¤–':m.account_type==='auto_reply'?'âš¡':'ðŸ‘¤'}{m.username}
+                                {m.account_type==='pure_bot'?'🤖':m.account_type==='auto_reply'?'⚡':'👤'}{m.username}
                             </span>
                             <span style={{color:'rgba(255,255,255,0.75)'}}> {m.message}</span>
                         </div>
@@ -196,32 +270,59 @@ export default function Dashboard() {
     );
 
     // â”€â”€ TAB SHELL (dual-surface: COMMAND home + full-view tabs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    const tabStyle = (id:string): CSSProperties => ({
+    const tabStyle = (id:AppTab): CSSProperties => ({
         fontFamily:mono, fontSize:11, letterSpacing:2, padding:'4px 12px', cursor:'pointer',
+        appearance:'none', background:'transparent', border:0, outlineOffset:2,
         color: tab===id ? C.cyan : C.dim,
         borderBottom:`2px solid ${tab===id ? C.cyan : 'transparent'}`,
         textShadow: tab===id ? `0 0 6px ${C.cyan}` : 'none'
     });
     const tabBar = (
-        <div style={{display:'flex',gap:6,alignItems:'center',borderBottom:`1px solid ${C.cyan}22`,paddingBottom:6}}>
-            <span onClick={()=>setTab('command')} style={tabStyle('command')}>â—ˆ COMMAND</span>
-            <span onClick={()=>setTab('codex')} style={tabStyle('codex')}>CODEX</span>
-            <span onClick={()=>setTab('operations')} style={tabStyle('operations')}>â—‰ OPERATIONS</span>
-            <span onClick={()=>setTab('forge')}    style={tabStyle('forge')}>âš’ FORGE</span>
-            <span onClick={()=>setTab('modules')}  style={tabStyle('modules')}>â–¤ MODULES</span>
-            <span onClick={()=>setTab('data')}     style={tabStyle('data')}>â–¦ DATA</span>
-            <span onClick={()=>setTab('orchestrator')} style={tabStyle('orchestrator')}>â—‰ ORCHESTRATOR</span>
-            <span onClick={()=>setTab('cymatics')} style={tabStyle('cymatics')}>≈ CYMATICS</span>
-            <span onClick={()=>setTab('chat')} style={tabStyle('chat')}>CHAT</span>
-            <span onClick={()=>setTab('autonomic')} style={tabStyle('autonomic')}>AUTONOMIC</span>
-            <span onClick={()=>setTab('graph')} style={tabStyle('graph')}>◬ GRAPH</span>
-            <span onClick={()=>setTab('trading')} style={{...tabStyle('trading'),marginLeft:'auto'}}>TRADING</span>
-            <span onClick={()=>setTab('settings')} style={tabStyle('settings')}>SETTINGS</span>
-        </div>
+        <nav aria-label="Mastermind sections" style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap',minWidth:0,borderBottom:`1px solid ${C.cyan}22`,paddingBottom:6}}>
+            <button type="button" aria-current={tab==='minecraft'?'page':undefined} onClick={()=>setTab('minecraft')} style={tabStyle('minecraft')}>◈ MINECRAFT</button>
+            <button type="button" aria-current={tab==='codex'?'page':undefined} onClick={()=>setTab('codex')} style={tabStyle('codex')}>CODEX</button>
+            <button type="button" aria-current={tab==='operations'?'page':undefined} onClick={()=>setTab('operations')} style={tabStyle('operations')}>◉ OPERATIONS</button>
+            <button type="button" aria-current={tab==='services'?'page':undefined} onClick={()=>setTab('services')} style={tabStyle('services')}>SERVICES</button>
+            <button type="button" aria-current={tab==='nodes'?'page':undefined} onClick={()=>setTab('nodes')} style={tabStyle('nodes')}>NODES</button>
+            <button type="button" aria-current={tab==='forge'?'page':undefined} onClick={()=>setTab('forge')} style={tabStyle('forge')}>⚒ FORGE</button>
+            <button type="button" aria-current={tab==='modules'?'page':undefined} onClick={()=>setTab('modules')} style={tabStyle('modules')}>▤ MODULES</button>
+            <button type="button" aria-current={tab==='orchestrator'?'page':undefined} onClick={()=>setTab('orchestrator')} style={tabStyle('orchestrator')}>◉ ORCHESTRATOR</button>
+            <button type="button" aria-current={tab==='cymatics'?'page':undefined} onClick={()=>setTab('cymatics')} style={tabStyle('cymatics')}>≈ CYMATICS</button>
+            <button type="button" aria-current={tab==='chat'?'page':undefined} onClick={()=>setTab('chat')} style={tabStyle('chat')}>CHAT</button>
+            <button type="button" aria-current={tab==='autonomic'?'page':undefined} onClick={()=>setTab('autonomic')} style={tabStyle('autonomic')}>AUTONOMIC</button>
+            <button type="button" aria-current={tab==='graph'?'page':undefined} onClick={()=>setTab('graph')} style={tabStyle('graph')}>◬ GRAPH</button>
+            <button type="button" aria-current={tab==='genealogy'?'page':undefined} onClick={()=>setTab('genealogy')} style={tabStyle('genealogy')}>GENEALOGY</button>
+            <button type="button" aria-current={tab==='memory'?'page':undefined} onClick={()=>setTab('memory')} style={tabStyle('memory')}>MEMORY</button>
+            <button type="button" aria-current={tab==='trading'?'page':undefined} onClick={()=>setTab('trading')} style={{...tabStyle('trading'),marginLeft:'auto'}}>TRADING</button>
+            <button type="button" aria-current={tab==='settings'?'page':undefined} onClick={()=>setTab('settings')} style={tabStyle('settings')}>SETTINGS</button>
+        </nav>
     );
+    const projectStyle = (active:boolean): CSSProperties => ({
+        background:active?`${C.cyan}12`:'transparent', border:`1px solid ${active?C.cyan:C.dim}`,
+        borderRadius:4, color:active?C.cyan:C.dim, cursor:'pointer', fontFamily:mono,
+        fontSize:9, letterSpacing:1.2, padding:'5px 10px', outlineOffset:2,
+        textShadow:active?`0 0 6px ${C.cyan}`:'none'
+    });
+    const minecraftProjectBar = tab === 'minecraft' ? (
+        <div style={{alignItems:'center',display:'flex',gap:10,flexWrap:'wrap',minWidth:0}}>
+            <div aria-label="Minecraft projects" role="group" style={{alignItems:'center',display:'flex',gap:7,flexWrap:'wrap'}}>
+                <span aria-hidden="true" style={{color:C.dim,fontFamily:mono,fontSize:9,letterSpacing:1}}>PROJECT</span>
+                <button type="button" aria-pressed={isFamilyServer} onClick={()=>setMinecraftProject('family')} style={projectStyle(isFamilyServer)}>FAMILY SERVER</button>
+                <button type="button" aria-pressed={isTwoBTwoT} onClick={()=>setMinecraftProject('2b2t')} style={projectStyle(isTwoBTwoT)}>2B2T INTELLIGENCE</button>
+            </div>
+            {isTwoBTwoT && (
+                <div aria-label="2b2t views" role="group" style={{alignItems:'center',display:'flex',gap:7,flexWrap:'wrap'}}>
+                    <span aria-hidden="true" style={{color:C.dim,fontFamily:mono,fontSize:9,letterSpacing:1}}>VIEW</span>
+                    <button type="button" aria-pressed={twoBTwoTView==='overview'} onClick={()=>setTwoBTwoTView('overview')} style={projectStyle(twoBTwoTView==='overview')}>OVERVIEW</button>
+                    <button type="button" aria-pressed={twoBTwoTView==='data'} onClick={()=>setTwoBTwoTView('data')} style={projectStyle(twoBTwoTView==='data')}>DATA</button>
+                </div>
+            )}
+            <span style={{color:C.dim,fontFamily:body,fontSize:11,minWidth:0}}>Family controls do not alter the 2b2t client or telemetry.</span>
+        </div>
+    ) : null;
     const modulesView = (
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{fontFamily:mono,color:C.cyan,fontSize:12,letterSpacing:2}}>â—ˆ MODULES â€” INFRASTRUCTURE REGISTRY</div>
+            <div style={{fontFamily:mono,color:C.cyan,fontSize:12,letterSpacing:2}}>◈ MODULES — INFRASTRUCTURE REGISTRY</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,alignItems:'start'}}>
                 <div><ModuleExplorer/></div>
                 <div><ModuleLoader/></div>
@@ -242,12 +343,11 @@ export default function Dashboard() {
         </div>
     );
 
-    const isCmd = tab === 'command';
-
     // â”€â”€ DATA EXPLORER (one source, many forms) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const dataPill = (on:boolean): CSSProperties => ({
         fontFamily:mono, fontSize:10, letterSpacing:1, padding:'4px 10px', borderRadius:4, cursor:'pointer',
-        border:`1px solid ${on?C.cyan:C.dim}`, color:on?C.cyan:C.dim, background:on?`${C.cyan}12`:'transparent'
+        appearance:'none', outlineOffset:2, border:`1px solid ${on?C.cyan:C.dim}`,
+        color:on?C.cyan:C.dim, background:on?`${C.cyan}12`:'transparent'
     });
     const chatKind = (t:string)=> t==='pure_bot'?'bot' : t==='auto_reply'?'auto' : 'user';
     let dataBody: React.ReactNode = null;
@@ -255,26 +355,26 @@ export default function Dashboard() {
         if (dataForm==='conversation') dataBody = <ConversationView items={chatAsc.map(m=>({ts:m.ts,who:m.username,text:m.message,kind:chatKind(m.account_type)}))}/>;
         else if (dataForm==='table')   dataBody = <DataTable columns={[{key:'time',label:'TIME'},{key:'user',label:'USER',color:C.green},{key:'type',label:'TYPE',color:C.gold},{key:'message',label:'MESSAGE'}]} rows={chatAsc.map(m=>({time:new Date(m.ts).toLocaleTimeString(),user:m.username,type:m.account_type,message:m.message}))}/>;
         else if (dataForm==='log')     dataBody = <LogStream items={chatAsc.map(m=>({ts:m.ts,text:`${m.username}: ${m.message}`,color:m.account_type==='pure_bot'?C.red:m.account_type==='auto_reply'?C.gold:C.green}))}/>;
-        else                            dataBody = <LiveFeed items={chatAsc.map(m=>({ts:m.ts,text:`${m.username}  â€”  ${m.message}`}))}/>;
+        else                            dataBody = <LiveFeed items={chatAsc.map(m=>({ts:m.ts,text:`${m.username}  —  ${m.message}`}))}/>;
     } else {
         if (dataForm==='table')        dataBody = <DataTable columns={[{key:'event',label:'EVENT',color:C.gold},{key:'x',label:'X'},{key:'z',label:'Z'},{key:'time',label:'TIME'}]} rows={chunks.map(c=>({event:c.event_type,x:c.world_x,z:c.world_z,time:new Date(c.ts).toLocaleTimeString()}))}/>;
         else if (dataForm==='log')     dataBody = <LogStream items={chunks.map(c=>({ts:c.ts,text:`${c.event_type}  (${c.world_x}, ${c.world_z})`,level:c.event_type==='LOAD'?'ok':'info'}))}/>;
         else if (dataForm==='feed')    dataBody = <LiveFeed items={chunks.map(c=>({ts:c.ts,text:`${c.event_type} @ ${c.world_x}, ${c.world_z}`}))}/>;
-        else                            dataBody = <div style={{color:C.dim,fontSize:11,fontFamily:body,padding:12}}>Conversation is a chat form â€” switch source to <span style={{color:C.green}}>chat</span>, or pick Table / Log / Feed for chunks.</div>;
+        else                            dataBody = <div style={{color:C.dim,fontSize:11,fontFamily:body,padding:12}}>Conversation is a chat form — switch source to <span style={{color:C.green}}>chat</span>, or pick Table / Log / Feed for chunks.</div>;
     }
     const dataView = (
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{fontFamily:mono,color:C.cyan,fontSize:12,letterSpacing:2}}>â—ˆ DATA EXPLORER â€” <span style={{color:C.dim}}>same source, many forms</span></div>
+            <div style={{fontFamily:mono,color:C.cyan,fontSize:12,letterSpacing:2}}>◈ DATA EXPLORER — <span style={{color:C.dim}}>same source, many forms</span></div>
             <div style={{display:'flex',gap:18,flexWrap:'wrap'}}>
-                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <div role="group" aria-label="Data source" style={{display:'flex',gap:6,alignItems:'center'}}>
                     <span style={{fontFamily:mono,fontSize:9,color:C.dim,letterSpacing:1,marginRight:2}}>SOURCE</span>
-                    <span onClick={()=>setDataSource('chat')}   style={dataPill(dataSource==='chat')}>chat</span>
-                    <span onClick={()=>setDataSource('chunks')} style={dataPill(dataSource==='chunks')}>chunks</span>
+                    <button type="button" aria-pressed={dataSource==='chat'} onClick={()=>setDataSource('chat')} style={dataPill(dataSource==='chat')}>chat</button>
+                    <button type="button" aria-pressed={dataSource==='chunks'} onClick={()=>setDataSource('chunks')} style={dataPill(dataSource==='chunks')}>chunks</button>
                 </div>
-                <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                <div role="group" aria-label="Data presentation" style={{display:'flex',gap:6,alignItems:'center'}}>
                     <span style={{fontFamily:mono,fontSize:9,color:C.dim,letterSpacing:1,marginRight:2}}>FORM</span>
                     {(['conversation','table','log','feed'] as const).map(f=>(
-                        <span key={f} onClick={()=>setDataForm(f)} style={dataPill(dataForm===f)}>{f}</span>
+                        <button type="button" key={f} aria-pressed={dataForm===f} onClick={()=>setDataForm(f)} style={dataPill(dataForm===f)}>{f}</button>
                     ))}
                 </div>
             </div>
@@ -282,15 +382,29 @@ export default function Dashboard() {
         </div>
     );
 
-    const mainByTab = isCmd ? mainContent : tab==='codex' ? codexView : tab==='operations' ? <OperationsMap/> : tab==='orchestrator' ? <OrchestratorConsole/> : tab==='chat' ? <ChatConsole/> : tab==='autonomic' ? <AutonomicConsole/> : tab==='graph' ? <NexusGraph3D/> : tab==='forge' ? <ForgeConsole/> : tab==='modules' ? modulesView : tab==='cymatics' ? cymaticsView : tab==='trading' ? <TradingConsole/> : tab==='settings' ? <SettingsConsole/> : dataView;
+    const transientMain = isTwoBTwoT ? (twoBTwoTView==='data' ? dataView : mainContent) : tab==='codex' ? codexView : tab==='operations' ? <OperationsMap/> : tab==='orchestrator' ? <OrchestratorConsole/> : tab==='chat' ? <ChatConsole/> : tab==='autonomic' ? <AutonomicConsole/> : tab==='graph' ? <NexusGraph3D/> : tab==='genealogy' ? <GenealogyConsole/> : tab==='memory' ? <MemoryConsole/> : tab==='forge' ? <ForgeConsole/> : tab==='modules' ? modulesView : tab==='cymatics' ? cymaticsView : tab==='trading' ? <TradingConsole/> : tab==='settings' ? <SettingsConsole/> : null;
+    const mainByTab = (
+        <div style={{height:'100%',minWidth:0}}>
+            <section aria-hidden={!isFamilyServer} hidden={!isFamilyServer} style={{height:'100%'}}>
+                <MinecraftConsole active={isFamilyServer}/>
+            </section>
+            <section aria-hidden={tab!=='services'} hidden={tab!=='services'} style={{height:'100%'}}>
+                <ServiceControlConsole/>
+            </section>
+            <section aria-hidden={tab!=='nodes'} hidden={tab!=='nodes'} style={{height:'100%'}}>
+                <NodeControlConsole/>
+            </section>
+            {transientMain}
+        </div>
+    );
     return (
         <EnhancedNexusBackground>
             <div style={{height:'100vh',display:'flex',flexDirection:'column'}}>
                 <StrategicHUDLayout
-                    topBar={<div style={{display:'flex',flexDirection:'column',gap:8}}>{tabBar}{topBar}</div>}
-                    leftSidebar={isCmd ? leftSidebar : undefined}
+                    topBar={<div style={{display:'flex',flexDirection:'column',gap:8}}>{topBar}<AppLiveStatus/>{tabBar}{minecraftProjectBar}{isTwoBTwoT ? twoBTwoTStatusBar : null}</div>}
+                    leftSidebar={isTwoBTwoTOverview ? leftSidebar : undefined}
                     mainContent={mainByTab}
-                    rightSidebar={isCmd ? rightSidebar : undefined}
+                    rightSidebar={isTwoBTwoTOverview ? rightSidebar : undefined}
                 />
             </div>
         </EnhancedNexusBackground>
@@ -301,7 +415,7 @@ export default function Dashboard() {
 function TPSChart({ data }: { data: TpsPt[] }) {
     const recent = data.slice(-120);
     const H=110, MAX=21, W=500;
-    if (!recent.length) return <div style={{color:C.dim,fontSize:11,fontFamily:body}}>Waiting for TPS data â€” connect to 2b2t</div>;
+    if (!recent.length) return <div style={{color:C.dim,fontSize:11,fontFamily:body}}>Waiting for TPS data — connect to 2b2t</div>;
     const pts = recent.map((t,i)=>`${(i/Math.max(recent.length-1,1))*W},${H-(t.tps/MAX)*H}`).join(' ');
     const cur = recent[recent.length-1].tps;
     const cc  = cur>18?C.green:cur>12?C.gold:C.red;
@@ -319,7 +433,7 @@ function TPSChart({ data }: { data: TpsPt[] }) {
                 <text x={W-2} y={H-(cur/MAX)*H-6} fill={cc} fontSize={10} textAnchor="end" fontFamily={mono}>{cur.toFixed(1)}</text>
             </svg>
             <div style={{fontSize:10,color:C.dim,marginTop:4,fontFamily:mono}}>
-                {recent.length} samples Â· {Math.min(...recent.map(t=>t.tps)).toFixed(1)}â€“{Math.max(...recent.map(t=>t.tps)).toFixed(1)} TPS
+                {recent.length} samples · {Math.min(...recent.map(t=>t.tps)).toFixed(1)}–{Math.max(...recent.map(t=>t.tps)).toFixed(1)} TPS
             </div>
         </div>
     );
@@ -328,7 +442,7 @@ function TPSChart({ data }: { data: TpsPt[] }) {
 // â”€â”€ Chunk Radar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function ChunkRadar({ data }: { data: Chunk[] }) {
     const loads = data.filter(e=>e.event_type==='LOAD');
-    if (!loads.length) return <div style={{color:C.dim,fontSize:11,fontFamily:body}}>No chunk data â€” movement will populate this</div>;
+    if (!loads.length) return <div style={{color:C.dim,fontSize:11,fontFamily:body}}>No chunk data — movement will populate this</div>;
     const xs=loads.map(e=>e.world_x), zs=loads.map(e=>e.world_z);
     const minX=Math.min(...xs),maxX=Math.max(...xs),minZ=Math.min(...zs),maxZ=Math.max(...zs);
     const rX=maxX-minX||512, rZ=maxZ-minZ||512;
@@ -353,9 +467,9 @@ function ChunkRadar({ data }: { data: Chunk[] }) {
                 })}
             </svg>
             <div style={{fontSize:10,color:C.dim,marginTop:4,fontFamily:mono,display:'flex',justifyContent:'space-between'}}>
-                <span>X {Math.round(minX).toLocaleString()} â†’ {Math.round(maxX).toLocaleString()}</span>
-                <span>{loads.length} chunks Â· 15m</span>
-                <span>Z {Math.round(minZ).toLocaleString()} â†’ {Math.round(maxZ).toLocaleString()}</span>
+                <span>X {Math.round(minX).toLocaleString()} → {Math.round(maxX).toLocaleString()}</span>
+                <span>{loads.length} chunks · 15m</span>
+                <span>Z {Math.round(minZ).toLocaleString()} → {Math.round(maxZ).toLocaleString()}</span>
             </div>
         </div>
     );

@@ -1,0 +1,32 @@
+import type { ResearchFrontier } from './types';
+
+// Proof-first GEDCOM targets. These are research hypotheses, never asserted relationships.
+export const INITIAL_FRONTIERS: ResearchFrontier[] = [
+  { id:'power-richard-1787', branch:'Power', person:'Richard Power',
+    objective:"Find Richard Power's baptism and parents, then distinguish his household from other Power families.",
+    place:'Thomastown, County Kilkenny, Ireland', yearFrom:1782, yearTo:1792,
+    variants:['Power','Powers','Poer'], priority:'critical',
+    rationale:'Direct grandparent branch; earliest known Power endpoint in the current tree.' },
+  { id:'power-murphy-brigitte-1789', branch:'Power', person:'Brigitte Murphy / Powers',
+    objective:'Find baptism, marriage, parents, and associated Murphy/Power witnesses.',
+    place:'Old Ross / Carnagh / Ballyanne / Cushinstown, County Wexford, Ireland', yearFrom:1784, yearTo:1794,
+    variants:['Brigitte Murphy','Bridget Murphy','Brigid Murphy'], priority:'critical',
+    rationale:'Her network may identify the correct Richard Power household and migration route.' },
+  { id:'baril-barry-origin', branch:'Baril/Barry', person:'Francois Baril',
+    objective:'Establish date, place, parents, and test the Baril/Barry Irish-origin hypothesis.',
+    place:'Unknown; begin from earliest confirmed Canadian event', variants:['Baril','Barril','Barill','Barry'],
+    priority:'high', rationale:'Special-interest maternal branch with a claimed transition requiring proof.' },
+  { id:'theoret-founder-proof', branch:'Theoret', person:'Theoret / Triolet / Trehorel founder line',
+    objective:'Identify the first confirmed immigrant and prove each spelling transition back to Brittany.',
+    place:'Quebec to Brittany, France', variants:['Theoret','Theoret dit Lariviere','Triolet','Trehorel'],
+    priority:'high', rationale:'Main branch whose deep European chain must be separated from copied-tree assertions.' },
+  { id:'durocher-briend-proof', branch:'Durocher', person:'Brien dit Desrochers / Briend line',
+    objective:'Preserve the documented descent to Louis Briend dit Desrochers, then bridge Guillaume and Julien Briend to the fifteenth-century Briend clusters without merging same-name households.',
+    place:'La Chapelle-Caro / Ploermel / Plumergat / Grand-Champ / Noyal-Pontivy, Morbihan, Brittany', yearFrom:1440, yearTo:1655,
+    variants:['Durocher','Desrochers','Brien','Briend','Brient'], priority:'high',
+    rationale:'Direct paternal descent to Louis is documented in the current tree; the open problem is the pre-register bridge between the Caro line and earlier Morbihan Briend families.' },
+  { id:'charette-normandy-proof', branch:'Charette', person:'Charette / Choret / Chauret line',
+    objective:'Walk backward from Georgette Charette and locate the first unsupported parent-child link.',
+    place:'Quebec to Normandy, France', variants:['Charette','Choret','Chauret','Chore'],
+    priority:'normal', rationale:'Very deep claimed line; collateral records can expose copied-tree inflation.' },
+];

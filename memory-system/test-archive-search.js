@@ -1,5 +1,6 @@
 const { Pool } = require("pg");
-const pool = new Pool({ connectionString: "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require", max: 1 });
+const { resolveMemoryUrl } = require("./canonical-memory-target.cjs");
+const pool = new Pool({ connectionString: resolveMemoryUrl({"sslmode": "require"}), max: 1 });
 async function embed(text) {
     const r = await fetch("http://localhost:11434/api/embed", {
         method: "POST", headers: { "Content-Type": "application/json" },

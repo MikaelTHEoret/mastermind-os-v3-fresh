@@ -7,7 +7,8 @@
 const { Pool } = require("pg");
 const crypto = require("crypto");
 const path = require("path");
-const pool = new Pool({ connectionString: "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require", max: 2 });
+const { resolveMemoryUrl } = require("./canonical-memory-target.cjs");
+const pool = new Pool({ connectionString: resolveMemoryUrl({"sslmode": "require"}), max: 2 });
 
 function sha6(s) { return crypto.createHash("sha256").update(s).digest("hex").slice(0, 6); }
 

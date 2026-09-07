@@ -1,7 +1,8 @@
 // Create mastermind_api_keys table migration
 const { neon } = require('@neondatabase/serverless');
 
-const DATABASE_URL = 'postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?connect_timeout=15&sslmode=require';
+const { resolveMemoryUrl } = require("../memory-system/canonical-memory-target.cjs");
+const DATABASE_URL = resolveMemoryUrl({"connect_timeout": "15", "sslmode": "require"});
 const sql = neon(DATABASE_URL);
 
 async function createApiKeysTable() {

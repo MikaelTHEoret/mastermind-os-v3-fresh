@@ -1,0 +1,53 @@
+name: Public web source checks
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-source-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  source:
+    if: github.repository == 'MikaelTHEoret/mastermind-os-v3-fresh'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.14.5'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Restore exact public dependency lock without install scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify public Node contracts with synthetic fixtures
+        run: node scripts/check-public-source.mjs
+      - name: Verify pure Python configuration and activation guards
+        run: |
+          python -m unittest discover -s memory-system -p test_canonical_memory_target.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m unittest discover -s services/mastermind-context-gateway/test -p 'test_*.py'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Type-check the complete web and domain sources
+        run: node node_modules/typescript/bin/tsc --noEmit
+      - name: Build the production web source without operator credentials
+        env:
+          NODE_ENV: production
+          MASTERMIND_RELEASE_WEB_REVISION: ${{ github.sha }}
+        run: |
+          node node_modules/next/dist/bin/next build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $buildIdentity = [System.IO.File]::ReadAllText((Join-Path $PWD '.next/BUILD_ID'))
+          if ($buildIdentity -cne $env:MASTERMIND_RELEASE_WEB_REVISION) { throw 'WEB_BUILD_REVISION_MISMATCH' }

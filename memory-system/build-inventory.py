@@ -6,7 +6,8 @@ exists and what it's about at the document level.
 import psycopg2, re
 from collections import Counter, defaultdict
 
-CONN = "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+from canonical_memory_target import resolve_memory_dsn
+CONN = resolve_memory_dsn({'sslmode': 'require'})
 OUT = r"C:\Users\Mik\Documents\mastermind-command-center\ARCHIVE_INVENTORY.md"
 
 # Human descriptions of the 8 emergent top-level fractal domains

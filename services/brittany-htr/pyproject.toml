@@ -1,0 +1,13 @@
+[project]
+name = "mastermind-brittany-htr"
+version = "0.1.0"
+description = "Offline line-level handwriting recognition for historical Brittany parish registers"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "kraken>=7,<8",
+  "Pillow>=11,<13",
+]
+
+[tool.uv]
+package = false
+

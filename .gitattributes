@@ -1,0 +1,3 @@
+# Preserve the exact reviewed source bytes, including intentional mixed line endings.
+# Commit and release verification compare staged bytes with the reviewed SHA256 pins.
+* -text

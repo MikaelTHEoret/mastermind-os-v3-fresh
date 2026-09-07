@@ -7,6 +7,7 @@
 // coherence drives cleanliness. Holographic palette (cyan-white / iridescent), field stays dark.
 
 import { useEffect, useRef, useState } from 'react';
+import GenealogyResearchPanel, { type GenealogyPanelNode } from '@/components/GenealogyResearchPanel';
 
 const C = { cyan: '#6ff2ff', gold: '#ffe1a0', green: '#7fffc8', magenta: '#c79bff', text: '#dffaff', textDim: 'rgba(150,215,235,0.6)' };
 const ORBITRON = "'Orbitron','Segoe UI',monospace";
@@ -16,16 +17,19 @@ const RAJDHANI = "'Rajdhani','Segoe UI',sans-serif";
 const BRANCH_COLORS: Record<string, string> = {
   ROOT: '#cdfbff', frequency: '#5fe9ff', harmonic: '#ffd98a', minecraft: '#6dffc4',
   ternary: '#b89cff', overline: '#9ab8ff', price: '#ffe7a0', scroll: '#ff9ec4', self: '#88d6ff',
+  durocher: '#55d7ff', power: '#ffd36a', theoret: '#b995ff', charette: '#ff8fcf', baril: '#6dffc4', unresolved: '#9ab8ff',
 };
 const colorOf = (root: string): string => BRANCH_COLORS[root] || '#9fd0ff';
 
-type RawNode = { id: string; name: string; depth: number; is_leaf: boolean; n_chunks: number; coherence: number | null; root: string };
-type GLink = { source: string; target: string };
-type TreeResp = { nodes: RawNode[]; links: GLink[]; roots: string[]; count: number };
+type RawNode = { id: string; name: string; depth: number; is_leaf: boolean; n_chunks: number; coherence: number | null; root: string; node_type?: string; review_status?: string; metadata?: Record<string, unknown> };
+type GLink = { source: string; target: string; type?: string; confidence?: number; status?: string; convergent?: boolean; scaffold?:boolean };
+type TreeMetrics = { generations:number; visible_people:number; proof_gaps:number; convergent_ancestors:number; research_scaffolds:number; notes:number; preserved_media:number; people_with_media:number; unique_media_assets:number; branches:Record<string,number> };
+type TreeResp = { nodes: RawNode[]; links: GLink[]; crossLinks?:GLink[]; roots: string[]; count: number; metrics?:TreeMetrics; import?:{filename:string;summary?:Record<string,unknown>} };
 type Crumb = { id: string; name: string };
 type ViewState = { focusId: string; path: Crumb[]; focus: RawNode | null; childCount: number };
 type ChunkCard = { address: string; title: string | null; subject: string | null; source_type: string | null; chars: number | null; snippet: string };
 type LeafData = { path: string; total: number; chunks: ChunkCard[]; loading: boolean };
+type ResearchDecision = { id:string; score:number; status:string; selected_frontier_id:string; selected_node_id:string|null; mission:{target:string;branch:string;objective:string;firstAction:string;rationale:string;variants:string[];place:string;yearFrom:number|null;yearTo:number|null} };
 
 function shell(n: number, radius: number): [number, number, number][] {
   if (n <= 0) return [];
@@ -170,24 +174,45 @@ export default function GoldenOrrery() {
   const [leaf, setLeaf] = useState<LeafData | null>(null);
   const [openChunk, setOpenChunk] = useState<{ address: string; title: string; content: string } | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [axis, setAxis] = useState<'subject' | 'source'>('subject');
+  const [axis, setAxis] = useState<'subject' | 'source' | 'genealogy'>('subject');
+  const [graphVersion, setGraphVersion] = useState(0);
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
+  const [decision, setDecision] = useState<ResearchDecision | null>(null);
+  const [decisionLoading, setDecisionLoading] = useState(false);
+  const [genealogyDepth,setGenealogyDepth]=useState<1|2|3>(3);
   const [srcLeaf, setSrcLeaf] = useState<{ path: string; total: number; loading: boolean; conversations: { doc_id: string; n_chunks: number; source_type: string | null }[] } | null>(null);
   const [openConv, setOpenConv] = useState<{ doc_id: string; subjects: { bloom_path: string; n: number }[] | null } | null>(null);
   const bootFocusRef = useRef<string | null>(null);
-  const treesRef = useRef<{ subject?: TreeResp; source?: TreeResp }>({});
+  const treesRef = useRef<{ subject?: TreeResp; source?: TreeResp; genealogy?: TreeResp }>({});
+
+  useEffect(()=>{try{const requested=new URL(window.location.href).searchParams.get('axis');if(requested==='genealogy'||requested==='source')setAxis(requested);}catch{/* URL state is optional */}},[]);
 
   useEffect(() => {
     (async () => {
       try {
         const cached = treesRef.current[axis];
         if (cached) { setTree(cached); return; }
-        const r = await fetch(`/api/codex?op=tree${axis === 'source' ? '&axis=source' : ''}`);
+        const url = axis === 'genealogy' ? '/api/genealogy/graph' : `/api/codex?op=tree${axis === 'source' ? '&axis=source' : ''}`;
+        const r = await fetch(url, { cache:'no-store' });
         const j = (await r.json()) as TreeResp;
         if (!j.nodes) setErr(JSON.stringify(j));
-        else { treesRef.current[axis] = j; setTree(j); }
+        else { setErr(''); treesRef.current[axis] = j; setTree(j); }
       } catch (e) { setErr(String(e)); }
     })();
-  }, [axis]);
+  }, [axis, graphVersion]);
+
+  useEffect(() => {
+    if (axis !== 'genealogy') return;
+    let cancelled=false; setDecisionLoading(true);
+    (async()=>{try{
+      const existing=await fetch('/api/genealogy/research/decision',{cache:'no-store'}).then((response)=>response.json());
+      let value=existing.decision;
+      if(!value){const created=await fetch('/api/genealogy/research/decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'decide'})}).then((response)=>response.json());if(!created.ok)throw new Error(created.error||'CORE decision failed');value=created.decision;}
+      if(!cancelled)setDecision(value as ResearchDecision);
+    }catch(error){if(!cancelled)setImportNotice(error instanceof Error?error.message:String(error));}finally{if(!cancelled)setDecisionLoading(false);}})();
+    return()=>{cancelled=true;};
+  },[axis,graphVersion]);
 
   useEffect(() => {
     if (!tree || !mountRef.current) return;
@@ -236,7 +261,7 @@ export default function GoldenOrrery() {
       const byId = new Map(tree.nodes.map((n) => [n.id, n]));
       const childrenOf = new Map<string, RawNode[]>(); tree.nodes.forEach((n) => childrenOf.set(n.id, []));
       const parentOf = new Map<string, string>();
-      for (const l of tree.links) { childrenOf.get(l.source)?.push(byId.get(l.target)!); parentOf.set(l.target, l.source); }
+      for (const l of tree.links) { const target=byId.get(l.target); if(target)childrenOf.get(l.source)?.push(target); if(!parentOf.has(l.target))parentOf.set(l.target, l.source); }
       childrenOf.forEach((a) => a.sort((x, y) => y.n_chunks - x.n_chunks));
       const pathTo = (id: string): string[] => { const p: string[] = []; let c: string | undefined = id; while (c) { p.unshift(c); c = parentOf.get(c); } return p; };
       // radius SATURATES at 46 (~ a 40k-chunk node): the all-encompassing ROOT core is the sum of every chunk,
@@ -315,11 +340,13 @@ export default function GoldenOrrery() {
       const rainCol = new THREE.Mesh(new THREE.PlaneGeometry(64, 300), colMat); rainCol.position.set(0, 150, 0); scene.add(rainCol); rainCol.visible = false;
 
       const rays = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(291 * 6), 3)), new THREE.LineBasicMaterial({ color: 0x8fe6ff, transparent: true, opacity: 0.12 })); scene.add(rays);
+      const convergenceRays = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(291 * 6), 3)), new THREE.LineBasicMaterial({ color: 0xc79bff, transparent: true, opacity: 0.58 })); scene.add(convergenceRays);
+      const scaffoldRays = new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(291 * 6), 3)), new THREE.LineDashedMaterial({ color: 0xffc66d, transparent: true, opacity: 0.72, dashSize: 4, gapSize: 3 })); scene.add(scaffoldRays);
       const spineGeom = new THREE.BufferGeometry(); spineGeom.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(40 * 3), 3));
       const spine = new THREE.Line(spineGeom, new THREE.LineBasicMaterial({ color: 0xa9ddff, transparent: true, opacity: 0.4 })); scene.add(spine);
       const pulseDot = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(C.cyan), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.9 })); pulseDot.scale.setScalar(7); pulseDot.visible = false; scene.add(pulseDot);
 
-      const focusRef = { current: 'ROOT' }; let spineIds: string[] = []; let childIds: string[] = [];
+      const focusRef = { current: 'ROOT' }; let spineIds: string[] = []; let visiblePairs:Array<{source:string;target:string;convergent:boolean;scaffold:boolean}>=[];
 
       const applyPreset = (u: Record<string, { value: unknown }>, p: Preset, coh: number, isFocus: boolean, col: string) => {
         u.uLevel.value = p.lvl; u.uFocus.value = isFocus ? 1 : 0; u.uCoherence.value = coh;
@@ -347,12 +374,26 @@ export default function GoldenOrrery() {
         meshes.forEach((m) => { const t = m.userData as Tgt; t.role = 'hidden'; t.tOpac = 0; t.tScale = 0.001; });
         setTarget(focusId, V(0, 0, 0), baseR(focus) * 1.5, 1, 'center', SUN, false);
         const coreR0 = baseR(focus) * 1.5;
-        const cp = shell(kids.length, Math.max(coreR0 * 2.4 + 20, 58) + Math.min(kids.length, 40) * 1.3);
-        kids.forEach((k, i) => setTarget(k.id, V(cp[i][0], cp[i][1], cp[i][2]), baseR(k), 1, 'child', PLANET, true));
+        const seen=new Set<string>([focusId]); const layers:RawNode[][]=[]; let frontier=[focus];
+        const lens=axis==='genealogy'?genealogyDepth:1;
+        for(let level=1;level<=lens;level++){
+          const next:RawNode[]=[];
+          for(const current of frontier)for(const relative of childrenOf.get(current.id)??[])if(!seen.has(relative.id)){seen.add(relative.id);next.push(relative);}
+          layers.push(next);frontier=next;
+        }
+        layers.forEach((layer,index)=>{
+          const radius=Math.max(coreR0*2.4+22,62)+(index*78)+Math.min(layer.length,40)*(index===0?1.2:.55);
+          const points=shell(layer.length,radius);
+          layer.forEach((relative,i)=>setTarget(relative.id,V(points[i][0],points[i][1]*(1+index*.14),points[i][2]),Math.max(2.4,baseR(relative)*(index===0?1:.68)),Math.max(.48,1-index*.2),index===0?'child':'branch',index===0?PLANET:MOON,true));
+        });
         anc.forEach((aid, i) => { const a = byId.get(aid)!; setTarget(aid, V(0, 56 + i * 22, -18 - i * 17), Math.max(2.4, baseR(a) * 0.5), Math.max(0.2, 0.8 - i * 0.14), 'spine', MOON, false); });
         const gp = shell(sibs.length, 200);
-        sibs.forEach((s, i) => setTarget(s.id, V(gp[i][0], gp[i][1] * 0.35, gp[i][2]), Math.max(2, baseR(s) * 0.5), 0.14, 'ghost', MOON, false));
-        spineIds = [focusId, ...anc]; childIds = kids.map((k) => k.id);
+        sibs.filter((s)=>!seen.has(s.id)).forEach((s, i) => setTarget(s.id, V(gp[i][0], gp[i][1] * 0.35, gp[i][2]), Math.max(2, baseR(s) * 0.5), 0.14, 'ghost', MOON, false));
+        const visible=new Set<string>([focusId,...layers.flat().map((item)=>item.id)]);
+        const pairs=tree.links.filter((link)=>visible.has(link.source)&&visible.has(link.target));
+        const routeCounts=new Map<string,number>();for(const pair of pairs)routeCounts.set(pair.target,(routeCounts.get(pair.target)??0)+1);
+        visiblePairs=pairs.map((pair)=>({source:pair.source,target:pair.target,scaffold:Boolean(pair.scaffold)||pair.status==='research_scaffold',convergent:!pair.scaffold&&(Boolean(pair.convergent)||(routeCounts.get(pair.target)??0)>1)}));
+        spineIds = [focusId, ...anc];
         setView({ focusId, path: path.map((id) => ({ id, name: byId.get(id)!.name })), focus, childCount: kids.length });
         try { const u = new URL(window.location.href); if (focusId === 'ROOT') u.searchParams.delete('focus'); else u.searchParams.set('focus', focusId); window.history.replaceState(null, '', u.toString()); } catch { /* url sync skipped */ }
       };
@@ -365,14 +406,16 @@ export default function GoldenOrrery() {
         const active = new Set<string>();
         meshes.forEach((m, id) => {
           const t = m.userData as Tgt; const op = t.u.uAlpha.value as number;
-          const show = (t.role === 'center' || t.role === 'child' || t.role === 'spine') && op > 0.33;
+          const show = (t.role === 'center' || t.role === 'child' || t.role === 'branch' || t.role === 'spine') && op > 0.33;
           if (!show) return; active.add(id);
           projV.copy(m.position); projV.project(camera); if (projV.z > 1) return;
           const x = (projV.x * 0.5 + 0.5) * W, y = (-projV.y * 0.5 + 0.5) * H;
           const n = t.node; const isC = t.role === 'center'; const isS = t.role === 'spine'; const isHov = id === hoverId; const col = colorOf(n.root);
           const d = ensure(id); d.style.setProperty('--branch', col);
           d.className = 'ol-plaque' + (isC ? ' ol-focus' : isS ? ' ol-spine' : '') + (isHov && !isC ? ' ol-hover' : '');
-          const meta = isC ? `${n.n_chunks.toLocaleString()} CHUNKS${n.coherence != null ? ` · COH ${n.coherence}` : ''}` : (isS ? '' : `${n.n_chunks.toLocaleString()}${n.coherence != null ? ` · ${n.coherence}` : ''}`);
+          const paths=Number(n.metadata?.pedigree_paths??1);
+          const scaffold=axis==='genealogy'&&Boolean(n.metadata?.research_scaffold_path);
+          const meta = isC ? `${scaffold?'RESEARCH SCAFFOLD · ':''}${axis==='genealogy'?'EVIDENCE':'CHUNKS'} ${n.n_chunks.toLocaleString()}${n.coherence != null ? ` · ${axis==='genealogy'?'PROOF':'COH'} ${Math.round(n.coherence*100)}%` : ''}` : (isS ? '' : `${scaffold?'SCAFFOLD · ':''}${axis==='genealogy'&&paths>1?`${paths} PATHS · `:''}${n.n_chunks.toLocaleString()}${n.coherence != null ? ` · ${Math.round(n.coherence*100)}%` : ''}`);
           d.innerHTML = `<div class="ol-t">${isC ? '◈ ' : ''}${n.name}</div>${meta ? `<div class="ol-m">${meta}</div>` : ''}`;
           const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion); let labelY = y - (isC ? 30 : 16); if (isC) { const top = m.position.clone().addScaledVector(upv, t.curScale * 1.18); top.project(camera); labelY = (-top.y * 0.5 + 0.5) * H - 16; } d.style.left = x + 'px'; d.style.top = labelY + 'px'; d.style.opacity = String(Math.min(1, op));
           d.style.display = 'block';
@@ -388,7 +431,7 @@ export default function GoldenOrrery() {
         return (raycaster.intersectObjects(vis, false)[0]?.object as import('three').Mesh) || null;
       };
       const onMove = (ev: PointerEvent) => { const m = pick(ev); const id = m ? (m.userData as Tgt).node.id : null; if (id !== hoverId) { hoverId = id; renderer.domElement.style.cursor = id && id !== focusRef.current ? 'pointer' : 'grab'; } };
-      const onClick = (ev: MouseEvent) => { const m = pick(ev); if (!m) return; const t = m.userData as Tgt; if (t.role === 'child' || t.role === 'ghost' || t.role === 'spine') applyView(t.node.id); };
+      const onClick = (ev: MouseEvent) => { const m = pick(ev); if (!m) return; const t = m.userData as Tgt; if (t.role === 'child' || t.role === 'branch' || t.role === 'ghost' || t.role === 'spine') applyView(t.node.id); };
       const onKey = (e: KeyboardEvent) => { if (e.key === 'Backspace' || e.key === 'Escape') { const p = parentOf.get(focusRef.current); if (p) applyView(p); } };
       renderer.domElement.addEventListener('pointermove', onMove); renderer.domElement.addEventListener('click', onClick); window.addEventListener('keydown', onKey);
       const onResize = () => { const w = mount.clientWidth, h = mount.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h); composer.setSize(w, h); bloom.setSize(w, h); };
@@ -418,9 +461,9 @@ export default function GoldenOrrery() {
         const fm = meshes.get(focusRef.current);
         if (fm) { const ft = fm.userData as Tgt; glow.position.copy(fm.position); glow.scale.setScalar(Math.max(8, ft.curScale * 2.0)); (glow.material as import('three').SpriteMaterial).color.set(colorOf(ft.node.root)); const gm = glow.material as import('three').SpriteMaterial; gm.opacity = gm.opacity + (0.16 - gm.opacity) * 0.12; }
         rainMat.uniforms.uTime.value = tt; points.rotation.y += 0.0004;
-        const rp = rays.geometry.attributes.position.array as Float32Array; let k = 0; const ctr = meshes.get(focusRef.current);
-        if (ctr) for (const cid of childIds) { const cm = meshes.get(cid); if (!cm) continue; rp[k++] = ctr.position.x; rp[k++] = ctr.position.y; rp[k++] = ctr.position.z; rp[k++] = cm.position.x; rp[k++] = cm.position.y; rp[k++] = cm.position.z; }
-        rays.geometry.setDrawRange(0, childIds.length * 2); rays.geometry.attributes.position.needsUpdate = true;
+        const rp = rays.geometry.attributes.position.array as Float32Array,cp=convergenceRays.geometry.attributes.position.array as Float32Array,spx=scaffoldRays.geometry.attributes.position.array as Float32Array; let k = 0,ck=0,sk=0,normalCount=0,convergenceCount=0,scaffoldCount=0;
+        for(const pair of visiblePairs){const from=meshes.get(pair.source),to=meshes.get(pair.target);if(!from||!to)continue;const out=pair.scaffold?spx:pair.convergent?cp:rp;let offset=pair.scaffold?sk:pair.convergent?ck:k;out[offset++]=from.position.x;out[offset++]=from.position.y;out[offset++]=from.position.z;out[offset++]=to.position.x;out[offset++]=to.position.y;out[offset++]=to.position.z;if(pair.scaffold){sk=offset;scaffoldCount++;}else if(pair.convergent){ck=offset;convergenceCount++;}else{k=offset;normalCount++;}}
+        rays.geometry.setDrawRange(0,normalCount*2);rays.geometry.attributes.position.needsUpdate=true;convergenceRays.geometry.setDrawRange(0,convergenceCount*2);convergenceRays.geometry.attributes.position.needsUpdate=true;scaffoldRays.geometry.setDrawRange(0,scaffoldCount*2);scaffoldRays.geometry.attributes.position.needsUpdate=true;scaffoldRays.computeLineDistances();
         const sp = spineGeom.attributes.position.array as Float32Array; let j = 0; const spinePts: import('three').Vector3[] = [];
         for (const sid of spineIds) { const sm = meshes.get(sid); if (!sm) continue; sp[j++] = sm.position.x; sp[j++] = sm.position.y; sp[j++] = sm.position.z; spinePts.push(sm.position.clone()); }
         spineGeom.setDrawRange(0, spineIds.length); spineGeom.attributes.position.needsUpdate = true;
@@ -437,20 +480,22 @@ export default function GoldenOrrery() {
         renderer.domElement.removeEventListener('pointermove', onMove); renderer.domElement.removeEventListener('click', onClick);
         window.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
         pool.forEach((d) => d.remove());
-        controls.dispose(); sphere.dispose(); atlas.dispose(); glowTex.dispose(); circuitTex.dispose(); rays.geometry.dispose(); spineGeom.dispose(); rainSphere.geometry.dispose(); rainMat.dispose(); pgeo.dispose(); (points.material as import('three').Material).dispose(); grid.geometry.dispose(); (grid.material as import('three').Material).dispose(); reflector.getRenderTarget().dispose(); reflector.geometry.dispose(); (reflector.material as import('three').Material).dispose(); cubeRT.dispose(); fdGeo.dispose(); (floorDots.material as import('three').Material).dispose();
-        meshes.forEach((m) => (m.material as import('three').Material).dispose()); (glow.material as import('three').Material).dispose(); (pulseDot.material as import('three').Material).dispose();
+        controls.dispose(); sphere.dispose(); atlas.dispose(); glowTex.dispose(); circuitTex.dispose(); rays.geometry.dispose(); (rays.material as import('three').Material).dispose(); convergenceRays.geometry.dispose(); (convergenceRays.material as import('three').Material).dispose(); spineGeom.dispose(); rainSphere.geometry.dispose(); rainMat.dispose(); pgeo.dispose(); (points.material as import('three').Material).dispose(); grid.geometry.dispose(); (grid.material as import('three').Material).dispose(); reflector.getRenderTarget().dispose(); reflector.geometry.dispose(); (reflector.material as import('three').Material).dispose(); cubeRT.dispose(); fdGeo.dispose(); (floorDots.material as import('three').Material).dispose();
+        scaffoldRays.geometry.dispose();(scaffoldRays.material as import('three').Material).dispose();meshes.forEach((m) => (m.material as import('three').Material).dispose()); (glow.material as import('three').SpriteMaterial).dispose(); (pulseDot.material as import('three').SpriteMaterial).dispose();
         composer.dispose?.(); octGeo.dispose(); (portalOuter.material as import('three').Material).dispose(); (portalInner.material as import('three').Material).dispose(); portalDisc.geometry.dispose(); (portalDisc.material as import('three').Material).dispose(); rainCol.geometry.dispose(); colMat.dispose();
         renderer.dispose(); if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement);
       };
     })();
     return () => { disposed = true; cleanup(); };
-  }, [tree]);
+  }, [tree,genealogyDepth,axis]);
 
   useEffect(() => {
     const f = view.focus;
     if (!f || !f.is_leaf) { setLeaf(null); setSrcLeaf(null); setOpenChunk(null); setOpenConv(null); return; }
     let cancelled = false;
-    if (axis === 'source') {
+    if (axis === 'genealogy') {
+      setLeaf(null); setSrcLeaf(null); setOpenChunk(null); setOpenConv(null);
+    } else if (axis === 'source') {
       setLeaf(null);
       setSrcLeaf({ path: view.focusId, total: f.n_chunks, loading: true, conversations: [] });
       (async () => {
@@ -483,11 +528,33 @@ export default function GoldenOrrery() {
     } catch { setOpenChunk({ address, title, content: '(failed to load)' }); }
   };
 
-  const switchAxis = (target: 'subject' | 'source', focusId?: string) => {
+  const recalculateResearch=async()=>{
+    setDecisionLoading(true);setImportNotice('CORE is comparing proof gaps, branch importance and searchable archive windows…');
+    try{const response=await fetch('/api/genealogy/research/decision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'decide'})}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'CORE decision failed');setDecision(result.decision as ResearchDecision);setImportNotice(`Research priority recalculated: ${result.decision.mission.target}.`);}
+    catch(error){setImportNotice(error instanceof Error?error.message:String(error));}
+    finally{setDecisionLoading(false);}
+  };
+
+  const switchAxis = (target: 'subject' | 'source' | 'genealogy', focusId?: string) => {
     setOpenChunk(null); setOpenConv(null);
     if (target === axis) { if (focusId) goToRef.current(focusId); return; }
     bootFocusRef.current = focusId || 'ROOT';
     setAxis(target);
+    try{const url=new URL(window.location.href);if(target==='subject')url.searchParams.delete('axis');else url.searchParams.set('axis',target);url.searchParams.delete('focus');window.history.replaceState(null,'',url.toString());}catch{/* URL state is optional */}
+  };
+  const importGedcom = async (file: File | null) => {
+    if (!file) return;
+    setImporting(true); setImportNotice('mapping identities…');
+    try {
+      const form = new FormData(); form.set('file', file);
+      const response = await fetch('/api/genealogy/graph', { method:'POST', body:form });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'GEDCOM import failed');
+      const summary = result.summary || {};
+      setImportNotice(`${result.duplicate ? 'already mapped' : 'mapped'} · ${summary.people ?? 0} people · ${summary.families ?? 0} families · root ${summary.root ?? 'unresolved'}`);
+      treesRef.current.genealogy = undefined; bootFocusRef.current = 'ROOT'; setGraphVersion((value) => value + 1); setAxis('genealogy');
+    } catch (error) { setImportNotice(error instanceof Error ? error.message : String(error)); }
+    finally { setImporting(false); }
   };
   const openConversation = async (docId: string) => {
     setOpenConv({ doc_id: docId, subjects: null });
@@ -554,26 +621,48 @@ export default function GoldenOrrery() {
 
       <div style={{ position: 'absolute', top: 14, right: 18, display: 'flex', alignItems: 'center', gap: 10, zIndex: 4 }}>
         <div style={{ display: 'flex', border: `1px solid ${C.cyan}44`, borderRadius: 4, overflow: 'hidden' }}>
-          {(['subject', 'source'] as const).map((a) => (
-            <span key={a} onClick={() => switchAxis(a)} title={a === 'source' ? 'where it came from (provenance)' : 'what it means (subjects)'} style={{ cursor: 'pointer', fontFamily: ORBITRON, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', padding: '5px 10px', color: a === axis ? '#04060f' : C.cyan, background: a === axis ? C.cyan : 'transparent', transition: 'background .15s' }}>{a}</span>
+          {(['subject', 'source', 'genealogy'] as const).map((a) => (
+            <span key={a} onClick={() => switchAxis(a)} title={a === 'source' ? 'where knowledge came from' : a === 'genealogy' ? 'isolated proof-first family graph' : 'what knowledge means'} style={{ cursor: 'pointer', fontFamily: ORBITRON, fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase', padding: '5px 10px', color: a === axis ? '#04060f' : C.cyan, background: a === axis ? C.cyan : 'transparent', transition: 'background .15s' }}>{a === 'genealogy' ? 'family' : a}</span>
           ))}
         </div>
-        <span style={{ fontFamily: ORBITRON, fontSize: 11, letterSpacing: 3, color: C.cyan, textShadow: `0 0 12px ${C.cyan}88` }}>◈ GOLDEN ORRERY</span>
+        {axis==='genealogy'&&<div title="Show several ancestral generations at once" style={{display:'flex',border:`1px solid ${C.magenta}55`,borderRadius:4,overflow:'hidden'}}>{([1,2,3] as const).map((depth)=><button key={depth} type="button" onClick={()=>setGenealogyDepth(depth)} style={{cursor:'pointer',border:0,borderRight:depth<3?`1px solid ${C.magenta}33`:0,background:genealogyDepth===depth?C.magenta:'rgba(5,10,22,.7)',color:genealogyDepth===depth?'#080411':C.magenta,fontFamily:ORBITRON,fontSize:8,letterSpacing:1,padding:'5px 7px'}}>{depth} GEN</button>)}</div>}
+        {axis === 'genealogy' && <label style={{ cursor:importing?'wait':'pointer', fontFamily:ORBITRON, fontSize:9, letterSpacing:1, color:C.green, border:`1px solid ${C.green}55`, borderRadius:3, padding:'5px 10px' }}>
+          {importing ? 'MAPPING…' : 'IMPORT GEDCOM'}<input type="file" accept=".ged,.gedcom,text/plain" disabled={importing} onChange={(event)=>importGedcom(event.target.files?.[0]??null)} style={{display:'none'}} />
+        </label>}
+        <span style={{ fontFamily: ORBITRON, fontSize: 11, letterSpacing: 3, color: C.cyan, textShadow: `0 0 12px ${C.cyan}88` }}>◈ {axis === 'genealogy' ? 'ANCESTRAL ORRERY' : 'GOLDEN ORRERY'}</span>
         <a href="/codex" style={{ fontFamily: ORBITRON, fontSize: 9.5, letterSpacing: 1, textTransform: 'uppercase', color: C.cyan, border: `1px solid ${C.cyan}55`, borderRadius: 3, padding: '5px 10px', textDecoration: 'none' }}>◇ codex</a>
       </div>
 
       {view.focus && (
         <div style={{ position: 'absolute', bottom: 18, left: '50%', transform: 'translateX(-50%)', maxWidth: '60vw', display: 'flex', gap: 18, alignItems: 'center', zIndex: 4, padding: '9px 18px', borderRadius: 4, background: 'linear-gradient(135deg,rgba(111,242,255,.04) 25%,transparent 25%) 0 0/18px 18px, rgba(4,12,24,.55)', border: `1px solid ${C.cyan}33`, borderTop: `1px solid ${C.cyan}66`, boxShadow: `0 0 18px ${C.cyan}18, inset 0 0 28px ${C.cyan}0a`, backdropFilter: 'blur(10px)', fontFamily: RAJDHANI, fontSize: 13 }}>
           <span style={{ fontFamily: ORBITRON, fontSize: 9, letterSpacing: 2, color: C.cyan }}>◈ {view.focusId === 'ROOT' ? 'CORE' : (view.focus.is_leaf ? 'LEAF' : 'NODE')}</span>
-          <span style={{ color: C.text }}>{view.childCount} <span style={{ color: C.textDim }}>{view.focus.is_leaf ? (axis === 'source' ? 'sources' : 'leaves') : view.focusId === 'ROOT' ? 'branches' : (axis === 'source' ? 'groups' : 'subjects')}</span></span>
-          <span style={{ color: C.text }}>{view.focus.n_chunks.toLocaleString()} <span style={{ color: C.textDim }}>chunks</span></span>
-          {view.focus.coherence != null && <span style={{ color: C.textDim }}>coherence <span style={{ color: cohColor }}>{view.focus.coherence}</span></span>}
+          <span style={{ color: C.text }}>{view.childCount} <span style={{ color: C.textDim }}>{axis === 'genealogy' ? (view.focusId === 'ROOT' ? 'visible ancestors' : 'known parents') : view.focus.is_leaf ? (axis === 'source' ? 'sources' : 'leaves') : view.focusId === 'ROOT' ? 'branches' : (axis === 'source' ? 'groups' : 'subjects')}</span></span>
+          <span style={{ color: C.text }}>{view.focus.n_chunks.toLocaleString()} <span style={{ color: C.textDim }}>{axis === 'genealogy' ? 'evidence weight' : 'chunks'}</span></span>
+          {view.focus.coherence != null && <span style={{ color: C.textDim }}>{axis === 'genealogy' ? 'proof' : 'coherence'} <span style={{ color: cohColor }}>{view.focus.coherence}</span></span>}
           {parentId && <span onClick={() => goToRef.current(parentId)} style={{ cursor: 'pointer', color: C.cyan, fontFamily: ORBITRON, fontSize: 10, letterSpacing: 1 }}>↩ BACK</span>}
           <span onClick={copyLink} style={{ cursor: 'pointer', color: linkCopied ? C.green : C.cyan, fontFamily: ORBITRON, fontSize: 10, letterSpacing: 1 }}>{linkCopied ? '✓ COPIED' : '⧉ LINK'}</span>
         </div>
       )}
 
       <div style={{ position: 'absolute', bottom: 20, left: 18, color: C.textDim, fontSize: 10, fontFamily: ORBITRON, letterSpacing: 1, zIndex: 4, opacity: 0.6 }}>click to enter · backspace to ascend · drag to orbit</div>
+
+      {axis === 'genealogy' && importNotice && <div style={{ position:'absolute', top:58, right:18, zIndex:5, maxWidth:420, padding:'8px 12px', border:`1px solid ${C.green}55`, borderRadius:5, background:'rgba(4,12,24,.82)', color:C.green, fontFamily:RAJDHANI, fontSize:12, backdropFilter:'blur(8px)' }}>{importNotice}</div>}
+
+      {axis==='genealogy'&&<GenealogyResearchPanel node={view.focus as GenealogyPanelNode|null} metrics={tree?.metrics} importInfo={tree?.import} onNavigate={(id)=>goToRef.current(id)} onGraphChanged={()=>{treesRef.current.genealogy=undefined;bootFocusRef.current='ROOT';setGraphVersion((value)=>value+1);}}/>}
+
+      {axis === 'genealogy' && (decisionLoading || decision) && (
+        <div style={{position:'absolute',top:68,left:18,zIndex:4,width:340,maxWidth:'34vw',padding:'13px 14px',border:`1px solid ${C.magenta}66`,borderLeft:`3px solid ${C.magenta}`,borderRadius:7,background:'linear-gradient(145deg,rgba(15,10,34,.9),rgba(4,12,24,.82))',boxShadow:`0 0 28px ${C.magenta}22`,backdropFilter:'blur(12px)'}}>
+          <div style={{display:'flex',justifyContent:'space-between',gap:10,alignItems:'center',marginBottom:8}}><span style={{fontFamily:ORBITRON,fontSize:9,letterSpacing:2,color:C.magenta}}>CORE RESEARCH VECTOR</span>{decision&&<span style={{fontFamily:ORBITRON,fontSize:9,color:C.green}}>{Math.round(decision.score*100)}% FIT</span>}</div>
+          {decisionLoading&&!decision&&<div style={{fontFamily:RAJDHANI,fontSize:12,color:C.textDim}}>letting the proof gaps attract the next mission…</div>}
+          {decision&&<>
+            <div onClick={()=>decision.selected_node_id&&goToRef.current(decision.selected_node_id)} style={{cursor:decision.selected_node_id?'pointer':'default',fontFamily:ORBITRON,fontSize:14,letterSpacing:1,color:'#f4ebff',textShadow:`0 0 12px ${C.magenta}66`}}>{decision.mission.target}</div>
+            <div style={{marginTop:4,fontFamily:RAJDHANI,fontSize:11,color:C.textDim}}>{decision.mission.branch} · {decision.mission.place}{decision.mission.yearFrom?` · ${decision.mission.yearFrom}${decision.mission.yearTo?`–${decision.mission.yearTo}`:''}`:''}</div>
+            <div style={{marginTop:9,fontFamily:RAJDHANI,fontSize:12.5,lineHeight:1.45,color:'rgba(220,240,255,.9)'}}>{decision.mission.objective}</div>
+            <div style={{marginTop:9,paddingTop:8,borderTop:`1px solid ${C.magenta}33`,fontFamily:RAJDHANI,fontSize:11.5,lineHeight:1.4,color:C.cyan}}>{decision.mission.firstAction}</div>
+            <div style={{marginTop:8,display:'flex',justifyContent:'space-between',alignItems:'center',gap:8}}><span style={{fontFamily:ORBITRON,fontSize:8,letterSpacing:1,color:C.textDim}}>{decision.status.toUpperCase()} · AUDITABLE · TREE UNTOUCHED</span><button type="button" disabled={decisionLoading} onClick={recalculateResearch} style={{cursor:decisionLoading?'wait':'pointer',fontFamily:ORBITRON,fontSize:7.5,letterSpacing:1,color:C.magenta,border:`1px solid ${C.magenta}55`,borderRadius:3,padding:'4px 6px',background:'rgba(20,8,36,.6)'}}>RECALCULATE</button></div>
+          </>}
+        </div>
+      )}
 
       {err && <div style={{ position: 'absolute', top: 64, left: 18, background: 'rgba(4,12,24,.9)', border: `1px solid ${C.gold}`, borderRadius: 6, padding: '12px 14px', color: C.gold, fontSize: 12, maxWidth: 480, zIndex: 5, fontFamily: RAJDHANI }}>tree load error: {err}</div>}
 
