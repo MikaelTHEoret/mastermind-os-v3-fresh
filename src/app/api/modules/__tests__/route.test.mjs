@@ -89,3 +89,41 @@ test('native activation retains the reviewed operation and revision and never re
   assert.equal(calls[0].body.expectedActiveRevision,command.expectedActiveRevision);
   assert.equal(calls[0].body.operationId,command.operationId);
 });
+
+test('saved general-build reads use only exact IDs and preserve minimal disclosure holds',async()=>{
+  const specificationId='a'.repeat(64),planId='b'.repeat(64),calls=[];
+  const held={ok:false,candidateProjection:{viewState:'held',specificationId,planId,holds:['BUILD_CURRENT_OWNER_PROOF_UNAVAILABLE'],executionAuthorized:false}};
+  const api=route({fetcher:async(url,options)=>{calls.push({url,options});return json(held,409);}});
+  for(const action of ['specification_build_plan','specification_build_candidate']){
+    const result=await api.GET(request(undefined,`http://localhost:3000/api/modules?action=${action}&specificationId=${specificationId}&planId=${planId}`));
+    assert.equal(result.status,409);assert.deepEqual(JSON.parse(JSON.stringify(result.value)),held);assert.equal(calls.at(-1).options.method,'GET');
+    assert.equal(calls.at(-1).url,`http://127.0.0.1:8770/${action}?specificationId=${specificationId}&planId=${planId}`);
+  }
+  const before=calls.length;
+  for(const suffix of ['&path=private','&planId='+planId,'&approved=true'])assert.equal((await api.GET(request(undefined,`http://localhost:3000/api/modules?action=specification_build_candidate&specificationId=${specificationId}&planId=${planId}${suffix}`))).status,400);
+  assert.equal(calls.length,before);
+});
+
+test('general-build effect adapters preserve saved IDs and409 holds; reject authority and path injection before forwarding',async()=>{
+  const specificationId='a'.repeat(64),planId='b'.repeat(64),operationId='10000000-0000-4000-8000-000000000001',calls=[];
+  const held={ok:false,buildJob:{planId,operationId,state:'held',holds:['BUILD_RECONCILE_WITHOUT_RERUN'],executionAuthorized:false}};
+  const api=route({fetcher:async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return json(held,409);}});
+  for(const action of ['specification_build_plan','specification_build_preflight','specification_build_start','specification_build_reconcile','specification_build_result','specification_build_candidate_stage']){
+    const selectors=action==='specification_build_plan'?{specificationId,operationId}:{specificationId,planId};
+    const result=await api.POST(request({action,...selectors}));assert.equal(result.status,409);assert.deepEqual(JSON.parse(JSON.stringify(result.value)),held);
+    assert.deepEqual(calls.at(-1),{url:'http://127.0.0.1:8770/'+action,body:selectors});
+    const before=calls.length;
+    for(const injection of [{approved:true},{sourcePath:'private.py'},{command:'run'}, {taskRef:{}},{operationId:'invalid'}]){
+      assert.equal((await api.POST(request({action,...selectors,...injection}))).status,400);
+    }
+    assert.equal(calls.length,before);
+  }
+});
+
+test('candidate projection has its own bounded response and new builds retain the local access boundary',async()=>{
+  let calls=0;const specificationId='a'.repeat(64),planId='b'.repeat(64);
+  const denied=route({allowed:false,fetcher:async()=>{calls++;return json({});}});
+  assert.equal((await denied.POST(request({action:'specification_build_start',specificationId,planId}))).status,403);assert.equal(calls,0);
+  const large=route({fetcher:async()=>json({padding:'x'.repeat(262145)})});
+  assert.equal((await large.GET(request(undefined,`http://localhost:3000/api/modules?action=specification_build_candidate&specificationId=${specificationId}&planId=${planId}`))).status,502);
+});

@@ -9,6 +9,16 @@ const MODULE_ID=/^[A-Za-z_][A-Za-z0-9_.-]{0,127}$/;
 const DIGEST=/^[a-f0-9]{64}$/;
 ROUTES.specification_reuse='/specification_reuse';
 ROUTES.specification_reuse_result='/specification_reuse_result';
+const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+const BUILD_ACTIONS:Record<string,Record<string,RegExp>>={
+  specification_build_plan:{specificationId:DIGEST,operationId:UUID},
+  specification_build_preflight:{specificationId:DIGEST,planId:DIGEST},
+  specification_build_start:{specificationId:DIGEST,planId:DIGEST},
+  specification_build_reconcile:{specificationId:DIGEST,planId:DIGEST},
+  specification_build_result:{specificationId:DIGEST,planId:DIGEST},
+  specification_build_candidate_stage:{specificationId:DIGEST,planId:DIGEST},
+};
+for(const action of Object.keys(BUILD_ACTIONS))ROUTES[action]='/'+action;
 
 function nativeRead(query:URLSearchParams):string|null {
   const action=query.get('action');
@@ -16,6 +26,8 @@ function nativeRead(query:URLSearchParams):string|null {
   const routes:Record<string,{path:string;fields:Record<string,RegExp>}>= {
     wizard_catalog:{path:'/wizard_catalog',fields:{}},specifications:{path:'/specifications',fields:{}},
     specification:{path:'/specification',fields:{specificationId:DIGEST}},
+    specification_build_plan:{path:'/specification_build_plan',fields:{specificationId:DIGEST,planId:DIGEST}},
+    specification_build_candidate:{path:'/specification_build_candidate',fields:{specificationId:DIGEST,planId:DIGEST}},
     proposal:{path:'/proposal',fields:{id:MODULE_ID}},candidates:{path:'/candidates',fields:{id:MODULE_ID}},
     candidate:{path:'/candidate',fields:{id:MODULE_ID,candidateId:DIGEST}},
     build_events:{path:'/build_events',fields:{id:MODULE_ID}},
@@ -47,7 +59,7 @@ async function kernel(path:string,body?:object) {
   let bytes=0,text='';
   try {
     while(true){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;
-      if(bytes>1024*1024){await reader.cancel();throw new Error('Module response too large');}
+      if(bytes>(path.startsWith('/specification_build_candidate?')?256*1024:1024*1024)){await reader.cancel();throw new Error('Module response too large');}
       text+=decoder.decode(value,{stream:true});}
     return {status:response.status,ok:response.ok,data:JSON.parse(text+decoder.decode())};
   } finally {reader.releaseLock();}
@@ -83,6 +95,11 @@ export async function POST(request:Request) {
   }
   const {action,...rest}=body;
   if(typeof action!=='string' || !Object.prototype.hasOwnProperty.call(ROUTES,action)) return NextResponse.json({ok:false,error:'Unknown module action.'},{status:400});
+  if(Object.prototype.hasOwnProperty.call(BUILD_ACTIONS,action)) {
+    const fields=BUILD_ACTIONS[action];
+    if(Object.keys(rest).length!==Object.keys(fields).length||Object.entries(fields).some(([name,pattern])=>typeof rest[name]!=='string'||!pattern.test(rest[name] as string)))
+      return NextResponse.json({ok:false,error:'Build actions require only their exact saved identifiers.'},{status:400});
+  }
   try {
     const result=await kernel(ROUTES[action],rest);
     return NextResponse.json(result.data,{status:result.status});
