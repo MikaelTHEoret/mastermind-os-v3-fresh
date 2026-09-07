@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { fitContext } from './context-budget.mjs';
-import { validatePermissionScope, permissionDigest, canonicalJson, permissionRevision, validateModuleAuthorization, authorizeModuleFromTask } from './task-permissions.mjs';
+import { validatePermissionScope, permissionDigest, canonicalJson, permissionRevision, validateModuleAuthorization, authorizeModuleFromTask,
+  validateCodingSourceCheck, codingSourceScopeFromTask } from './task-permissions.mjs';
 
 import {
   ContextGatewayError,
@@ -214,6 +215,13 @@ export class MastermindContextGateway {
     const input = validateModuleAuthorization(raw);
     const task = await this.clientTaskState({ taskId: input.taskId, project: input.project });
     return authorizeModuleFromTask(task, input);
+  }
+
+  // Host-only eligibility check. No MCP/HTTP tool, account assertion or scope write.
+  async clientCheckCodingSource(raw = {}) {
+    const input = validateCodingSourceCheck(raw);
+    const task = await this.clientTaskState({ taskId: input.taskId, project: input.project });
+    return codingSourceScopeFromTask(task, input);
   }
 
   // Owner administration only: intentionally absent from MCP and the native publisher CLI.

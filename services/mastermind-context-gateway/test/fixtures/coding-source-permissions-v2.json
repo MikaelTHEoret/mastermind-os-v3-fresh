@@ -1,0 +1,32 @@
+{
+  "kind": "mastermind.synthetic-coding-permission-contract",
+  "taskId": "00000000-0000-4000-8000-000000000001",
+  "project": "mastermind",
+  "actorId": "00000000-0000-4000-8000-000000000002",
+  "v1": {
+    "schemaVersion": 1,
+    "status": "active",
+    "executionPolicy": {"isolationProfile":"windows-lpac-pure-json-v1","effectClass":"READ_ONLY","network":false,"childProcesses":false,"filesystem":"staged-inputs-only","codingAgent":false},
+    "modules": [{"moduleId":"fixture.calculator","repositoryRoot":"C:/fixture/source","candidateRoot":"C:/fixture/candidates/fixture.calculator","operations":["module.call","module.generate","module.promote","module.rollback","module.test"],"capabilities":["fixture.calculator.add"]}]
+  },
+  "v1Canonical": "{\"executionPolicy\":{\"childProcesses\":false,\"codingAgent\":false,\"effectClass\":\"READ_ONLY\",\"filesystem\":\"staged-inputs-only\",\"isolationProfile\":\"windows-lpac-pure-json-v1\",\"network\":false},\"modules\":[{\"candidateRoot\":\"C:/fixture/candidates/fixture.calculator\",\"capabilities\":[\"fixture.calculator.add\"],\"moduleId\":\"fixture.calculator\",\"operations\":[\"module.call\",\"module.generate\",\"module.promote\",\"module.rollback\",\"module.test\"],\"repositoryRoot\":\"C:/fixture/source\"}],\"schemaVersion\":1,\"status\":\"active\"}",
+  "codingEntry": {
+    "operationId":"00000000-0000-4000-8000-000000000003",
+    "specificationId":"1111111111111111111111111111111111111111111111111111111111111111",
+    "requestSha256":"2222222222222222222222222222222222222222222222222222222222222222",
+    "reviewContentSha256":"3333333333333333333333333333333333333333333333333333333333333333",
+    "sourceManifestSha256":"4444444444444444444444444444444444444444444444444444444444444444",
+    "moduleId":"fixture.calculator",
+    "repositoryRoot":"C:/fixture/source",
+    "baseCommit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "allowedTargets":[{"path":"candidates/calculator.py","kind":"file"}],
+    "immutableSources":[{"role":"requirements","path":"spec/requirements.json","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},{"role":"tests","path":"spec/tests.json","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}],
+    "requirementsHash":"5555555555555555555555555555555555555555555555555555555555555555",
+    "testSpecHash":"6666666666666666666666666666666666666666666666666666666666666666",
+    "taskBinding":{"checkpointId":"00000000-0000-4000-8000-000000000004","revision":"8"},
+    "hostProfile":{"profileId":"fixture.windows","profileSha256":"7777777777777777777777777777777777777777777777777777777777777777","accountEvidenceSha256":"8888888888888888888888888888888888888888888888888888888888888888"},
+    "runtime":{"codexSha256":"9999999999999999999999999999999999999999999999999999999999999999","cliProfile":"codex-approve-for-me-workspace-write-v1","worktreeRoot":"C:/fixture/worktrees","artifactRoot":"C:/fixture/artifacts"},
+    "executionPolicy":{"action":"coding.source-work","codingAgent":true,"delivery":"private-local-branch-no-push","sandbox":"workspace-write","approval":"approve-for-me","targetEnforcement":"post-execution-acceptance","activate":false,"push":false,"deploy":false},
+    "limits":{"wall_seconds":300,"stdout_bytes":2097152,"stderr_bytes":262144,"memory_bytes":2147483648,"active_processes":32,"max_files":4096,"max_file_bytes":8388608,"max_inventory_bytes":67108864,"diff_bytes":2097152}
+  }
+}

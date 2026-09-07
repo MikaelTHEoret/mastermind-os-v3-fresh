@@ -14,7 +14,8 @@ try {
     chunks.push(chunk);
   }
   const input = exactObject(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))), ['action', 'arguments']);
-  const handlers = { readTask: 'clientTaskState', authorizeModule: 'clientAuthorizeModule', checkpoint: 'checkpoint' };
+  const handlers = { readTask: 'clientTaskState', authorizeModule: 'clientAuthorizeModule',
+    checkCodingSource:'clientCheckCodingSource', checkpoint: 'checkpoint' };
   if (!Object.hasOwn(handlers, input.action)) throw new ContextGatewayError('ACTION_NOT_ALLOWED', 'This native adapter action is not available.');
   const gateway = createGatewayFromEnvironment(root);
   const result = await gateway[handlers[input.action]](input.arguments);

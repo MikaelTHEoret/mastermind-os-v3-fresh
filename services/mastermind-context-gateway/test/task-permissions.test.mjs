@@ -85,7 +85,8 @@ test('uninstalled permission schema is readable as absent and mutations hold wit
   store.sql={query:async(statement)=>{calls.push(statement);if(statement.includes('set_mastermind'))throw Object.assign(Error('function does not exist'),{code:'42883'});return[];}};
   await store.taskById(TASK,'mastermind','fixture',ACTOR);
   assert.match(calls[0],/to_jsonb\(t\)->'permission_scope'/);
-  await assert.rejects(store.setTaskPermissions({}),{code:'TASK_PERMISSIONS_UNAVAILABLE'});
+  const {scope}=fixture();
+  await assert.rejects(store.setTaskPermissions({scopeCanonical:JSON.stringify(scope)}),{code:'TASK_PERMISSIONS_UNAVAILABLE'});
 });
 
 test('native subprocess seam cannot set permissions or invoke arbitrary gateway methods', () => {

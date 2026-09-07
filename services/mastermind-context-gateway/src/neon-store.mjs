@@ -284,12 +284,18 @@ export class NeonMemoryStore {
 
   async setTaskPermissions(input) {
     const commandDigest = crypto.createHash('sha256').update(canonicalJson(input)).digest('hex');
+    let scopeVersion;
+    try { scopeVersion = JSON.parse(input.scopeCanonical).schemaVersion; }
+    catch { throw new ContextGatewayError('INVALID_PERMISSION_SCOPE','A canonical permission scope is required.'); }
+    if (![1,2].includes(scopeVersion)) throw new ContextGatewayError('INVALID_PERMISSION_SCOPE','Unsupported permission scope version.');
+    // Fixed function names only. Missing v2 never falls back to v1 or rewrites a command.
+    const setter = scopeVersion === 2 ? 'set_mastermind_context_task_permissions_v2' : 'set_mastermind_context_task_permissions_v1';
     try {
       const rows = asRows(await this.sql.query(`SELECT result_status AS status,
         result_task_id::text AS "taskId", result_checkpoint_id::text AS "checkpointId",
         result_revision::text AS revision, result_permission_revision::text AS "permissionRevision",
         result_current_permission_revision::text AS "currentPermissionRevision", result_scope_sha256 AS "scopeSha256"
-        FROM public.set_mastermind_context_task_permissions_v1(
+        FROM public.${setter}(
           $1::uuid,$2::text,$3::uuid,$4::text,$5::uuid,$6::text,$7::bigint,$8::bigint,$9::text,$10::text)`,
       [input.checkpointId, commandDigest, input.taskId, input.householdId, input.actorPlayerId, input.project,
         input.expectedRevision, input.expectedPermissionRevision, input.scopeCanonical, input.scopeSha256]));
@@ -297,7 +303,7 @@ export class NeonMemoryStore {
       if (rows[0].status === 'conflict') throw new ContextGatewayError('PERMISSION_COMMAND_CONFLICT', 'The permission checkpoint ID is bound to another command.', 409);
       return { ...rows[0], grantRef: permissionGrantRef(rows[0].taskId, rows[0].permissionRevision, rows[0].scopeSha256) };
     } catch (error) {
-      if (missingRelation(error)) throw new ContextGatewayError('TASK_PERMISSIONS_UNAVAILABLE', 'The reviewed task permission migration must be installed first.', 503);
+      if (error?.code === '42883' || missingRelation(error)) throw new ContextGatewayError('TASK_PERMISSIONS_UNAVAILABLE', 'The reviewed task permission migration must be installed first.', 503);
       if (error?.code === '42501') throw new ContextGatewayError('MEMORY_ACCESS_DENIED', 'This operator cannot change that task permission scope.', 403);
       if (error?.code === '40001') throw new ContextGatewayError('TASK_REVISION_CONFLICT', 'Read the current task and permission revision before reconciling this command.', 409);
       if (error?.code === '22023') throw new ContextGatewayError('INVALID_PERMISSION_SCOPE', 'The permission command failed canonical validation.');
