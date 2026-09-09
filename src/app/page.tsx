@@ -17,6 +17,7 @@ import SettingsConsole from '@/components/SettingsConsole';
 import TradingConsole from '@/components/TradingConsole';
 import GenealogyConsole from '@/components/GenealogyConsole';
 import AppLiveStatus from '@/components/AppLiveStatus';
+import AccountAccess from '@/components/AccountAccess';
 import MinecraftConsole from '@/components/MinecraftConsole';
 import MemoryConsole from '@/components/MemoryConsole';
 import NodeControlConsole from '@/components/NodeControlConsole';
@@ -186,7 +187,10 @@ export default function Dashboard() {
                 <Glow>ⵐ MASTERMIND</Glow>
                 <span style={{color:C.dim}}>v3.0 — COMMAND CENTER</span>
             </div>
-            <span style={{color:C.dim}}>MULTI-PROJECT ENVIRONMENT</span>
+            <div style={{display:'flex',alignItems:'center',gap:16}}>
+                <span style={{color:C.dim}}>MULTI-PROJECT ENVIRONMENT</span>
+                <AccountAccess />
+            </div>
         </div>
     );
 

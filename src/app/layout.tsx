@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   )
   return (
     <html lang="en">
-      {clerkEnabled ? <ClerkProvider appearance={clerkAppearance as any}>{body}</ClerkProvider> : body}
+      {clerkEnabled ? <ClerkProvider signInUrl="/sign-in" appearance={clerkAppearance as any}>{body}</ClerkProvider> : body}
     </html>
   )
 }
