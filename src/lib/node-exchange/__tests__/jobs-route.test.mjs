@@ -74,3 +74,42 @@ test('dispatcher rejects extra input and arbitrary operations before any enqueue
     { capability: contract.MASTERMIND_CORE_STATUS_CAPABILITY, requestId: 'invalid' },
   ]) { const api = harness(); assert.equal((await api.post(body)).status, 400); assert.equal(api.calls.length, 0); }
 });
+
+function historyHarness(owner={ok:true},saved=null) {
+  const calls=[];
+  class ServiceError extends Error {}
+  class BodyError extends Error {}
+  const http=load(fs.readFileSync(new URL('../http.ts',import.meta.url),'utf8'),{
+    '@/lib/memory/local-service-auth':{LocalServiceRequestBodyError:BodyError},
+    '../../../protocol/mastermind-node-exchange/contract.mjs':contract,
+    './store':{NodeExchangeServiceError:ServiceError},
+  });
+  const route=load(fs.readFileSync(new URL('../../../app/api/nodes/[nodeId]/core-status/route.ts',import.meta.url),'utf8'),{
+    '@/lib/db':{getMemoryDb(){calls.push('database');return 'database';}},
+    '@/lib/node-exchange/http':http,
+    '@/lib/node-exchange/store':{async getLatestOwnerCoreStatusJob(db,id){calls.push(['read',db,id]);return saved;}},
+    '@/lib/trading/auth':{async requireOwner(){calls.push('owner');return owner;}},
+  });
+  return {calls,get(options={}){return route.GET(new Request(base+(options.path??`/api/nodes/${nodeId}/core-status`),{
+    method:options.method??'GET',headers:{'sec-fetch-site':'same-origin',...options.headers},
+  }),{params:Promise.resolve({nodeId})});}};
+}
+
+test('saved core history denies unauthenticated and foreign requests before opening the database', async () => {
+  for(const status of [401,403]) {
+    const api=historyHarness({ok:false,status,reason:'Owner required.'});
+    assert.equal((await api.get()).status,status);assert.deepEqual(api.calls,['owner']);
+  }
+  for(const [options,status] of [[{headers:{'sec-fetch-site':'cross-site'}},403],[{path:'/api/nodes/wrong/core-status'},404],[{method:'POST'},405]]) {
+    const api=historyHarness();assert.equal((await api.get(options)).status,status);assert.deepEqual(api.calls,[]);
+  }
+});
+
+test('saved core history returns existing result or explicit absence without writing or caching it', async () => {
+  for(const saved of [null,{jobId:requestId}]) {
+    const api=historyHarness({ok:true},saved);const response=await api.get();
+    assert.equal(response.status,200);assert.deepEqual(await response.json(),{ok:true,job:saved});
+    assert.match(response.headers.get('cache-control'),/no-store/);
+    assert.deepEqual(api.calls,['owner','database',['read','database',nodeId]]);
+  }
+});

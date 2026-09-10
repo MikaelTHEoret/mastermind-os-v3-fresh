@@ -313,6 +313,14 @@ export function parseNodeJob(value, expectedNodeId, expectedJobId, expectedCapab
   return { ok: true, job };
 }
 
+export function parseLatestCoreStatusJob(value, expectedNodeId) {
+  const envelope = objectOf(value, 'saved core status response');
+  exactKeys(envelope, ['ok', 'job'], 'saved core status response');
+  if (envelope.ok !== true) reject('saved core status response is invalid');
+  if (envelope.job === null) return { ok: true, job: null };
+  return parseNodeJob(envelope, expectedNodeId, undefined, NODE_CORE_STATUS_CAPABILITY);
+}
+
 export function parseNodeJobEnqueue(value, expectedNodeId, expectedRequestId, expectedCapability = NODE_ENSURE_RUNNING_CAPABILITY) {
   const envelope = objectOf(value, 'node job enqueue response');
   exactKeys(envelope, ['ok', 'status', 'job'], 'node job enqueue response');

@@ -287,3 +287,15 @@ test('core job parsing is explicitly operation-bound and preserves incomplete ob
     { ...core, state: 'failed', terminal: { ...core.terminal, code: 'lease-lost' } },
   ]) assert.throws(() => parseNodeJob({ ok: true, job: invalid }, NODE_ID, JOB_ID, NODE_CORE_STATUS_CAPABILITY), NodeControlContractError);
 });
+
+test('saved core status distinguishes no history from invalid or mismatched data', async () => {
+  const { parseLatestCoreStatusJob } = await import('../../../components/node-control-contract.mjs');
+  assert.deepEqual(parseLatestCoreStatusJob({ ok: true, job: null }, NODE_ID), { ok: true, job: null });
+  const saved = job({ capability: NODE_CORE_STATUS_CAPABILITY });
+  assert.deepEqual(parseLatestCoreStatusJob({ ok: true, job: saved }, NODE_ID).job, saved);
+  for (const value of [{ ok: false, job: null }, { ok: true }, { ok: true, job: null, secret: 'fixture' },
+    { ok: true, job: job() }, { ok: true, job: { ...saved, nodeId: OTHER_JOB_ID } },
+    { ok: true, job: { ...saved, state: 'succeeded' } }]) {
+    assert.throws(() => parseLatestCoreStatusJob(value, NODE_ID));
+  }
+});

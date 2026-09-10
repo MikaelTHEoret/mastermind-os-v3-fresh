@@ -21,17 +21,20 @@ function node(worker=null,connectivity='online') { return {nodeId:NODE,displayNa
   agentVersion:'0.1.0',pairedAt:NOW,lastExchangeAt:NOW,lastJobReceiptAt:null,status:null,worker}; }
 const worker={protocolVersion:2,capabilities:[{id:core,version:1}]};
 function load({nodes=[],runs={},fetchImpl=async()=>{throw new Error('No network fixture');},stale=null}={}) {
+  const effects=[]; const timers=new Map(); let timerId=0;
   const states=['hosted',{ok:true,nodes},stale,0,0,runs,false,null]; let index=0;
   const hooks={...React,useState(initial){const i=index++; if(i>=states.length)states[i]=initial; return [states[i],value=>{states[i]=typeof value==='function'?value(states[i]):value;}];},
-    useEffect(){},useCallback(value){return value;},useRef(value){return {current:value};}};
+    useEffect(callback){effects.push(callback);},useCallback(value){return value;},useRef(value){return {current:value};}};
   const source=fs.readFileSync(new URL('../../../components/NodeControlConsole.tsx',import.meta.url),'utf8')
     +'\nexport const fixtureMethods={enqueueJob,reconcileExactRequest,jobMessage};\n';
   const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   const module={exports:{}};
   vm.runInNewContext(compiled,{exports:module.exports,module,Response,Date,Object,Map,Set,URL,Uint8Array,TextDecoder,AbortController,DOMException,
     crypto:{randomUUID:()=>JOB},fetch:fetchImpl,console,
+    window:{location:{origin:'https://mastermind-core.com'},setTimeout(callback){timers.set(++timerId,callback);return timerId;}},
+    clearTimeout(id){timers.delete(id);},
     require(id){if(id==='react')return hooks;if(id==='react/jsx-runtime')return jsx;if(id==='./node-control-contract.mjs')return contract;throw new Error(id);}});
-  return {ui:module.exports,states};
+  return {ui:module.exports,states,effects,timers};
 }
 function flatten(element,output=[]) {
   if(element==null||typeof element==='boolean')return output;
@@ -121,4 +124,61 @@ test('core-only advertisement hides stale family readiness and preserves read-fi
   const {ui,states}=load({nodes:[{...active,state:'revoked'}],stale:'inventory unavailable',runs:{[NODE]:previous},fetchImpl:async(url,options)=>{calls.push(options.method);return Response.json({ok:false,error:{code:'NODE_JOB_NOT_FOUND',message:'Missing fixture'}},{status:404});}});
   const reconcile=flatten(ui.default()).find(e=>e.type==='button'&&label(e)==='RECONCILE SAME REQUEST');assert(reconcile);assert.equal(Boolean(reconcile.props.disabled),false);reconcile.props.onClick();
   await new Promise(r=>setTimeout(r,10));assert.deepEqual(calls,['GET']);assert.equal(states[5][NODE].requestId,JOB);assert.equal(states[5][NODE].capability,family);assert.equal(states[5][NODE].needsReconciliation,true);
+});
+
+test('fresh panel recovers the saved terminal result using reads only', async () => {
+  const calls=[];
+  const app=load({nodes:[node(worker)],fetchImpl:async(path,options)=>{
+    calls.push([path,options.method]);
+    return Response.json(path==='/api/nodes'?{ok:true,nodes:[node(worker)]}:{ok:true,job:job()});
+  }});
+  app.ui.default(); const cleanup=app.effects.map(effect=>effect());
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(app.states[5][NODE].job.jobId,JOB);
+  assert.equal(app.states[5][NODE].message,'Core status observed · all sources available');
+  assert.deepEqual(calls,[['/api/nodes','GET'],[`/api/nodes/${NODE}/core-status`,'GET']]);
+  for(const stop of cleanup)stop?.();
+});
+
+test('late recovery cannot overwrite a new request and unmounted recovery cannot restore state', async () => {
+  for(const unmount of [false,true]) {
+    let release; const gate=new Promise(resolve=>{release=resolve;}); const calls=[];
+    const app=load({nodes:[node(worker)],fetchImpl:async(path,options)=>{
+      calls.push([path,options.method]);
+      if(path==='/api/nodes')return Response.json({ok:true,nodes:[node(worker)]});
+      await gate;return Response.json({ok:true,job:job()});
+    }});
+    app.ui.default();const cleanup=app.effects.map(effect=>effect());
+    const newer={requestId:'newer-request',busy:true,job:null,capability:core};
+    if(unmount)for(const stop of cleanup)stop?.();else app.states[5]={[NODE]:newer};
+    release();await new Promise(resolve=>setTimeout(resolve,10));
+    if(unmount)assert.equal(app.states[5][NODE],undefined);else assert.equal(app.states[5][NODE],newer);
+    assert(calls.every(([,method])=>method==='GET'));
+    if(!unmount)for(const stop of cleanup)stop?.();
+  }
+});
+
+test('unavailable saved history is reported without silently creating another request', async () => {
+  const calls=[];const app=load({nodes:[node(worker)],fetchImpl:async(path,options)=>{
+    calls.push(options.method);return path==='/api/nodes'?Response.json({ok:true,nodes:[node(worker)]}):Response.json({ok:false,error:{code:'NODE_STORE_UNAVAILABLE',message:'Unavailable'}},{status:503});
+  }});
+  app.ui.default();const cleanup=app.effects.map(effect=>effect());
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(app.states[5][NODE],undefined);assert.match(app.states[8],/could not be recovered/);
+  assert(calls.every(method=>method==='GET'));for(const stop of cleanup)stop?.();
+});
+
+test('recovered queued work resumes exact-job polling without another submission', async () => {
+  const pending={...job(),state:'queued',lease:null,terminal:null};
+  const run={requestId:JOB,capability:core,job:pending,busy:false,needsReconciliation:false,message:null,error:false};
+  const calls=[];const app=load({nodes:[node(worker)],runs:{[NODE]:run},fetchImpl:async(path,options)=>{
+    calls.push([path,options.method]);
+    return Response.json(path==='/api/nodes'?{ok:true,nodes:[node(worker)]}:{ok:true,job:path.endsWith('/core-status')?pending:job()});
+  }});
+  app.ui.default();const cleanup=app.effects.map(effect=>effect());
+  const tick=app.timers.values().next().value;assert.equal(typeof tick,'function');tick();
+  await new Promise(resolve=>setTimeout(resolve,10));
+  assert.equal(app.states[5][NODE].job.state,'succeeded');
+  assert(calls.some(([path])=>path===`/api/nodes/${NODE}/jobs/${JOB}`));
+  assert(calls.every(([,method])=>method==='GET'));for(const stop of cleanup)stop?.();
 });

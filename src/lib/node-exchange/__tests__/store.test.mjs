@@ -269,3 +269,30 @@ test('inventory exposes only the stored negotiated advertisement and stays reada
     assert.deepEqual(nodes[0].worker, expected);
   }
 });
+
+test('latest core status is an owner-scoped bounded read of the canonical ledger', async () => {
+  const store = loadStore();
+  const sql = scriptedSql([(query, values) => {
+    assert.match(query, /FROM public.mastermind_node_jobs_v1/);
+    assert.match(query, /job\.household_id = \?/);
+    assert.match(query, /mastermind_active_parent_profile_v1/);
+    assert.match(query, /job\.capability = 'mastermind.core.status' AND job\.capability_version = 1/);
+    assert.match(query, /ORDER BY job\.created_at DESC, job\.job_id DESC\s+LIMIT 1/);
+    assert.doesNotMatch(query, /INSERT|UPDATE|DELETE|SELECT\s+\*/i);
+    assert.deepEqual(values, [NODE_ID, 'family-local', 'family-local', PARENT_ID]);
+    return [{ ...jobRow(JOB_ID), capability: 'mastermind.core.status' }];
+  }]);
+  assert.equal((await store.getLatestOwnerCoreStatusJob(sql, NODE_ID)).jobId, JOB_ID);
+  assert.equal(sql.calls(), 1);
+  assert.equal(await store.getLatestOwnerCoreStatusJob(scriptedSql([() => []]), NODE_ID), null);
+});
+
+test('latest core status rejects invalid identity, excess rows, other capabilities and malformed state', async () => {
+  const store = loadStore(); const unused = scriptedSql([]);
+  await assert.rejects(store.getLatestOwnerCoreStatusJob(unused, 'invalid'), { code: 'NODE_REQUEST_INVALID' });
+  assert.equal(unused.calls(), 0);
+  const row = { ...jobRow(JOB_ID), capability: 'mastermind.core.status' };
+  for (const rows of [[row,row], [jobRow()], [{ ...row, nodeId: JOB_ID }], [{ ...row, state: 'succeeded' }]]) {
+    await assert.rejects(store.getLatestOwnerCoreStatusJob(scriptedSql([() => rows]), NODE_ID));
+  }
+});

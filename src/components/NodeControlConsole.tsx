@@ -20,6 +20,7 @@ import {
   parseNodeApiError,
   parseNodeInventory,
   parseNodeJob,
+  parseLatestCoreStatusJob,
   parseNodeJobEnqueue,
   parseNodePairing,
 } from './node-control-contract.mjs';
@@ -422,6 +423,7 @@ export default function NodeControlConsole() {
   const [runs, setRuns] = useState<Readonly<Record<string, NodeRun>>>({});
   const [pairingBusy, setPairingBusy] = useState(false);
   const [pairingError, setPairingError] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const inventoryEpochRef = useRef(0);
   const inventoryRef = useRef<NodeInventory | null>(inventory);
   const inventoryStaleRef = useRef(inventoryError !== null);
@@ -572,6 +574,43 @@ export default function NodeControlConsole() {
     };
     void poll();
   }, []);
+
+  const recoveryNodeKey = inventory?.nodes.map((node) => node.nodeId).sort().join(',') ?? '';
+  useEffect(() => {
+    if (controlSurface !== 'hosted' || !recoveryNodeKey) return;
+    const controller = new AbortController();
+    setRecoveryError(null);
+    for (const nodeId of recoveryNodeKey.split(',')) {
+      void (async () => {
+        try {
+          const payload = await requestJson(`/api/nodes/${encodeURIComponent(nodeId)}/core-status`, MAX_JOB_BYTES, {
+            method: 'GET', signal: controller.signal,
+          });
+          const job = parseLatestCoreStatusJob(payload, nodeId).job as PublicJob | null;
+          if (controller.signal.aborted || !job) return;
+          // A delayed recovery response must never replace an in-flight or newer request.
+          setRuns((current) => current[nodeId] ? current : {
+            ...current,
+            [nodeId]: { requestId: job.jobId, capability: job.capability, job, busy: false,
+              needsReconciliation: false, message: jobMessage(job),
+              error: job.state === 'failed' || job.state === 'expired' },
+          });
+        } catch (error) {
+          if (controller.signal.aborted || abortError(error)) return;
+          setRecoveryError('Saved core status could not be recovered. Refresh to retry; no new request was sent.');
+        }
+      })();
+    }
+    return () => controller.abort();
+  }, [controlSurface, recoveryNodeKey, pollNonce]);
+
+  useEffect(() => {
+    for (const [nodeId, run] of Object.entries(runs)) {
+      if (run.job && !run.busy && !isTerminalNodeJob(run.job) && !jobControllersRef.current.has(nodeId)) {
+        watchJob(nodeId, run.job);
+      }
+    }
+  }, [runs, watchJob]);
 
   const adoptJob = useCallback((nodeId: string, requestId: string, job: PublicJob) => {
     setRuns((current) => ({
@@ -763,6 +802,12 @@ export default function NodeControlConsole() {
       {inventoryError ? (
         <div role="alert" style={{ ...panel, background: `${C.red}0d`, borderColor: `${C.red}55`, color: C.red, fontFamily: body, fontSize: 12 }}>
           {inventoryError}
+        </div>
+      ) : null}
+
+      {recoveryError ? (
+        <div role="alert" style={{ ...panel, color: C.red, fontFamily: body, fontSize: 12 }}>
+          {recoveryError}
         </div>
       ) : null}
 

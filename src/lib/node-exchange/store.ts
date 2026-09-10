@@ -426,6 +426,45 @@ async function readOwnerJob(
   return rows.length === 0 ? null : publicJob(rows[0] as DatabaseRow);
 }
 
+export async function getLatestOwnerCoreStatusJob(
+  sql: NodeExchangeSql,
+  nodeId: string,
+  profile: OwnerNodeProfile = OWNER_NODE_PROFILE,
+): Promise<PublicJob | null> {
+  if (!UUID.test(nodeId)) fail(400, 'NODE_REQUEST_INVALID', 'Node ID must be a UUID.');
+  try {
+    const rows = await sql`
+      SELECT
+        job.job_id AS "jobId", job.node_id AS "nodeId", job.state,
+        job.capability, job.capability_version AS "capabilityVersion", job.policy_class AS "policyClass",
+        job.created_at AS "createdAt", job.expires_at AS "expiresAt",
+        job.lease_id AS "leaseId", job.leased_at AS "leasedAt",
+        job.lease_expires_at AS "leaseExpiresAt", job.terminal_code AS "terminalCode",
+        job.terminal_result AS "terminalResult", job.finished_at AS "finishedAt"
+      FROM public.mastermind_node_jobs_v1 AS job
+      WHERE job.node_id = ${nodeId}::uuid
+        AND job.household_id = ${profile.householdId}::text
+        AND job.capability = 'mastermind.core.status' AND job.capability_version = 1
+        AND EXISTS (
+          SELECT 1 FROM public.mastermind_active_parent_profile_v1(
+            ${profile.householdId}::text, ${profile.parentPlayerId}::uuid
+          )
+        )
+      ORDER BY job.created_at DESC, job.job_id DESC
+      LIMIT 1
+    `;
+    if (!Array.isArray(rows) || rows.length > 1) fail(503, 'NODE_STORE_UNAVAILABLE', 'Job lookup is unavailable.');
+    if (rows.length === 0) return null;
+    const job = publicJob(rows[0] as DatabaseRow);
+    if (job.nodeId !== nodeId || job.capability !== 'mastermind.core.status') {
+      fail(503, 'NODE_STORE_INVALID', 'Saved core status is invalid.');
+    }
+    return job;
+  } catch (error) {
+    databaseFailure(error);
+  }
+}
+
 export async function getOwnerJob(
   sql: NodeExchangeSql,
   nodeId: string,
