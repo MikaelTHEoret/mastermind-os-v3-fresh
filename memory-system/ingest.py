@@ -10,7 +10,8 @@ import sys, os, re, hashlib, json, urllib.request
 import psycopg2
 from psycopg2.extras import execute_values
 
-CONN = "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+from canonical_memory_target import resolve_memory_dsn
+CONN = resolve_memory_dsn({'sslmode': 'require'})
 OLLAMA = "http://localhost:11434/api/embed"
 MODEL = "nomic-embed-text"
 CHUNK, OVERLAP = 1500, 200

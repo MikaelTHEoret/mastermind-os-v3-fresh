@@ -4,7 +4,8 @@ const { Pool } = require("pg");
 const fs = require("fs");
 const path = require("path");
 
-const pool = new Pool({ connectionString: "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require", max: 2 });
+const { resolveMemoryUrl } = require("./canonical-memory-target.cjs");
+const pool = new Pool({ connectionString: resolveMemoryUrl({"sslmode": "require"}), max: 2 });
 const ROOT = "C:\\Users\\Mik\\Documents\\Claude-system\\Documents";
 const CHUNK = 1500, OVERLAP = 200;
 

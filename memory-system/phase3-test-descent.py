@@ -2,7 +2,8 @@
 centroid match at each level, reach a leaf, return its chunk addresses."""
 import psycopg2, numpy as np, urllib.request, json
 
-CONN = "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+from canonical_memory_target import resolve_memory_dsn
+CONN = resolve_memory_dsn({'sslmode': 'require'})
 
 def embed(text):
     req=urllib.request.Request("http://localhost:11434/api/embed",

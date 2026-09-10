@@ -70,4 +70,16 @@ export function seedModules(): void {
         description: 'Owner-gated cockpit over the validation-gate organism: verdicts (WFE/DSR/PBO), ladder state. The gate engine lives in mastermind-trading; nothing trades until the ladder is green.',
         version: '0.1', dependencies: [], capabilities: ['gate-verdicts', 'owner-gate', 'ladder-status'],
         source: 'assimilated:mastermind-trading', accent: 'gold', enabled: true });
+
+  reg({ id: 'genealogy-research', name: 'Genealogy Research', kind: 'panel', status: 'thin', faculty: 'perception',
+        description: 'Proof-first lineage frontier, archive acquisition queue, scanning and evidence catalogue.',
+        version: '0.1', dependencies: ['nexus-core'],
+        capabilities: ['frontier-detect', 'archive-discover', 'crawl-propose', 'scan-catalogue'],
+        source: 'command-center', accent: 'green', enabled: true });
+
+  reg({ id: 'minecraft-control-plane', name: 'Minecraft Family Server Control', kind: 'tool', status: 'thin', faculty: 'body',
+        description: 'Isolated latest-compatible Fabric family server provisioning with managed Java, Geyser/Floodgate, PS4 connection setup, and lifecycle control; separate from 2b2t intelligence.',
+        version: '0.2', dependencies: [],
+        capabilities: ['family-server-provision', 'latest-compatible', 'managed-java', 'geyser', 'floodgate', 'ps4-setup', 'server-start', 'server-stop', 'server-logs', 'local-boundary'],
+        source: 'command-center', accent: 'green', enabled: true });
 }

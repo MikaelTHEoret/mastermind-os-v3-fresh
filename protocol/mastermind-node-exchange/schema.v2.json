@@ -1,0 +1,950 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mastermind-core.com/protocol/mastermind-node-exchange/schema.v2.json",
+  "title": "Mastermind Node Exchange v2: negotiated core observations",
+  "$comment": "Runtime validation additionally enforces canonical encoding, byte limits, strictly increasing per-job receipt sequences, acknowledgement/request binding, lease freshness against serverTime, command digests, and pair response/node equality. v2 retains v1 pairing/status; runtime also validates negotiated capabilities and core completeness. Default v1 runtime validation remains closed.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/exchangeRequest"
+    },
+    {
+      "$ref": "#/$defs/exchangeResponse"
+    },
+    {
+      "$ref": "#/$defs/pairRequest"
+    },
+    {
+      "$ref": "#/$defs/pairResponse"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    },
+    {
+      "$ref": "#/$defs/status"
+    },
+    {
+      "$ref": "#/$defs/lease"
+    },
+    {
+      "$ref": "#/$defs/command"
+    },
+    {
+      "$ref": "#/$defs/coreStatus"
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "agentVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$"
+    },
+    "emptyInput": {
+      "type": "object",
+      "maxProperties": 0,
+      "additionalProperties": false
+    },
+    "terminalResult": {
+      "type": "object",
+      "required": [
+        "familyServer",
+        "companion",
+        "companionBridge"
+      ],
+      "properties": {
+        "familyServer": {
+          "enum": [
+            "unknown",
+            "missing",
+            "stopped",
+            "starting",
+            "running",
+            "stopping",
+            "failed"
+          ]
+        },
+        "companion": {
+          "enum": [
+            "unknown",
+            "not-installed",
+            "sign-in-required",
+            "stopped",
+            "starting",
+            "running",
+            "stopping",
+            "failed",
+            "orphaned"
+          ]
+        },
+        "companionBridge": {
+          "enum": [
+            "unknown",
+            "disconnected",
+            "handshaking",
+            "syncing",
+            "ready"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "status": {
+      "type": "object",
+      "required": [
+        "observedAt",
+        "controlAgent",
+        "recovery",
+        "familyServer",
+        "companion",
+        "companionBridge",
+        "localKillSwitch",
+        "attentionCodes"
+      ],
+      "properties": {
+        "observedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "controlAgent": {
+          "enum": [
+            "online",
+            "unreachable"
+          ]
+        },
+        "recovery": {
+          "enum": [
+            "clear",
+            "manual-repair-required",
+            "unknown"
+          ]
+        },
+        "familyServer": {
+          "enum": [
+            "unknown",
+            "missing",
+            "stopped",
+            "starting",
+            "running",
+            "stopping",
+            "failed"
+          ]
+        },
+        "companion": {
+          "enum": [
+            "unknown",
+            "not-installed",
+            "sign-in-required",
+            "stopped",
+            "starting",
+            "running",
+            "stopping",
+            "failed",
+            "orphaned"
+          ]
+        },
+        "companionBridge": {
+          "enum": [
+            "unknown",
+            "disconnected",
+            "handshaking",
+            "syncing",
+            "ready"
+          ]
+        },
+        "localKillSwitch": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "attentionCodes": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "companion-failed",
+              "companion-local-kill-switch",
+              "companion-not-installed",
+              "companion-orphaned",
+              "companion-sign-in-required",
+              "control-agent-unreachable",
+              "family-server-failed",
+              "family-server-not-provisioned",
+              "local-response-invalid",
+              "local-safe-stop-required",
+              "minecraft-update-approval-required",
+              "recovery-manual-repair"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "command": {
+      "type": "object",
+      "required": [
+        "jobId",
+        "nodeId",
+        "capability",
+        "capabilityVersion",
+        "policyClass",
+        "input"
+      ],
+      "properties": {
+        "jobId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "capability": {
+          "enum": [
+            "family-ecosystem.ensure-running",
+            "mastermind.core.status"
+          ]
+        },
+        "capabilityVersion": {
+          "const": 1
+        },
+        "policyClass": {
+          "const": "routine"
+        },
+        "input": {
+          "$ref": "#/$defs/emptyInput"
+        }
+      },
+      "additionalProperties": false
+    },
+    "receipt": {
+      "type": "object",
+      "required": [
+        "receiptId",
+        "jobId",
+        "leaseId",
+        "bootId",
+        "commandDigest",
+        "sequence",
+        "state",
+        "stage",
+        "observedAt",
+        "code",
+        "retryable",
+        "result"
+      ],
+      "properties": {
+        "receiptId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "jobId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "leaseId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "commandDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "state": {
+          "enum": [
+            "accepted",
+            "running",
+            "succeeded",
+            "failed"
+          ]
+        },
+        "stage": {
+          "enum": [
+            "journaled",
+            "checking-local-state",
+            "starting-family-server",
+            "waiting-family-server",
+            "starting-companion",
+            "waiting-companion",
+            "desired-state-reached",
+            "terminal"
+          ]
+        },
+        "observedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "code": {
+          "type": "string"
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/terminalResult"
+            },
+            {
+              "$ref": "#/$defs/coreStatus"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "accepted"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "stage": {
+                "const": "journaled"
+              },
+              "code": {
+                "const": "accepted"
+              },
+              "retryable": {
+                "const": false
+              },
+              "result": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "running"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "stage": {
+                "enum": [
+                  "checking-local-state",
+                  "starting-family-server",
+                  "waiting-family-server",
+                  "starting-companion",
+                  "waiting-companion"
+                ]
+              },
+              "code": {
+                "const": "in-progress"
+              },
+              "retryable": {
+                "const": false
+              },
+              "result": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "succeeded"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "stage": {
+                "const": "desired-state-reached"
+              },
+              "code": {
+                "const": "desired-state-reached"
+              },
+              "retryable": {
+                "const": false
+              },
+              "result": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "familyServer",
+                      "companion",
+                      "companionBridge"
+                    ],
+                    "properties": {
+                      "familyServer": {
+                        "const": "running"
+                      },
+                      "companion": {
+                        "const": "running"
+                      },
+                      "companionBridge": {
+                        "const": "ready"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  {
+                    "$ref": "#/$defs/coreStatus"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "failed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "stage": {
+                "const": "terminal"
+              },
+              "code": {
+                "enum": [
+                  "companion-local-kill-switch",
+                  "companion-not-installed",
+                  "companion-orphaned",
+                  "companion-sign-in-required",
+                  "companion-start-failed",
+                  "control-agent-unreachable",
+                  "execution-timeout",
+                  "family-server-not-provisioned",
+                  "family-server-start-failed",
+                  "lease-lost",
+                  "local-response-invalid",
+                  "local-safe-stop-required",
+                  "minecraft-update-approval-required",
+                  "recovery-manual-repair"
+                ]
+              },
+              "result": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/$defs/terminalResult"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "lease": {
+      "type": "object",
+      "required": [
+        "jobId",
+        "nodeId",
+        "commandDigest",
+        "capability",
+        "capabilityVersion",
+        "policyClass",
+        "input",
+        "createdAt",
+        "expiresAt",
+        "leaseId",
+        "leasedAt",
+        "leaseExpiresAt"
+      ],
+      "properties": {
+        "jobId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "commandDigest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "capability": {
+          "enum": [
+            "family-ecosystem.ensure-running",
+            "mastermind.core.status"
+          ]
+        },
+        "capabilityVersion": {
+          "const": 1
+        },
+        "policyClass": {
+          "const": "routine"
+        },
+        "input": {
+          "$ref": "#/$defs/emptyInput"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "leaseId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "leasedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "leaseExpiresAt": {
+          "$ref": "#/$defs/timestamp"
+        }
+      },
+      "additionalProperties": false
+    },
+    "exchangeRequest": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "exchangeId",
+        "nodeId",
+        "bootId",
+        "sentAt",
+        "agentVersion",
+        "status",
+        "receipts",
+        "worker"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 2
+        },
+        "exchangeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "bootId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sentAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "agentVersion": {
+          "$ref": "#/$defs/agentVersion"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "receipts": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/receipt"
+          }
+        },
+        "worker": {
+          "$ref": "#/$defs/worker"
+        }
+      },
+      "additionalProperties": false
+    },
+    "exchangeResponse": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "exchangeId",
+        "serverTime",
+        "nextPollAfterMs",
+        "acknowledgedReceiptIds",
+        "lease",
+        "acceptedWorker"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 2
+        },
+        "exchangeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "serverTime": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "nextPollAfterMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 30000
+        },
+        "acknowledgedReceiptIds": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/uuid"
+          }
+        },
+        "lease": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/lease"
+            }
+          ]
+        },
+        "acceptedWorker": {
+          "$ref": "#/$defs/worker"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pairRequest": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "pairingId",
+        "node"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "pairingId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "node": {
+          "type": "object",
+          "required": [
+            "nodeId",
+            "credentialSha256",
+            "displayName",
+            "agentVersion"
+          ],
+          "properties": {
+            "nodeId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "credentialSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "displayName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "agentVersion": {
+              "$ref": "#/$defs/agentVersion"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "pairResponse": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "nodeId",
+        "pairedAt",
+        "nextPollAfterMs"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "nodeId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "pairedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "nextPollAfterMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 30000
+        }
+      },
+      "additionalProperties": false
+    },
+    "capabilityRegistry": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "registryId",
+        "capabilities"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "registryId": {
+          "const": "mastermind.node"
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/statusCapability"
+            },
+            {
+              "$ref": "#/$defs/ensureRunningCapability"
+            }
+          ],
+          "items": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "emptyInputSchema": {
+      "type": "object",
+      "required": [
+        "type",
+        "additionalProperties",
+        "maxProperties"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        },
+        "additionalProperties": {
+          "const": false
+        },
+        "maxProperties": {
+          "const": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "statusCapability": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "kind",
+        "policyClass",
+        "hardGate",
+        "inputSchema"
+      ],
+      "properties": {
+        "id": {
+          "const": "node.status.read"
+        },
+        "version": {
+          "const": 1
+        },
+        "kind": {
+          "const": "query"
+        },
+        "policyClass": {
+          "const": "routine"
+        },
+        "hardGate": {
+          "const": false
+        },
+        "inputSchema": {
+          "$ref": "#/$defs/emptyInputSchema"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ensureRunningCapability": {
+      "type": "object",
+      "required": [
+        "id",
+        "version",
+        "kind",
+        "policyClass",
+        "hardGate",
+        "inputSchema"
+      ],
+      "properties": {
+        "id": {
+          "const": "family-ecosystem.ensure-running"
+        },
+        "version": {
+          "const": 1
+        },
+        "kind": {
+          "const": "command"
+        },
+        "policyClass": {
+          "const": "routine"
+        },
+        "hardGate": {
+          "const": false
+        },
+        "inputSchema": {
+          "$ref": "#/$defs/emptyInputSchema"
+        }
+      },
+      "additionalProperties": false
+    },
+    "worker": {
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "capabilities"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "protocolVersion": {
+          "const": 2
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "version"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "enum": [
+                  "family-ecosystem.ensure-running",
+                  "mastermind.core.status"
+                ]
+              },
+              "version": {
+                "const": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "coreStatus": {
+      "type": "object",
+      "required": [
+        "kind",
+        "observedAt",
+        "services",
+        "capabilities",
+        "activeTurns",
+        "complete"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "mastermind.core.status"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "services": {
+          "type": "object",
+          "required": [
+            "mcpHost",
+            "memory",
+            "modules"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "mcpHost": {
+              "enum": [
+                "online",
+                "degraded",
+                "unreachable",
+                "invalid"
+              ]
+            },
+            "memory": {
+              "enum": [
+                "online",
+                "degraded",
+                "unreachable",
+                "invalid"
+              ]
+            },
+            "modules": {
+              "enum": [
+                "online",
+                "degraded",
+                "unreachable",
+                "invalid"
+              ]
+            }
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "required": [
+            "count",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "count": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 512
+            },
+            "sha256": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/sha256"
+                }
+              ]
+            }
+          }
+        },
+        "activeTurns": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "complete": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

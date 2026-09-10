@@ -1,0 +1,38 @@
+# Dependencies and local build output
+node_modules/
+.next/
+.next-*/
+out/
+.git/
+.vercel/
+*.tsbuildinfo
+
+# Machine-local configuration, credentials, and private runtime material
+.env
+.env.*
+config/mastermind-context.local.json
+family-identity-bootstrap.json
+private/
+mastermind-node-package.json
+native/windows/**/bin/
+native/windows/**/obj/
+services/minecraft-control-plane/data/
+**/__pycache__/
+*.py[cod]
+*.log
+*.bak
+*.bak-*
+*.backup
+
+# Research archives do not belong to the hosted runtime
+minecraft/
+docs/**/*.pdf
+docs/papers/
+docs/report_*/
+
+# Machine-local assistant caches
+.serena/
+
+# Source-only local handwriting service; never publish its runtime or data
+services/brittany-htr/.venv/
+services/brittany-htr/workspace/

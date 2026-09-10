@@ -9,7 +9,8 @@ from sklearn.cluster import KMeans
 from collections import Counter
 from psycopg2.extras import execute_values
 
-CONN = "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+from canonical_memory_target import resolve_memory_dsn
+CONN = resolve_memory_dsn({'sslmode': 'require'})
 LEAF_MAX, COHERENT_SIM, MAX_DEPTH, MIN_SPLIT = 60, 0.78, 6, 120
 STOP = set("the a an and or but in on at to for of with by is are was were this that it as be have has from your you i we they will can would could should about into more most some other".split())
 

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "registryId": "mastermind.node",
+  "capabilities": [
+    {
+      "id": "node.status.read",
+      "version": 1,
+      "kind": "query",
+      "policyClass": "routine",
+      "hardGate": false,
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 0
+      }
+    },
+    {
+      "id": "family-ecosystem.ensure-running",
+      "version": 1,
+      "kind": "command",
+      "policyClass": "routine",
+      "hardGate": false,
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 0
+      }
+    }
+  ]
+}

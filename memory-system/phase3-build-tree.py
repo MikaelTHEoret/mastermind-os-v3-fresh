@@ -12,7 +12,8 @@ import psycopg2, numpy as np, json, re, sys
 from sklearn.cluster import KMeans
 from collections import Counter
 
-CONN = "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+from canonical_memory_target import resolve_memory_dsn
+CONN = resolve_memory_dsn({'sslmode': 'require'})
 
 # --- tuning (the subdivision rule) ---
 LEAF_MAX     = 60      # a node with <= this many chunks is a leaf (holds addresses)

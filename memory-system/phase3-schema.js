@@ -3,7 +3,8 @@
 // descent), its path, level, chunk count, and leaf flag. Leaves are reachable
 // targets; a chunk's bloom_path = its leaf node's path.
 const { Pool } = require("pg");
-const pool = new Pool({ connectionString: "postgres://neondb_owner:npg_zlpZTMd4S9Qo@ep-restless-bush-a51ekyko-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require", max: 1 });
+const { resolveMemoryUrl } = require("./canonical-memory-target.cjs");
+const pool = new Pool({ connectionString: resolveMemoryUrl({"sslmode": "require"}), max: 1 });
 (async () => {
     const c = await pool.connect();
     try {

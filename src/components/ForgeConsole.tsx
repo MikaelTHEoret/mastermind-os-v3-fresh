@@ -2,6 +2,7 @@
 // ForgeConsole - the design-from-intent surface (realizes body.forge_styling): an IDE/forge console that
 // invokes the live generative faculties on the kernel (:8770) via /api/modules {action:"call"}.
 import { useState } from 'react'
+import NativeDevelopment from './NativeDevelopment'
 
 const mono = 'Orbitron, monospace'
 const code = '"Cascadia Code", "Fira Code", ui-monospace, monospace'
@@ -50,6 +51,10 @@ export default function ForgeConsole() {
   }
 
   return (
+    <>
+    <NativeDevelopment/>
+    <details style={{marginTop:16,color:'#adc6ce',fontFamily:'system-ui,sans-serif'}}>
+    <summary>Existing analysis and pattern tools</summary>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: mono, color: C.cyan, fontSize: 12, letterSpacing: 2 }}>{'\u2692'} FORGE \u2014 design-from-intent console</span>
@@ -83,5 +88,7 @@ export default function ForgeConsole() {
       {result && <pre style={{ fontFamily: code, fontSize: 12, color: C.green, border: `1px solid ${C.green}33`, borderRadius: 4, padding: '10px 12px', background: 'rgba(0,15,10,0.5)', maxHeight: 360, overflow: 'auto', margin: 0, whiteSpace: 'pre-wrap' }}>{result}</pre>}
       {!result && !error && <div style={{ fontFamily: 'Rajdhani, sans-serif', fontSize: 12, color: C.dim, padding: '8px 0' }}>Pick a preset or type a capability, then FORGE. The live result lands here.</div>}
     </div>
+    </details>
+    </>
   )
 }

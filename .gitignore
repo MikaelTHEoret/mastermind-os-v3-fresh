@@ -28,5 +28,28 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Temporary: Ignore package-lock.json to force fresh generation
-package-lock.json
+# Keep dependency lockfiles in source control for reproducible builds.
+
+# Local runtime artifacts, credentials, and private recovery material
+.next-*/
+.env.*
+*.log
+**/__pycache__/
+*.py[cod]
+*.bak
+*.bak-*
+*.backup
+config/mastermind-context.local.json
+family-identity-bootstrap.json
+private/
+mastermind-node-package.json
+native/windows/**/bin/
+native/windows/**/obj/
+services/minecraft-control-plane/data/
+
+# Machine-local assistant caches
+.serena/
+
+# Optional local handwriting runtime and private source/image/model workspace
+services/brittany-htr/.venv/
+services/brittany-htr/workspace/
