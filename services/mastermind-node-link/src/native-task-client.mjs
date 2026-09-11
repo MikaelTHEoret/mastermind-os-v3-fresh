@@ -1,4 +1,7 @@
 import {validateNativeCatalogRequest,validateNativeCatalogResult} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
+import {createHash} from 'node:crypto';
+import {validateNativeSpecificationRequest,validateNativeSpecificationResult,specificationBindingCanonical} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
+export const NATIVE_SPECIFICATION_ENDPOINT = 'http://127.0.0.1:8770/task_specification';
 export const NATIVE_CATALOG_ENDPOINT = 'http://127.0.0.1:8770/task_catalog';
 // A fixed local broker for accepted native reuse. Not a shell, URL or tool proxy.
 // The caller retains this exact request for recovery; uncertain calls are never retried here.
@@ -45,6 +48,28 @@ export class NativeTaskClient {
     need(typeof fetchImpl === 'function' && typeof now === 'function' && Number.isSafeInteger(timeoutMs)
       && timeoutMs >= 100 && timeoutMs <= 60000);
     this.fetchImpl = fetchImpl; this.now = now; this.timeoutMs = timeoutMs;
+  }
+  async specification(request, {signal,deadlineMs} = {}) {
+    const body=validateNativeSpecificationRequest(request);
+    const requestHash=createHash('sha256').update(specificationBindingCanonical(body)).digest('hex');
+    need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
+    const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
+    if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
+    const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
+    try {
+      combined.throwIfAborted();
+      const response=await abortable(this.fetchImpl(NATIVE_SPECIFICATION_ENDPOINT,{method:'POST',redirect:'error',signal:combined,
+        headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify(body)}),combined,
+        response=>response?.body?.cancel().catch(()=>{}));
+      combined.throwIfAborted();
+      const result=await readResponse(response,combined);
+      need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      need(response.status===200,'TASK_SPECIFICATION_UNAVAILABLE');
+      return validateNativeSpecificationResult(result,body,requestHash);
+    } catch(error) {
+      if(error instanceof NativeTaskError)throw error;
+      throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');
+    }
   }
   async catalog(request, {signal,deadlineMs} = {}) {
     const body=validateNativeCatalogRequest(request);
