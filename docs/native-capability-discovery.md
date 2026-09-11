@@ -38,7 +38,7 @@ browser preview acceptance remains required.
 ## Release order and recovery
 
 1. Preserve the accepted production web6492c73 and status-only worker rollback targets.
-2. Apply reviewed migration022, then023, after exact production preimage verification.
+2. Apply reviewed migration022, then023 and024, after exact production preimage verification.
    Both prepared migrations have passed isolated PostgreSQL tests with mandatory rollback.
 3. Install matching reviewed local catalog kernel and Node worker sources. Keep native
    opt-in disabled until the source, supervisor ownership and idle state are verified.
@@ -52,6 +52,27 @@ compatibility and native job history when rolling back web/worker sources; do no
 restore old constraints over catalog/native rows. Restore the prior status-only
 advertisement and verify it rather than assuming a process restart completed rollback.
 
-This candidate is source/test accepted only. Migration022/023, live catalog installation,
-worker opt-in and authenticated remote workflow acceptance are not performed merely by
-publishing these commits or building their preview.
+Publishing source or building a preview does not perform database migrations, local
+installation, worker opt-in or authenticated workflow acceptance. The live acceptance
+record below identifies the separately completed checks.
+
+## Native receipt capacity and live recovery
+
+Migration024 is required with022/023. The original receipt table bounds result JSON
+at1024 PostgreSQL bytes. A full accepted comparison input schema exceeded that limit:
+the worker saved the correct catalog but its hosted upload returned503. The catalog
+fixture now uses the full schema, proves the old constraint rejects it, then applies024
+and verifies upload/replay. Typed catalog/reuse results allow at most2048 PostgreSQL
+bytes; other results retain1024. The full wire receipt remains2048 and the local durable
+receipt remains4096. Ownership, task authorization and typed result validation remain
+required. Do not widen untyped results or discard a rejected outbox.
+
+Worker process logs now report changes to sanitized state/error code only. They omit
+credentials, request bodies and results, and diagnostics cannot alter execution.
+
+Live acceptance on2026-09-11 verified authenticated website task/computer selection,
+catalog discovery, a real accepted comparison, reload recovery and the shared-history
+resume action. The stalled catalog delivered its original saved observation after024;
+no replacement job was needed. Broader create/assimilate/upgrade acceptance and the
+second Windows machine remain separate work. Web publication alone does not apply
+migrations or update a worker.

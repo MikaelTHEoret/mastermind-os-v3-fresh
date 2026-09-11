@@ -240,7 +240,19 @@ try:
         'entry':{'specificationId':'a'*64,'candidateId':'b'*64,'requirementsHash':'c'*64,'capability':'release-inventory.diff',
         'title':'Comparison','version':'1.0.0','effectClass':'READ_ONLY','inputSchema':{'type':'object'}},
         'nextCursor':None,'observedAt':datetime.now(timezone.utc).isoformat(),'executionAuthorized':False}
+    row_schema={'type':'object','properties':{'path':{'type':'string','minLength':1,'maxLength':1024},'sha256':{'type':'string','minLength':64,'maxLength':64},'bytes':{'type':'integer','minimum':0}},'required':['path','sha256'],'additionalProperties':False}
+    catalog_result['entry']['inputSchema']={'type':'object','properties':{k:{'type':'array','items':row_schema,'maxItems':2000} for k in ['before','after']},'required':['before','after'],'additionalProperties':False}
     catalog_receipt=make_receipt(leased_catalog,result=catalog_result)
+    expected_error('23514',lambda:submit(catalog_receipt,worker=catalog_worker))
+    receiptpath=ROOT/'memory-system/migrations/024_mastermind_native_receipt_capacity_v1.sql'
+    cursor.execute(isolated(receiptpath.read_text(encoding='utf-8-sig')))
+    receipt['sourceHashes'][receiptpath.relative_to(ROOT).as_posix()]=hashlib.sha256(receiptpath.read_bytes()).hexdigest()
+    receipt['checks'].append('real comparison schema reproduces legacy1024-byte constraint failure before024')
+    def replace_receipt_result(value):
+        cursor.execute(f'UPDATE {SCHEMA}.mastermind_node_job_receipts_v1 SET result=%s::jsonb WHERE receipt_id=%s::uuid',(json.dumps(value),native_receipt['receiptId']))
+    expected_error('23514',lambda:replace_receipt_result({'kind':'mastermind.native.reuse','oversized':'x'*2048}))
+    expected_error('23514',lambda:replace_receipt_result({'legacy':'x'*1024}))
+    receipt['checks'].append('024 accepts bounded typed results while rejecting oversized native and legacy results')
     for change in [{'taskRef':{'taskId':uid(),'project':'mastermind'}},{'executionAuthorized':True},
                    {'entry':{**catalog_result['entry'],'capability':'shell.execute'}},{'snapshotId':'invalid'}]:
         expected_error('42501',lambda change=change:submit({**catalog_receipt,'result':{**catalog_result,**change}},worker=catalog_worker))
