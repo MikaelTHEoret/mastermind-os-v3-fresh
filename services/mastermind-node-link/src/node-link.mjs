@@ -1,3 +1,4 @@
+import {NATIVE_REUSE_CAPABILITY} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 import crypto from 'node:crypto';
 
 import {
@@ -252,6 +253,20 @@ export class MastermindNodeLink {
     const receipts = await this.journal.listPendingReceipts({ limit: 32,
       ...(this.requireExistingPairing ? { allowedCapabilities: this.worker.capabilities.map((item) => item.id) } : {}),
     });
+    // A saved successful result is still private task data. Revalidate before
+    // sending an outbox receipt, including after a worker restart/lost response.
+    const recoveryDeadline = this.monotonicNow() + 30_000;
+    for (const receipt of receipts) {
+      if (receipt.state !== 'succeeded' || receipt.result?.kind !== NATIVE_REUSE_CAPABILITY) continue;
+      if (typeof this.journal.commandForReceipt !== 'function' || typeof this.executor.authorizeReceipt !== 'function') {
+        throw linkError('NODE_NATIVE_REPLAY_AUTH_REQUIRED', 'Native outbox recovery requires current task authority.');
+      }
+      const command = await this.journal.commandForReceipt(receipt);
+      const recovered = await this.executor.authorizeReceipt(command, {signal,deadlineMs:recoveryDeadline});
+      if (recovered.resultSha256 !== receipt.result.resultSha256) {
+        throw linkError('NODE_NATIVE_REPLAY_CHANGED', 'Saved native result changed.');
+      }
+    }
     const request = validateMastermindNodeExchangeRequest({
       schemaVersion: this.worker ? 2 : 1,
       exchangeId: this.randomUUID(),
@@ -311,6 +326,11 @@ export class MastermindNodeLink {
       if (deadlineMs <= this.monotonicNow()) return { skipped: true, code: 'lease-lost' };
       const begun = await this.journal.begin(lease);
       if (begun.effect.terminal) {
+        if(lease.capability===NATIVE_REUSE_CAPABILITY && begun.effect.terminal.state==='succeeded') {
+          if(typeof this.executor.authorizeReplay!=='function')throw linkError('NODE_NATIVE_REPLAY_AUTH_REQUIRED','Native result recovery requires current task authority.');
+          const recovered=await this.executor.authorizeReplay(lease,{signal,deadlineMs});
+          if(recovered.resultSha256!==begun.effect.terminal.result.resultSha256)throw linkError('NODE_NATIVE_REPLAY_CHANGED','Saved native result changed.');
+        }
         return { replayed: true, receipt: await this.journal.replayTerminal(lease, this.bootId) };
       }
       if (begun.effect.lastSequence === 0) {
@@ -322,6 +342,7 @@ export class MastermindNodeLink {
         const result = await this.executor.execute(lease, {
           signal,
           deadlineMs,
+          recoverOnly: lease.capability === NATIVE_REUSE_CAPABILITY && begun.effect.lastSequence > 0,
           emit: (stage) => this.journal.appendReceipt(lease, this.bootId, {
             state: 'running', stage, code: 'in-progress', retryable: false, result: null,
           }),
@@ -334,16 +355,22 @@ export class MastermindNodeLink {
         };
       } catch (error) {
         if (signal?.aborted) throw error;
+        if (lease.capability === NATIVE_REUSE_CAPABILITY &&
+          ['TASK_LOCAL_UNCERTAIN','TASK_RESULT_INVALID','TASK_LOCAL_REJECTED'].includes(error?.code)) {
+          // Preserve nonterminal state. A later delivery may recover only this
+          // operation; it must never infer that a lost reply means no effect.
+          throw linkError('NODE_NATIVE_RECOVERY_REQUIRED', 'Native outcome requires saved-operation recovery.', error);
+        }
         const execution = error instanceof MastermindNodeExecutionError
           ? error
-          : new MastermindNodeExecutionError(lease.capability === MASTERMIND_CORE_STATUS_CAPABILITY ? 'local-response-invalid' : 'family-server-start-failed', 'The typed node action failed safely.', {
+          : new MastermindNodeExecutionError(lease.capability !== 'family-ecosystem.ensure-running' ? 'local-response-invalid' : 'family-server-start-failed', 'The typed node action failed safely.', {
             retryable: false, cause: error,
           });
         return {
           replayed: false,
           receipt: await this.journal.appendReceipt(lease, this.bootId, {
             state: 'failed', stage: 'terminal', code: execution.code, retryable: execution.retryable,
-            result: lease.capability === MASTERMIND_CORE_STATUS_CAPABILITY ? null : execution.result,
+            result: lease.capability !== 'family-ecosystem.ensure-running' ? null : execution.result,
           }),
         };
       }

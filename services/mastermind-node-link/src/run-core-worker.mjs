@@ -19,6 +19,10 @@ export function validateCoreWorkerEnvironment(environment) {
       throw Object.assign(new Error('Unsafe inherited Node setting'), { code: 'NODE_CORE_ENVIRONMENT_INVALID' });
     }
   }
+  if (environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED !== undefined
+    && !['true','false'].includes(environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED)) {
+    throw Object.assign(new Error('Explicit native reuse setting required'), {code:'NODE_NATIVE_PROFILE_INVALID'});
+  }
   resolveMastermindNodeStateRoot(environment);
   return environment;
 }
@@ -34,6 +38,7 @@ export function createMastermindCoreWorkerFromEnvironment(options = {}) {
   return (options.workerFactory ?? createMastermindCoreOnlyWorker)({
     journalRoot: path.join(defaultDataRoot(environment), 'state', 'node-exchange', 'v1'),
     credentialStore, exchangeTransport,
+    enableNativeTasks: environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED === 'true',
   });
 }
 

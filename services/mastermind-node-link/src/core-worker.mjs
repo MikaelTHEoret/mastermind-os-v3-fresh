@@ -1,3 +1,5 @@
+import {NativeTaskExecutor} from './native-task-executor.mjs';
+import {NATIVE_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
 import path from 'node:path';
 import { FileMastermindNodeEffectJournal } from './effect-journal.mjs';
 import { MastermindNodeLink } from './node-link.mjs';
@@ -24,10 +26,10 @@ export function createMastermindCoreOnlyWorker(options = {}) {
   const core = options.coreStatusClient ?? new MastermindCoreStatusClient();
   const link = new MastermindNodeLink({ credentialStore: options.credentialStore,
     exchangeTransport: options.exchangeTransport, journal,
-    executor: new CoreStatusExecutor({ core, now: monotonicNow }),
+    executor: options.enableNativeTasks === true ? new NativeTaskExecutor({core,now:monotonicNow,native:options.nativeTaskClient}) : new CoreStatusExecutor({ core, now: monotonicNow }),
     statusProvider: { observeStatus: async () => coreWorkerEnvelope(options.now) },
-    agentVersion: '0.2.0-core-status', bootId: options.bootId,
-    now: options.now, monotonicNow, worker: CORE_ONLY_WORKER,
+    agentVersion: options.enableNativeTasks === true ? '0.3.0-native-task' : '0.2.0-core-status', bootId: options.bootId,
+    now: options.now, monotonicNow, worker: options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
     // Preserve incompatible pending receipts. They require source/ledger
     // reconciliation, never silent deletion or a family-capability fallback.
     requireExistingPairing: true,

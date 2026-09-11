@@ -186,12 +186,16 @@ async function readBoundedJson(file, maximumBytes) {
   }
 }
 
-async function atomicWriteJson(directory, destination, value, randomUUID) {
+async function atomicWriteJson(directory, destination, value, randomUUID, maximumBytes = MAX_EFFECT_BYTES) {
+  const serialized = `${JSON.stringify(value, null, 2)}\n`;
+  if (Buffer.byteLength(serialized) > maximumBytes) {
+    throw journalError('NODE_JOURNAL_QUOTA_EXCEEDED', 'The durable record exceeds its recovery read limit.');
+  }
   const temporary = path.join(directory, `${path.basename(destination, '.json')}.${randomUUID()}.tmp`);
   let handle;
   try {
     handle = await fs.open(temporary, 'wx', 0o600);
-    await handle.writeFile(`${JSON.stringify(value, null, 2)}\n`, 'utf8');
+    await handle.writeFile(serialized, 'utf8');
     await handle.sync();
     await handle.close();
     handle = null;
@@ -282,7 +286,7 @@ export class FileMastermindNodeEffectJournal {
       catch (error) {
         if (error?.cause?.code !== 'ENOENT' && error?.code !== 'ENOENT') throw error;
         owner = { schemaVersion: 1, nodeId, createdAt: canonicalTimestamp(this.now) };
-        await atomicWriteJson(nodeRoot, ownerFile, owner, this.randomUUID);
+        await atomicWriteJson(nodeRoot, ownerFile, owner, this.randomUUID, MAX_OWNER_BYTES);
       }
       validateNodeOwner(owner, nodeId);
       await this.#validateSelectedNamespaceRoot(nodeRoot);
@@ -380,7 +384,7 @@ export class FileMastermindNodeEffectJournal {
       // Receipt is the write-ahead record. If publication of the effect fails,
       // this process is poisoned and a restart reconciles the receipt into the
       // effect before any command can resume.
-      await atomicWriteJson(this.receiptsRoot, path.join(this.receiptsRoot, `${receipt.receiptId}.json`), receipt, this.randomUUID);
+      await atomicWriteJson(this.receiptsRoot, path.join(this.receiptsRoot, `${receipt.receiptId}.json`), receipt, this.randomUUID, MAX_RECEIPT_BYTES);
       this.#receipts.set(receipt.receiptId, receipt);
       try {
         await this.afterReceiptPublished?.(structuredClone(receipt));
@@ -419,8 +423,8 @@ export class FileMastermindNodeEffectJournal {
       this.#assertSelectedNode();
       if (options.allowedCapabilities !== undefined) {
         if (!Array.isArray(options.allowedCapabilities) || options.allowedCapabilities.length < 1
-          || options.allowedCapabilities.length > 2 || options.allowedCapabilities.some((item) =>
-            !['family-ecosystem.ensure-running','mastermind.core.status'].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
+          || options.allowedCapabilities.length > 3 || options.allowedCapabilities.some((item) =>
+            !['family-ecosystem.ensure-running','mastermind.core.status','mastermind.native.reuse'].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
         if ([...this.#receipts.values()].some((receipt) => {
           const effect = this.#effects.get(receipt.jobId);
           return !effect || effect.commandDigest !== receipt.commandDigest || effect.capabilityVersion !== 1
@@ -434,6 +438,21 @@ export class FileMastermindNodeEffectJournal {
           || left.sequence - right.sequence || left.receiptId.localeCompare(right.receiptId))
         .slice(0, limit)
         .map((receipt) => structuredClone(receipt));
+    });
+  }
+
+  commandForReceipt(value) {
+    const receipt = validateMastermindNodeReceipt(value);
+    return this.#serialized(async () => {
+      this.#assertSelectedNode();
+      const saved = this.#receipts.get(receipt.receiptId);
+      const effect = this.#effects.get(receipt.jobId);
+      if (!saved || JSON.stringify(saved) !== JSON.stringify(receipt) || !effect
+        || effect.commandDigest !== receipt.commandDigest) {
+        throw journalError('NODE_JOURNAL_INVALID', 'Receipt command binding is unavailable.');
+      }
+      return validateMastermindNodeCommand(Object.fromEntries(
+        ['jobId','nodeId','capability','capabilityVersion','policyClass','input'].map(key => [key,effect[key]])));
     });
   }
 
@@ -482,7 +501,7 @@ export class FileMastermindNodeEffectJournal {
       observedAt: canonicalTimestamp(this.now), ...structuredClone(terminal),
     });
     const next = applyNextReceipt(current, receipt);
-    await atomicWriteJson(this.receiptsRoot, path.join(this.receiptsRoot, `${receipt.receiptId}.json`), receipt, this.randomUUID);
+    await atomicWriteJson(this.receiptsRoot, path.join(this.receiptsRoot, `${receipt.receiptId}.json`), receipt, this.randomUUID, MAX_RECEIPT_BYTES);
     this.#receipts.set(receipt.receiptId, receipt);
     try {
       await this.afterReceiptPublished?.(structuredClone(receipt));

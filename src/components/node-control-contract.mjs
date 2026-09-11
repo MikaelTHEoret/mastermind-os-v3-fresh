@@ -155,10 +155,10 @@ function parseWorker(value) {
   const worker = objectOf(value, 'worker advertisement');
   exactKeys(worker, ['protocolVersion', 'capabilities'], 'worker advertisement');
   if (worker.protocolVersion !== 2 || !Array.isArray(worker.capabilities)
-    || worker.capabilities.length < 1 || worker.capabilities.length > 2) reject('worker advertisement is unsupported');
+    || worker.capabilities.length < 1 || worker.capabilities.length > 3) reject('worker advertisement is unsupported');
   const capabilities = worker.capabilities.map((item) => {
     objectOf(item, 'worker capability'); exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY].includes(item.id) || item.version !== 1) {
+    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse'].includes(item.id) || item.version !== 1) {
       reject('worker capability is unsupported');
     }
     return { id: item.id, version: item.version };

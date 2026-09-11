@@ -14,3 +14,5 @@ export const digestMastermindNodeCommand = (value) => base.digestMastermindNodeC
 export const validateMastermindNodeLease = (value) => base.validateMastermindNodeLease(value, { core: true });
 export const validateMastermindNodeReceipt = (value) => base.validateMastermindNodeReceipt(value, { core: true });
 export const digestMastermindNodeReceipt = (value) => base.digestMastermindNodeReceipt(value, { core: true });
+
+export const NATIVE_CORE_WORKER = Object.freeze({protocolVersion:2,capabilities:Object.freeze([Object.freeze({id:CORE_STATUS_CAPABILITY,version:1}),Object.freeze({id:'mastermind.native.reuse',version:1})])});

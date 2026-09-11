@@ -1,42 +1,11 @@
 // A fixed local broker for accepted native reuse. Not a shell, URL or tool proxy.
 // The caller retains this exact request for recovery; uncertain calls are never retried here.
 export const NATIVE_TASK_ENDPOINT = 'http://127.0.0.1:8770/task_execution';
-const FIELDS = ['schemaVersion','action','taskRef','specificationId','operationId','capability',
-  'candidateId','requirementsHash','inputSha256','arguments'];
-const SHA = /^[a-f0-9]{64}$/;
-const ID = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/;
-const object = value => value !== null && typeof value === 'object' && !Array.isArray(value)
-  && [Object.prototype, null].includes(Object.getPrototypeOf(value));
-const exact = (value, fields) => object(value) && Object.keys(value).length === fields.length
-  && fields.every(key => Object.hasOwn(value, key));
-export class NativeTaskError extends Error {
-  constructor(code) { super(code); this.code = code; this.name = 'NativeTaskError'; }
-}
-const need = (condition, code = 'TASK_INPUT_INVALID') => { if (!condition) throw new NativeTaskError(code); };
-
-export function validateNativeTaskRequest(value) {
-  need(exact(value, FIELDS) && value.schemaVersion === 1 && ['execute','recover'].includes(value.action));
-  need(object(value.taskRef) && Object.keys(value.taskRef).every(k => ['taskId','project','checkpointId'].includes(k))
-    && ['taskId','project'].every(k => typeof value.taskRef[k] === 'string' && ID.test(value.taskRef[k]))
-    && (!Object.hasOwn(value.taskRef,'checkpointId') || typeof value.taskRef.checkpointId === 'string' && ID.test(value.taskRef.checkpointId)));
-  for (const field of ['specificationId','candidateId','requirementsHash','inputSha256']) need(typeof value[field] === 'string' && SHA.test(value[field]));
-  need(typeof value.operationId === 'string' && value.operationId.length <= 96 && ID.test(value.operationId)
-    && typeof value.capability === 'string' && ID.test(value.capability));
-  need(object(value.arguments) && Object.keys(value.arguments).every(k => !k.startsWith('_mastermind_')));
-  let count = 0;
-  const json = (item, depth = 0) => {
-    need(++count <= 8192 && depth <= 16);
-    if (item === null || typeof item === 'boolean') return;
-    if (typeof item === 'string') { need(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(item)); return; }
-    if (typeof item === 'number') { need(Number.isSafeInteger(item) && !Object.is(item, -0)); return; }
-    need(Array.isArray(item) || object(item));
-    for (const [key, child] of Object.entries(item)) { if (!Array.isArray(item)) json(key,depth+1); json(child,depth+1); }
-  };
-  json(value);
-  const bytes = JSON.stringify(value);
-  need(Buffer.byteLength(bytes) <= 65536);
-  return JSON.parse(bytes);
-}
+import {NativeTaskError, validateNativeTaskRequest} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
+export {NativeTaskError, validateNativeTaskRequest};
+const SHA=/^[a-f0-9]{64}$/;
+const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+const need=(ok,code)=>{if(!ok)throw new NativeTaskError(code);};
 
 function abortable(promise, signal, discard = () => {}) {
   return new Promise((resolve, reject) => {
