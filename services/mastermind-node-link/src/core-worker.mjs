@@ -28,7 +28,7 @@ export function createMastermindCoreOnlyWorker(options = {}) {
     exchangeTransport: options.exchangeTransport, journal,
     executor: options.enableNativeTasks === true ? new NativeTaskExecutor({core,now:monotonicNow,native:options.nativeTaskClient}) : new CoreStatusExecutor({ core, now: monotonicNow }),
     statusProvider: { observeStatus: async () => coreWorkerEnvelope(options.now) },
-    agentVersion: options.enableNativeTasks === true ? '0.3.0-native-task' : '0.2.0-core-status', bootId: options.bootId,
+    agentVersion: options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
     now: options.now, monotonicNow, worker: options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
     // Preserve incompatible pending receipts. They require source/ledger
     // reconciliation, never silent deletion or a family-capability fallback.

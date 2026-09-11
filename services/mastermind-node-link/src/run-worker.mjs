@@ -110,6 +110,17 @@ export async function runMastermindNodeWorkerProcess(options = {}) {
   };
   processObject.on?.('SIGINT', stop);
   processObject.on?.('SIGTERM', stop);
+  let lastDiagnostic = null;
+  const healthTimer = typeof worker.health === 'function' ? setInterval(() => {
+    try {
+      const health = worker.health();
+      const state = ['online','degraded','unpaired','pairing','stopped'].includes(health?.state) ? health.state : 'unknown';
+      const code = typeof health?.lastErrorCode === 'string' && SAFE_ERROR_CODE.test(health.lastErrorCode) ? health.lastErrorCode : null;
+      const next = JSON.stringify({state, code});
+      if (next !== lastDiagnostic) { lastDiagnostic = next; writeDiagnostic(`Mastermind node-link health: ${next}`); }
+    } catch { /* Diagnostics must never change worker operation. */ }
+  }, 5000) : null;
+  healthTimer?.unref?.();
   try {
     await worker.start();
     started = true;
@@ -125,6 +136,7 @@ export async function runMastermindNodeWorkerProcess(options = {}) {
     writeDiagnostic(`Mastermind node-link stopped: ${code}`);
     return 1;
   } finally {
+    if (healthTimer) clearInterval(healthTimer);
     processObject.removeListener?.('SIGINT', stop);
     processObject.removeListener?.('SIGTERM', stop);
   }

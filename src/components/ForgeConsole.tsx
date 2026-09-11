@@ -1,8 +1,10 @@
 ﻿'use client'
 // ForgeConsole - the design-from-intent surface (realizes body.forge_styling): an IDE/forge console that
 // invokes the live generative faculties on the kernel (:8770) via /api/modules {action:"call"}.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import {isLocalNodeControlOrigin} from './node-control-contract.mjs'
 import NativeDevelopment from './NativeDevelopment'
+import RemoteNativeWork from './RemoteNativeWork'
 
 const mono = 'Orbitron, monospace'
 const code = '"Cascadia Code", "Fira Code", ui-monospace, monospace'
@@ -26,6 +28,9 @@ const inputStyle: React.CSSProperties = { background: 'rgba(0,0,0,0.4)', border:
 const labelStyle: React.CSSProperties = { fontFamily: code, fontSize: 10, color: C.dim, letterSpacing: 1, display: 'flex', flexDirection: 'column', gap: 4 }
 
 export default function ForgeConsole() {
+  const [localDevelopment,setLocalDevelopment]=useState(false)
+  useEffect(()=>setLocalDevelopment(isLocalNodeControlOrigin(location.origin)),[])
+
   const [cap, setCap] = useState(PRESETS[0].cap)
   const [argsText, setArgsText] = useState(PRESETS[0].args)
   const [kwargsText, setKwargsText] = useState(PRESETS[0].kwargs)
@@ -52,7 +57,8 @@ export default function ForgeConsole() {
 
   return (
     <>
-    <NativeDevelopment/>
+    <RemoteNativeWork/>
+    {localDevelopment&&<NativeDevelopment/>}
     <details style={{marginTop:16,color:'#adc6ce',fontFamily:'system-ui,sans-serif'}}>
     <summary>Existing analysis and pattern tools</summary>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

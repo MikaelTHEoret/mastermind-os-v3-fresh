@@ -1,3 +1,5 @@
+import {validateNativeCatalogReceipt} from '../../protocol/mastermind-node-exchange/native-catalog.mjs';
+import {validateNativeTaskResult} from '../../protocol/mastermind-node-exchange/native-task.mjs';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,31}$/;
 const API_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
@@ -158,7 +160,7 @@ function parseWorker(value) {
     || worker.capabilities.length < 1 || worker.capabilities.length > 3) reject('worker advertisement is unsupported');
   const capabilities = worker.capabilities.map((item) => {
     objectOf(item, 'worker capability'); exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse'].includes(item.id) || item.version !== 1) {
+    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog'].includes(item.id) || item.version !== 1) {
       reject('worker capability is unsupported');
     }
     return { id: item.id, version: item.version };
@@ -254,7 +256,7 @@ function parseJob(value) {
   const createdAt = timestamp(job.createdAt, 'job creation time');
   const expiresAt = timestamp(job.expiresAt, 'job expiry');
   if (Date.parse(expiresAt) <= Date.parse(createdAt)) reject('job lifetime is invalid');
-  if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY].includes(job.capability) || job.capabilityVersion !== 1 || job.policyClass !== 'routine') {
+  if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse','mastermind.native.catalog'].includes(job.capability) || job.capabilityVersion !== 1 || job.policyClass !== 'routine') {
     reject('node job capability is unsupported');
   }
   const lease = job.lease === null ? null : parseLease(job.lease);
@@ -273,7 +275,7 @@ function parseJob(value) {
     terminal = {
       code: enumValue(value.code, 'job terminal code', TERMINAL_CODES),
       result: value.result === null ? null : job.capability === NODE_CORE_STATUS_CAPABILITY
-        ? parseCoreStatus(value.result) : parseTerminalResult(value.result, 'job terminal state'),
+        ? parseCoreStatus(value.result) : job.capability==='mastermind.native.catalog'?validateNativeCatalogReceipt(value.result):job.capability==='mastermind.native.reuse'?validateNativeTaskResult(value.result):parseTerminalResult(value.result, 'job terminal state'),
       finishedAt: timestamp(value.finishedAt, 'job finished time'),
     };
     if (Date.parse(terminal.finishedAt) < Date.parse(createdAt)) reject('node job finished before it was created');
@@ -286,7 +288,7 @@ function parseJob(value) {
       || terminal.result.companion !== 'running' || terminal.result.companionBridge !== 'ready')))) {
     reject('successful node job did not reach the desired state');
   }
-  if (state === 'failed' && job.capability === NODE_CORE_STATUS_CAPABILITY && terminal.result !== null) reject('failed core job cannot carry a result');
+  if (state === 'failed' && job.capability !== NODE_ENSURE_RUNNING_CAPABILITY && terminal.result !== null) reject('failed core job cannot carry a result');
   if (state === 'failed' && terminal.code === 'desired-state-reached') reject('failed node job has a success code');
   return {
     jobId: uuid(job.jobId, 'job ID'),

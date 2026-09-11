@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 import ts from 'typescript';
 
+import * as catalog from '../../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import * as native from '../../../../protocol/mastermind-node-exchange/native-task.mjs';
 import * as contract from '../../../../protocol/mastermind-node-exchange/contract.mjs';
 
@@ -40,6 +41,7 @@ function loadStore() {
       }
       if (identifier === '../../../protocol/mastermind-node-exchange/contract.mjs') return contract;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-task.mjs') return native;
+      if (identifier === '../../../protocol/mastermind-node-exchange/native-catalog.mjs') return catalog;
       throw new Error(`Unexpected test import: ${identifier}`);
     },
     structuredClone,
@@ -339,4 +341,28 @@ test('native read rejects result from a different task even when the node job ID
   const sql=scriptedSql([()=>[{...jobRow(JOB_ID),capability:native.NATIVE_REUSE_CAPABILITY,commandInput:input,state:'succeeded',
     terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-08-15T12:01:00.000Z'}]]);
   await assert.rejects(store.getOwnerJob(sql,NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+});
+
+
+test('catalog enqueue maps exact read request to its own operation and current authorization',async()=>{
+ const store=loadStore(),input={schemaVersion:1,taskRef:nativeInput().taskRef,snapshotId:null,cursor:null};
+ const sql=scriptedSql([(query,values)=>{assert.match(query,/enqueue_mastermind_catalog_job_v1/);assert.equal(values[0],JOB_ID);assert.deepEqual(JSON.parse(values[6]),input);return [{status:'applied',job_id:JOB_ID}];},query=>{
+   assert.match(query,/mastermind_catalog_authorized_v1/);return [{...jobRow(JOB_ID),capability:catalog.NATIVE_CATALOG_CAPABILITY,commandInput:input}];
+ }]);
+ const result=await store.enqueueOwnerNativeCatalogJob(sql,NODE_ID,{operationId:JOB_ID,input});assert.equal(result.status,'created');assert.equal(result.job.capability,catalog.NATIVE_CATALOG_CAPABILITY);
+ let calls=0;for(const bad of [{input},{operationId:'invalid',input},{operationId:JOB_ID,input,grantRef:'caller'}])await assert.rejects(store.enqueueOwnerNativeCatalogJob(async()=>{calls++;},NODE_ID,bad));
+ assert.equal(calls,0);
+});
+test('native task selector returns only bounded task labels from the current scope reader',async()=>{
+ const store=loadStore();const sql=scriptedSql([query=>{assert.match(query,/mastermind_catalog_authorized_v1/);assert.match(query,/LIMIT 32/);assert.doesNotMatch(query,/INSERT|UPDATE|DELETE/);return [{taskId:ACTIVE_JOB_ID,project:'mastermind',title:'Resume work'}];}]);
+ assert.deepEqual(JSON.parse(JSON.stringify(await store.listOwnerNativeTasks(sql))),[{taskId:ACTIVE_JOB_ID,project:'mastermind',title:'Resume work'}]);
+});
+
+
+test('shared native resume resolves a durable operation with a fresh owner read and no enqueue',async()=>{
+ const store=loadStore(),input=nativeInput();
+ const sql=scriptedSql([query=>{assert.match(query,/mastermind_catalog_authorized_v1/);assert.match(query,/mastermind_native_task_authorized_v1/);assert.match(query,/LIMIT 1/);return [{jobId:JOB_ID,input}];},()=>[{...jobRow(JOB_ID),capability:native.NATIVE_REUSE_CAPABILITY,commandInput:input}]]);
+ const result=await store.getLatestOwnerNativeJob(sql,NODE_ID,ACTIVE_JOB_ID);assert.equal(result.request.operationId,JOB_ID);assert.equal(result.request.body.inputSha256,input.inputSha256);assert.equal(sql.calls(),2);
+ assert.equal(await store.getLatestOwnerNativeJob(scriptedSql([()=>[]]),NODE_ID,ACTIVE_JOB_ID),null);
+ const revoked=scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[]]);await assert.rejects(store.getLatestOwnerNativeJob(revoked,NODE_ID,ACTIVE_JOB_ID),{code:'NODE_OWNER_REQUIRED'});
 });

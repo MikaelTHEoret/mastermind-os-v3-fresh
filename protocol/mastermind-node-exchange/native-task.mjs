@@ -1,3 +1,4 @@
+const byteLength=value=>new TextEncoder().encode(value).length;
 const FIELDS = ['schemaVersion','action','taskRef','specificationId','operationId','capability',
   'candidateId','requirementsHash','inputSha256','arguments'];
 const SHA = /^[a-f0-9]{64}$/;
@@ -32,7 +33,7 @@ export function validateNativeTaskRequest(value) {
   };
   json(value);
   const bytes = JSON.stringify(value);
-  need(Buffer.byteLength(bytes) <= 65536);
+  need(byteLength(bytes) <= 65536);
   return JSON.parse(bytes);
 }
 
@@ -40,8 +41,8 @@ export function validateNativeTaskRequest(value) {
 export const NATIVE_REUSE_CAPABILITY = 'mastermind.native.reuse';
 export function validateNativeCommandInput(value) {
   const request=validateNativeTaskRequest(value);
-  need(Buffer.byteLength(JSON.stringify(request))<=4096
-    && Buffer.byteLength(JSON.stringify(request,null,2))<=3072);
+  need(byteLength(JSON.stringify(request))<=4096
+    && byteLength(JSON.stringify(request,null,2))<=3072);
   need(request.action==='execute');
   need(UUID.test(request.operationId) && UUID.test(request.taskRef.taskId)
     && (!request.taskRef.checkpointId || UUID.test(request.taskRef.checkpointId))
@@ -63,8 +64,8 @@ export function validateNativeTaskResult(value) {
   validateNativeTaskRequest({schemaVersion:1,action:'recover',taskRef:value.taskRef,
     specificationId:value.specificationId,operationId:value.operationId,capability:value.capability,
     candidateId:value.candidateId,requirementsHash:'a'.repeat(64),inputSha256:value.inputSha256,arguments:value.result});
-  need(Buffer.byteLength(JSON.stringify(value.result))<=768,'TASK_RESULT_INVALID');
-  need(Buffer.byteLength(JSON.stringify(value))<=1500
-    && Buffer.byteLength(JSON.stringify(value,null,2))<=2048,'TASK_RESULT_INVALID');
+  need(byteLength(JSON.stringify(value.result))<=768,'TASK_RESULT_INVALID');
+  need(byteLength(JSON.stringify(value))<=1500
+    && byteLength(JSON.stringify(value,null,2))<=2048,'TASK_RESULT_INVALID');
   return structuredClone(value);
 }

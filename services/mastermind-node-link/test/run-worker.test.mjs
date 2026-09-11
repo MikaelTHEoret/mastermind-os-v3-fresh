@@ -145,3 +145,16 @@ test('production core negotiation is opt-in and malformed flags fail before any 
     credentialStoreFactory() { throw new Error('must not construct'); },
   }), { code: 'NODE_WORKER_CONFIGURATION_INVALID' });
 });
+
+test('background health exposes only sanitized state and code while worker waits', async () => {
+  const processObject=new EventEmitter();processObject.argv=['node','run-worker.mjs'];
+  const lines=[];let releaseWait;const waiting=new Promise(resolve=>{releaseWait=resolve;});
+  let observed;const firstLine=new Promise(resolve=>{observed=resolve;});
+  const running=runMastermindNodeWorkerProcess({processObject,writeDiagnostic:line=>{lines.push(line);observed();},worker:{
+    start:async()=>{},wait:()=>waiting,stop:async()=>releaseWait(),
+    health:()=>({state:'degraded',lastErrorCode:'NODE_TRANSPORT_REQUEST_INVALID',secret:'private-credential',result:{private:'task'}}),
+  }});
+  const deadline=setTimeout(()=>observed(),6500);
+  try {await firstLine;assert.deepEqual(lines,['Mastermind node-link health: {"state":"degraded","code":"NODE_TRANSPORT_REQUEST_INVALID"}']);}
+  finally{clearTimeout(deadline);processObject.emit('SIGTERM');assert.equal(await running,0);}
+});
