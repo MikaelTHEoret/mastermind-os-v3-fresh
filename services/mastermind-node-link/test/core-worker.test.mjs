@@ -109,3 +109,15 @@ test('OS lifetime excludes a second process and becomes available after owner re
   const accepted=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8',timeout:10000,windowsHide:true});
   assert.equal(accepted.status,0);assert.equal(accepted.stdout,'acquired');
 });
+
+test('native task worker requires exact explicit opt-in; malformed values deny before credential access',()=>{
+  for(const setting of [undefined,'false','true']) {
+    let options;
+    createMastermindCoreWorkerFromEnvironment({environment:environment({MASTERMIND_NODE_NATIVE_REUSE_ENABLED:setting}),
+      credentialStoreFactory:()=>({}),transportFactory:()=>({}),workerFactory:args=>{options=args;return {};}});
+    assert.equal(options.enableNativeTasks,setting==='true');
+  }
+  for(const setting of ['1','TRUE','yes','']) assert.throws(()=>createMastermindCoreWorkerFromEnvironment({
+    environment:environment({MASTERMIND_NODE_NATIVE_REUSE_ENABLED:setting}),
+    credentialStoreFactory(){throw Error('must not access credentials');}}),{code:'NODE_NATIVE_PROFILE_INVALID'});
+});

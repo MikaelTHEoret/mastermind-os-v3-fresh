@@ -113,3 +113,30 @@ test('saved core history returns existing result or explicit absence without wri
     assert.deepEqual(api.calls,['owner','database',['read','database',nodeId]]);
   }
 });
+
+function nativeHarness(owner={ok:true}) {
+  let enqueueCalls=0, authCalls=0;
+  const http=load(fs.readFileSync(new URL('../http.ts',import.meta.url),'utf8'),{
+    '@/lib/memory/local-service-auth':{LocalServiceRequestBodyError:class extends Error{},
+      async readBoundedJsonRequestBody(request,{maxBytes}){assert.equal(maxBytes,4096);return request.text();}},
+    '../../../protocol/mastermind-node-exchange/contract.mjs':contract,'./store':{NodeExchangeServiceError:class extends Error{}}
+  });
+  const route=load(fs.readFileSync(new URL('../../../app/api/nodes/[nodeId]/native-tasks/route.ts',import.meta.url),'utf8'),{
+    '@/lib/db':{getMemoryDb:()=>null},'@/lib/node-exchange/http':http,
+    '@/lib/node-exchange/store':{async enqueueOwnerNativeTaskJob(db,id,input){enqueueCalls++;assert.equal(id,nodeId);
+      assert.equal(input.operationId,requestId);return {status:'duplicate',job:{jobId:requestId}};}},
+    '@/lib/trading/auth':{async requireOwner(){authCalls++;return owner;}}
+  });
+  return {counts:()=>[authCalls,enqueueCalls],post:(headers={},path=`/api/nodes/${nodeId}/native-tasks`)=>route.POST(new Request(base+path,{
+    method:'POST',headers:{origin:base,'sec-fetch-site':'same-origin','content-type':'application/json',...headers},
+    body:JSON.stringify({operationId:requestId})}),{params:Promise.resolve({nodeId})})};
+}
+
+test('native route uses owner and same-origin checks before reading inputs or accessing the ledger',async()=>{
+  const allowed=nativeHarness();assert.equal((await allowed.post()).status,200);assert.deepEqual(allowed.counts(),[1,1]);
+  const denied=nativeHarness({ok:false,status:403,reason:'Owner required'});
+  assert.equal((await denied.post()).status,403);assert.deepEqual(denied.counts(),[1,0]);
+  const foreign=nativeHarness();assert.equal((await foreign.post({origin:'https://foreign.invalid','sec-fetch-site':'cross-site'})).status,403);
+  assert.deepEqual(foreign.counts(),[0,0]);
+  const wrong=nativeHarness();assert.equal((await wrong.post({},'/api/nodes/other/native-tasks')).status,404);assert.deepEqual(wrong.counts(),[0,0]);
+});

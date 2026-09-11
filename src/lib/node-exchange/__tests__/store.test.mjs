@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 import ts from 'typescript';
 
+import * as native from '../../../../protocol/mastermind-node-exchange/native-task.mjs';
 import * as contract from '../../../../protocol/mastermind-node-exchange/contract.mjs';
 
 const source = fs.readFileSync(new URL('../store.ts', import.meta.url), 'utf8');
@@ -38,6 +39,7 @@ function loadStore() {
         return { LOCAL_FAMILY_OPERATOR_PROFILE: { householdId: 'family-local', parentPlayerId: PARENT_ID } };
       }
       if (identifier === '../../../protocol/mastermind-node-exchange/contract.mjs') return contract;
+      if (identifier === '../../../protocol/mastermind-node-exchange/native-task.mjs') return native;
       throw new Error(`Unexpected test import: ${identifier}`);
     },
     structuredClone,
@@ -295,4 +297,46 @@ test('latest core status rejects invalid identity, excess rows, other capabiliti
   for (const rows of [[row,row], [jobRow()], [{ ...row, nodeId: JOB_ID }], [{ ...row, state: 'succeeded' }]]) {
     await assert.rejects(store.getLatestOwnerCoreStatusJob(scriptedSql([() => rows]), NODE_ID));
   }
+});
+
+const nativeInput = () => ({schemaVersion:1,action:'execute',taskRef:{taskId:ACTIVE_JOB_ID,project:'mastermind'},
+  specificationId:'a'.repeat(64),operationId:JOB_ID,capability:'release-inventory.diff',candidateId:'b'.repeat(64),
+  requirementsHash:'c'.repeat(64),inputSha256:'d'.repeat(64),arguments:{before:[],after:[]}});
+
+test('native owner enqueue binds exact command; duplicate recovery reads with current task authority', async () => {
+  const store=loadStore(), input=nativeInput();
+  const sql=scriptedSql([(query,values)=>{
+    assert.match(query,/enqueue_mastermind_native_task_job_v1/);
+    assert.equal(values[0],JOB_ID);assert.deepEqual(JSON.parse(values[6]),input);
+    assert.equal(values[1],contract.digestMastermindNodeCommand({jobId:JOB_ID,nodeId:NODE_ID,capability:native.NATIVE_REUSE_CAPABILITY,
+      capabilityVersion:1,policyClass:'routine',input},{core:true}));
+    return [{status:'duplicate',job_id:JOB_ID}];
+  },query=>{
+    assert.match(query,/mastermind_native_task_authorized_v1/);assert.match(query,/job.created_by_player_id/);
+    return [{...jobRow(JOB_ID),capability:native.NATIVE_REUSE_CAPABILITY,commandInput:input}];
+  }]);
+  const result=await store.enqueueOwnerNativeTaskJob(sql,NODE_ID,input);
+  assert.equal(result.status,'duplicate');assert.equal(result.job.jobId,JOB_ID);assert.equal(sql.calls(),2);
+});
+
+test('malformed native input never queries and busy/conflict never returns another operation',async()=>{
+  const store=loadStore();let calls=0;const noSql=async()=>{calls++;};
+  for(const change of [{grantRef:'caller'},{action:'generate'},{operationId:'not-uuid'}])
+    await assert.rejects(store.enqueueOwnerNativeTaskJob(noSql,NODE_ID,{...nativeInput(),...change}),{code:'NODE_REQUEST_INVALID'});
+  assert.equal(calls,0);
+  for(const status of ['busy','conflict']) {
+    const sql=scriptedSql([()=>[{status,job_id:ACTIVE_JOB_ID}]]);
+    await assert.rejects(store.enqueueOwnerNativeTaskJob(sql,NODE_ID,nativeInput()),{code:status==='busy'?'NODE_NATIVE_BUSY':'NODE_JOB_CONFLICT'});
+    assert.equal(sql.calls(),1);
+  }
+});
+
+test('native read rejects result from a different task even when the node job ID matches',async()=>{
+  const store=loadStore(),input=nativeInput();
+  const result={kind:native.NATIVE_REUSE_CAPABILITY,operationId:JOB_ID,specificationId:input.specificationId,
+    taskRef:{...input.taskRef,taskId:BOOT_ID},candidateId:input.candidateId,capability:input.capability,inputSha256:input.inputSha256,
+    resultSha256:'f'.repeat(64),result:{added:[]},replayed:false};
+  const sql=scriptedSql([()=>[{...jobRow(JOB_ID),capability:native.NATIVE_REUSE_CAPABILITY,commandInput:input,state:'succeeded',
+    terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-08-15T12:01:00.000Z'}]]);
+  await assert.rejects(store.getOwnerJob(sql,NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
 });

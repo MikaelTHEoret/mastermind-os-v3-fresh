@@ -1,3 +1,4 @@
+import {NATIVE_REUSE_CAPABILITY, validateNativeCommandInput, validateNativeTaskResult} from './native-task.mjs';
 import crypto from 'node:crypto';
 
 import { MASTERMIND_NODE_CAPABILITY_REGISTRY } from './capabilities.v1.mjs';
@@ -218,11 +219,14 @@ export function validateMastermindNodeCommand(value, options = {}) {
   uuid(value.jobId, 'jobId');
   uuid(value.nodeId, 'nodeId');
   if ((value.capability !== MASTERMIND_NODE_CAPABILITY
-      && !(options.core === true && value.capability === MASTERMIND_CORE_STATUS_CAPABILITY)) || value.capabilityVersion !== 1
+      && !(options.core === true && [MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY].includes(value.capability))) || value.capabilityVersion !== 1
     || value.policyClass !== MASTERMIND_NODE_POLICY_CLASS) {
     fail('NODE_UNSUPPORTED_CAPABILITY', 'node command capability is unsupported');
   }
-  emptyInput(value.input);
+  if (value.capability === NATIVE_REUSE_CAPABILITY) {
+    try { validateNativeCommandInput(value.input); } catch { fail('NODE_INVALID','native request is invalid'); }
+    if(value.input.operationId !== value.jobId) fail('NODE_SCOPE_MISMATCH','native operation must match its job');
+  } else emptyInput(value.input);
   return structuredClone(value);
 }
 
@@ -256,11 +260,11 @@ export function validateMastermindCoreStatus(value) {
 export function validateMastermindNodeWorker(value) {
   exactKeys(value, ['protocolVersion', 'capabilities'], 'worker negotiation');
   if (value.protocolVersion !== 2 || !Array.isArray(value.capabilities)
-    || value.capabilities.length < 1 || value.capabilities.length > 2) fail('NODE_UNSUPPORTED_VERSION', 'worker negotiation is unsupported');
+    || value.capabilities.length < 1 || value.capabilities.length > 3) fail('NODE_UNSUPPORTED_VERSION', 'worker negotiation is unsupported');
   const seen = new Set();
   for (const item of value.capabilities) {
     exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![MASTERMIND_NODE_CAPABILITY, MASTERMIND_CORE_STATUS_CAPABILITY].includes(item.id)
+    if (![MASTERMIND_NODE_CAPABILITY, MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY].includes(item.id)
       || item.version !== 1 || seen.has(item.id)) fail('NODE_UNSUPPORTED_CAPABILITY', 'worker capability/version is unsupported');
     seen.add(item.id);
   }
@@ -328,6 +332,9 @@ export function validateMastermindNodeReceipt(value, options = {}) {
     }
     if (options.core === true && value.result.kind === MASTERMIND_CORE_STATUS_CAPABILITY) {
       validateMastermindCoreStatus(value.result);
+    } else if (options.core === true && value.result.kind === NATIVE_REUSE_CAPABILITY) {
+      try { validateNativeTaskResult(value.result); } catch { fail('NODE_INVALID','native result is invalid'); }
+      if(value.result.operationId !== value.jobId) fail('NODE_SCOPE_MISMATCH','native result must match its job');
     } else {
     validateTerminalResult(value.result);
     if (value.result.familyServer !== 'running' || value.result.companion !== 'running'
@@ -411,6 +418,7 @@ export function validateMastermindNodeExchangeRequest(value, options = {}) {
       && !value.worker?.capabilities.some((item) => item.id === MASTERMIND_CORE_STATUS_CAPABILITY && item.version === 1)) {
       fail('NODE_UNSUPPORTED_CAPABILITY', 'core receipt requires the worker capability declaration');
     }
+    if(receipt.result?.kind === NATIVE_REUSE_CAPABILITY && !value.worker?.capabilities.some(item=>item.id===NATIVE_REUSE_CAPABILITY&&item.version===1)) fail('NODE_UNSUPPORTED_CAPABILITY','native result requires negotiation');
     if (receiptIds.has(receipt.receiptId)) fail('NODE_INVALID', 'exchange contains a duplicate receiptId');
     receiptIds.add(receipt.receiptId);
     const priorSequence = lastSequenceByJob.get(receipt.jobId);

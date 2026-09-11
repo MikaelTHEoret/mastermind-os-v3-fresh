@@ -299,3 +299,9 @@ test('saved core status distinguishes no history from invalid or mismatched data
     assert.throws(() => parseLatestCoreStatusJob(value, NODE_ID));
   }
 });
+
+test('native worker advertisement remains readable without granting a family action',()=>{
+  const worker={protocolVersion:2,capabilities:[{id:'mastermind.core.status',version:1},{id:'mastermind.native.reuse',version:1}]};
+  const parsed=parseNodeInventory({ok:true,nodes:[node({worker})]});
+  assert.deepEqual(parsed.nodes[0].worker,worker);assert.equal(nodeSupportsCoreStatus(parsed.nodes[0]),true);
+});
