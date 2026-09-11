@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import {isLocalNodeControlOrigin} from './node-control-contract.mjs'
 import NativeDevelopment from './NativeDevelopment'
 import RemoteNativeWork from './RemoteNativeWork'
+import ExternalContributions from './ExternalContributions'
 
 const mono = 'Orbitron, monospace'
 const code = '"Cascadia Code", "Fira Code", ui-monospace, monospace'
@@ -57,6 +58,7 @@ export default function ForgeConsole() {
 
   return (
     <>
+    <ExternalContributions/>
     <RemoteNativeWork/>
     {localDevelopment&&<NativeDevelopment/>}
     <details style={{marginTop:16,color:'#adc6ce',fontFamily:'system-ui,sans-serif'}}>
