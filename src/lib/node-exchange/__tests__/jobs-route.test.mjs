@@ -15,7 +15,7 @@ function load(source, imports) {
     require(id) { if (!(id in imports)) throw new Error('Unexpected import: ' + id); return imports[id]; } });
   return module.exports;
 }
-function harness(owner = { ok: true }, status = 'created') {
+function harness(owner = { ok: true }, status = 'created', routeName = 'jobs') {
   const calls = []; let authCalls = 0;
   class BodyError extends Error {}
   class ServiceError extends Error {}
@@ -31,14 +31,14 @@ function harness(owner = { ok: true }, status = 'created') {
   const enqueue = (kind) => async (db, node, id) => {
     assert.equal(db, database); calls.push({ kind, node, id }); return { status, job: { jobId: id } };
   };
-  const route = load(fs.readFileSync(new URL('../../../app/api/nodes/[nodeId]/jobs/route.ts', import.meta.url), 'utf8'), {
+  const route = load(fs.readFileSync(new URL(`../../../app/api/nodes/[nodeId]/${routeName}/route.ts`, import.meta.url), 'utf8'), {
     '@/lib/db': { getMemoryDb: () => database }, '@/lib/node-exchange/http': http,
-    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family') },
+    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog') },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
   });
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
-    return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/jobs`), {
+    return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },
       body: JSON.stringify(body),
     }), { params: Promise.resolve({ nodeId }) });
@@ -139,4 +139,12 @@ test('native route uses owner and same-origin checks before reading inputs or ac
   const foreign=nativeHarness();assert.equal((await foreign.post({origin:'https://foreign.invalid','sec-fetch-site':'cross-site'})).status,403);
   assert.deepEqual(foreign.counts(),[0,0]);
   const wrong=nativeHarness();assert.equal((await wrong.post({},'/api/nodes/other/native-tasks')).status,404);assert.deepEqual(wrong.counts(),[0,0]);
+});
+
+
+test('catalog route denies unrelated identities and cross-origin requests before queue access',async()=>{
+ const input={operationId:requestId,input:{schemaVersion:1,taskRef:{taskId:requestId,project:'mastermind'},snapshotId:null,cursor:null}};
+ const accepted=harness({ok:true},'created','native-catalog');assert.equal((await accepted.post(input)).status,201);assert.equal(accepted.calls.length,1);assert.equal(accepted.calls[0].kind,'catalog');
+ const denied=harness({ok:false,status:403,reason:'Owner required'},'created','native-catalog');assert.equal((await denied.post(input)).status,403);assert.equal(denied.calls.length,0);
+ const foreign=harness({ok:true},'created','native-catalog');assert.equal((await foreign.post(input,{headers:{origin:'https://foreign.invalid'}})).status,403);assert.equal(foreign.calls.length,0);
 });

@@ -51,3 +51,34 @@ export function validateNativeCatalogResult(value,rawRequest) {
   }
   return clone(value,65536);
 }
+
+
+export const NATIVE_CATALOG_CAPABILITY='mastermind.native.catalog';
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+export function validateNativeCatalogInput(value) {
+  const input=validateNativeCatalogRequest(value);
+  need(UUID.test(input.taskRef.taskId)&&/^[a-z0-9][a-z0-9._:-]{0,127}$/.test(input.taskRef.project)
+    &&(!input.taskRef.checkpointId||UUID.test(input.taskRef.checkpointId)));
+  return input;
+}
+export function validateNativeCatalogReceipt(value,request) {
+  need(object(value)&&value.kind===NATIVE_CATALOG_CAPABILITY);
+  const {kind,...page}=value;
+  validateNativeCatalogResult(page,request??{schemaVersion:1,taskRef:page.taskRef,snapshotId:null,cursor:null});
+  // The complete receipt retains its existing wire/disk limits. This allowance
+  // fits the accepted schema, whose pretty JSON is larger than reuse results.
+  need(new TextEncoder().encode(JSON.stringify(value)).length<=1450
+    &&new TextEncoder().encode(JSON.stringify(value,null,2)).length<=2900);
+  return structuredClone(value);
+}
+function canonical(value) {
+  if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
+  if(object(value))return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}';
+  return JSON.stringify(value);
+}
+export function sameNativeDisclosure(current,saved) {
+  if(saved?.kind!==NATIVE_CATALOG_CAPABILITY)return current?.kind==='mastermind.native.reuse'&&saved?.kind===current.kind&&typeof saved.resultSha256==='string'&&current.resultSha256===saved.resultSha256;
+  if(current?.kind!==saved.kind)return false;
+  const {observedAt:currentTime,...a}=current,{observedAt:savedTime,...b}=saved;
+  return canonical(a)===canonical(b);
+}

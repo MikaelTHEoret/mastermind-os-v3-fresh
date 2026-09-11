@@ -1,4 +1,5 @@
 import {NativeTaskClient} from './native-task-client.mjs';
+import {NATIVE_CATALOG_CAPABILITY,validateNativeCatalogReceipt} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {NATIVE_REUSE_CAPABILITY,validateNativeTaskResult} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 import {validateMastermindNodeLease,validateMastermindNodeCommand} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
 import {MastermindNodeExecutionError} from './executor.mjs';
@@ -9,6 +10,7 @@ export class NativeTaskExecutor extends CoreStatusExecutor {
   async nativeResult(rawCommand,options,action) {
     const lease=validateMastermindNodeCommand(Object.fromEntries(
       ['jobId','nodeId','capability','capabilityVersion','policyClass','input'].map(key=>[key,rawCommand[key]])));
+    if(lease.capability===NATIVE_CATALOG_CAPABILITY)return validateNativeCatalogReceipt({kind:NATIVE_CATALOG_CAPABILITY,...await this.native.catalog(lease.input,options)},lease.input);
     if(lease.capability!==NATIVE_REUSE_CAPABILITY)throw new MastermindNodeExecutionError('local-response-invalid','Unsupported native operation.',{retryable:false});
     const reply=await this.native.execute({...lease.input,action},options);
     if(!reply.ok)throw new MastermindNodeExecutionError('recovery-manual-repair','Native operation is held for reconciliation.',{retryable:false});
@@ -20,7 +22,7 @@ export class NativeTaskExecutor extends CoreStatusExecutor {
   }
   async execute(rawLease,options) {
     const lease=validateMastermindNodeLease(rawLease);
-    if(lease.capability!==NATIVE_REUSE_CAPABILITY)return super.execute(lease,options);
+    if(![NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(lease.capability))return super.execute(lease,options);
     if(options.signal?.aborted)throw options.signal.reason;
     if(!Number.isFinite(options.deadlineMs)||this.now()>=options.deadlineMs)throw new MastermindNodeExecutionError('lease-lost','Native task deadline expired.',{retryable:false});
     await options.emit('checking-local-state');
@@ -30,6 +32,6 @@ export class NativeTaskExecutor extends CoreStatusExecutor {
     return this.nativeResult(command,options,'recover');
   }
   async authorizeReplay(lease,options) {
-    if(lease.capability===NATIVE_REUSE_CAPABILITY)return this.nativeResult(lease,options,'recover');
+    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(lease.capability))return this.nativeResult(lease,options,'recover');
   }
 }

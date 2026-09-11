@@ -1,4 +1,5 @@
 import {NATIVE_REUSE_CAPABILITY} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
+import {NATIVE_CATALOG_CAPABILITY,sameNativeDisclosure} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import crypto from 'node:crypto';
 
 import {
@@ -257,13 +258,13 @@ export class MastermindNodeLink {
     // sending an outbox receipt, including after a worker restart/lost response.
     const recoveryDeadline = this.monotonicNow() + 30_000;
     for (const receipt of receipts) {
-      if (receipt.state !== 'succeeded' || receipt.result?.kind !== NATIVE_REUSE_CAPABILITY) continue;
+      if (receipt.state !== 'succeeded' || ![NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(receipt.result?.kind)) continue;
       if (typeof this.journal.commandForReceipt !== 'function' || typeof this.executor.authorizeReceipt !== 'function') {
         throw linkError('NODE_NATIVE_REPLAY_AUTH_REQUIRED', 'Native outbox recovery requires current task authority.');
       }
       const command = await this.journal.commandForReceipt(receipt);
       const recovered = await this.executor.authorizeReceipt(command, {signal,deadlineMs:recoveryDeadline});
-      if (recovered.resultSha256 !== receipt.result.resultSha256) {
+      if (!sameNativeDisclosure(recovered,receipt.result)) {
         throw linkError('NODE_NATIVE_REPLAY_CHANGED', 'Saved native result changed.');
       }
     }
@@ -326,10 +327,10 @@ export class MastermindNodeLink {
       if (deadlineMs <= this.monotonicNow()) return { skipped: true, code: 'lease-lost' };
       const begun = await this.journal.begin(lease);
       if (begun.effect.terminal) {
-        if(lease.capability===NATIVE_REUSE_CAPABILITY && begun.effect.terminal.state==='succeeded') {
+        if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(lease.capability) && begun.effect.terminal.state==='succeeded') {
           if(typeof this.executor.authorizeReplay!=='function')throw linkError('NODE_NATIVE_REPLAY_AUTH_REQUIRED','Native result recovery requires current task authority.');
           const recovered=await this.executor.authorizeReplay(lease,{signal,deadlineMs});
-          if(recovered.resultSha256!==begun.effect.terminal.result.resultSha256)throw linkError('NODE_NATIVE_REPLAY_CHANGED','Saved native result changed.');
+          if(!sameNativeDisclosure(recovered,begun.effect.terminal.result))throw linkError('NODE_NATIVE_REPLAY_CHANGED','Saved native result changed.');
         }
         return { replayed: true, receipt: await this.journal.replayTerminal(lease, this.bootId) };
       }
