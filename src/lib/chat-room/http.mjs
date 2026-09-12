@@ -4,14 +4,16 @@ export function roomHandlers({authorizeRequest,authenticate,storeFor,readJson,en
  async function handle(request,{params}){
   try{
    const {taskId,session}=await params;
-   identifier(session);
+   if(session!==undefined)identifier(session);
    if(typeof taskId!=='string'||!/^[0-9a-f-]{36}$/.test(taskId))throw new RoomError('ROOM_REFERENCE_INVALID');
-   authorizeRequest(request,`/api/chat/rooms/${taskId}/${session}`,request.method==='POST');
+   if(session===undefined&&request.method!=='GET')throw new RoomError('ROOM_METHOD_UNSUPPORTED',405);
+   authorizeRequest(request,`/api/chat/rooms/${taskId}`+(session===undefined?'':`/${session}`),request.method==='POST');
    const owner=await authenticate();
    if(!owner.ok)throw new RoomError('OWNER_REQUIRED',owner.status);
    if(enabled!==true)throw new RoomError('ROOM_SERVICE_NOT_ACTIVATED',503);
    const store=await storeFor(owner.userId),ref={taskId,session,project:'mastermind'};
-   const output=request.method==='GET'?await store.read(ref):await store.command(ref,await readJson(request,65536));
+   const output=session===undefined?await store.list({taskId,project:'mastermind'})
+    :request.method==='GET'?await store.read(ref):await store.command(ref,await readJson(request,65536));
    return Response.json(output,{headers:ROOM_HEADERS});
   }catch(error){
    const known=error instanceof RoomError||['NodeExchangeHttpError','ContextGatewayError','LocalServiceRequestBodyError'].includes(error?.constructor?.name);

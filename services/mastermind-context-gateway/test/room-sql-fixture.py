@@ -15,10 +15,10 @@ receipt = {'status':'FAIL', 'productionWrites':0, 'checks':[]}
 cx = None
 try:
     output = subprocess.check_output(['node','--input-type=module','-e',
-        "import * as s from './src/lib/chat-room/store.mjs'; console.log(JSON.stringify([s.ROOM_READ_SQL,s.ROOM_CREATE_SQL,s.ROOM_UPDATE_SQL]));"],
+        "import * as s from './src/lib/chat-room/store.mjs'; console.log(JSON.stringify([s.ROOM_READ_SQL,s.ROOM_CREATE_SQL,s.ROOM_UPDATE_SQL,s.ROOM_LIST_SQL]));"],
         cwd=ROOT, text=True, timeout=15)
     queries = json.loads(output)
-    assert len(queries) == 3 and all('public.' in q for q in queries)
+    assert len(queries) == 4 and all('public.' in q for q in queries)
     cx = psycopg2.connect(os.environ['NEON_MEMORY_DSN'], connect_timeout=8)
     cur = cx.cursor()
     cur.execute("SET LOCAL statement_timeout='15000'; SET LOCAL lock_timeout='3000'")
@@ -39,8 +39,10 @@ try:
         return cur.fetchall()
     args = [SID,TASK,'mastermind','fixture',ACTOR,'user_fixture']
     access = dict(householdId='fixture',actorPlayerId=ACTOR,taskId=TASK,project='mastermind')
-    doc = dict(format='mastermind-chat-v1',session=SID,project='mastermind',roomAccess=access,room=dict(format='mastermind-room-v1',revision=1),transcript=[])
+    doc = dict(format='mastermind-chat-v1',session=SID,project='mastermind',roomAccess=access,room=dict(format='mastermind-room-v1',revision=1,participants=[dict(id='model_alpha',label='Alpha',model='fixture',transport='manual')],paused=False),transcript=[])
     assert run(0,args) == [('active',None)]
+    list_args = ['room-list',*args[1:]]
+    assert run(3,list_args) == [('active',None,None,None,None,None)]
     assert run(1,args+[json.dumps(doc)]) == [(SID,)]
     assert run(1,args+[json.dumps(doc)]) == []
     assert run(0,args)[0][1] == doc
@@ -52,11 +54,16 @@ try:
     cur.execute(f'SELECT context,state FROM {SCHEMA}.mirror_core_sessions WHERE id=%s',(SID,))
     context,state = cur.fetchone()
     assert context['preserved'] is True and state['other']==7 and context['chat']==changed
+    listed = run(3,list_args)
+    assert len(listed)==1 and listed[0][1]==SID and listed[0][3]=='One exact answer' and listed[0][4]==doc['room']['participants'] and listed[0][5]=='false'
+    receipt['checks'].append('owned list returns canonical room metadata; empty owned task returns no room')
     receipt['checks'].append('exact-document CAS rejects stale write; unrelated context and state survive')
     for wrong in ([*args[:5],'user_foreign'],[SID,TASK,'mastermind','foreign',ACTOR,'user_fixture']):
         assert run(0,wrong)==[] and run(2,wrong+[json.dumps(doc),json.dumps(changed)])==[]
+        assert run(3,['room-list',*wrong[1:]])==[]
     cur.execute(f'UPDATE {SCHEMA}.owners SET allowed=false')
     assert run(0,args)==[] and run(2,args+[json.dumps(doc),json.dumps(changed)])==[]
+    assert run(3,list_args)==[]
     cur.execute(f'UPDATE {SCHEMA}.owners SET allowed=true')
     cur.execute(f"UPDATE {SCHEMA}.mastermind_context_tasks_v1 SET state='completed'")
     assert run(0,args)[0][1]==changed and run(2,args+[json.dumps(doc),json.dumps(changed)])==[]
@@ -64,6 +71,7 @@ try:
     cur.execute(f"UPDATE {SCHEMA}.mastermind_context_tasks_v1 SET state='active'")
     cur.execute(f"UPDATE {SCHEMA}.mirror_core_sessions SET context='{{\"legacy\":true}}'")
     assert run(0,args)==[('active',None)] and run(1,args+[json.dumps(doc)])==[]
+    assert run(3,list_args)==[('active',None,None,None,None,None)]
     assert run(2,args+[json.dumps(doc),'null'])==[]
     receipt['checks'].append('existing foreign or legacy session identifiers cannot be adopted or overwritten')
     cx.rollback()

@@ -24,6 +24,14 @@ export const ROOM_UPDATE_SQL=`WITH owned AS (${OWNED} AND t.state='active' FOR U
  UPDATE public.mirror_core_sessions s SET context=COALESCE(s.context,'{}'::jsonb)||jsonb_build_object('chat',$7::jsonb),
  state=COALESCE(s.state,'{}'::jsonb)||jsonb_build_object('chatStatus','active'),updated_at=NOW()
  FROM owned WHERE s.id=$1::text AND ${BOUND} AND s.context->'chat'=$8::jsonb RETURNING s.id`;
+export const ROOM_LIST_SQL=`WITH owned AS (${OWNED} AND $1::text='room-list')
+ SELECT o.state AS "taskState",r.* FROM owned o LEFT JOIN LATERAL (
+ SELECT s.id AS session,s.updated_at AS "updatedAt",
+ LEFT(COALESCE(s.context->'chat'->'transcript'->0->>'text',''),120) AS preview,
+ s.context->'chat'->'room'->'participants' AS participants,
+ s.context->'chat'->'room'->>'paused' AS paused
+ FROM public.mirror_core_sessions s WHERE ${BOUND}
+ ORDER BY s.updated_at DESC,s.id DESC LIMIT 51) r ON true`;
 
 export class RoomStore {
  constructor(query,{householdId,actorPlayerId,subject}) {
@@ -47,6 +55,14 @@ export class RoomStore {
   const {document,state}=await this.load(ref);
   if(!document)fail('ROOM_NOT_FOUND',404);
   return this.view(document,state);
+ }
+ async list(ref){
+  exact(ref,['taskId','project']);
+  const rows=await this.query(ROOM_LIST_SQL,this.args({session:'room-list',...ref}));
+  if(!rows.length)fail('ROOM_TASK_ACCESS_DENIED');
+  const rooms=rows.filter(row=>row.session!==null).map(row=>({session:identifier(row.session),
+   updatedAt:row.updatedAt,preview:row.preview,participants:row.participants,paused:row.paused==='true'}));
+  return {ok:true,...ref,taskState:rows[0].taskState,rooms:rooms.slice(0,50),truncated:rooms.length>50,executionAuthorized:false};
  }
  view(doc,taskState){
   return {ok:true,session:doc.session,project:doc.project,taskId:doc.roomAccess.taskId,taskState,

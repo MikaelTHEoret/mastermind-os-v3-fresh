@@ -57,3 +57,16 @@ test('the room service is disabled until the matching runtime guard is accepted'
  const response=await h.GET(request(),{params});assert.equal(response.status,503);
  assert.equal((await response.json()).error,'ROOM_SERVICE_NOT_ACTIVATED');assert.equal(touched,false);
 });
+
+test('room index applies the same owner and activation boundary and refuses writes',async()=>{
+ let touched=0;const indexParams={taskId:params.taskId},indexPath='https://mastermind-core.com/api/chat/rooms/'+params.taskId;
+ const dependencies={authorizeRequest:http.authorizeOwnerRequest,readJson:http.readNodeJson,
+  authenticate:async()=>({ok:true,userId:'user_owner'}),storeFor:async subject=>{assert.equal(subject,'user_owner');touched++;return {list:async ref=>({ok:true,...ref,rooms:[]})};}};
+ let h=roomHandlers(dependencies);assert.equal((await h.GET(new Request(indexPath),{params:indexParams})).status,503);assert.equal(touched,0);
+ h=roomHandlers({...dependencies,enabled:true,authenticate:async()=>({ok:false,status:401})});
+ assert.equal((await h.GET(new Request(indexPath),{params:indexParams})).status,401);assert.equal(touched,0);
+ h=roomHandlers({...dependencies,enabled:true});const response=await h.GET(new Request(indexPath),{params:indexParams});
+ assert.equal(response.status,200);assert.match(response.headers.get('cache-control'),/no-store/);assert.equal(touched,1);
+ assert.equal((await response.json()).taskId,params.taskId);
+ assert.equal((await h.POST(new Request(indexPath,{method:'POST'}),{params:indexParams})).status,405);assert.equal(touched,1);
+});
