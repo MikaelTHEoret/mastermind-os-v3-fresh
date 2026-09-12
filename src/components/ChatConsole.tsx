@@ -3,6 +3,7 @@
 // Pick any model (local Ollama / Anthropic / Cloudflare); the model wields the full gated MCP suite.
 // Gated tools PAUSE for human Approve/Deny (the resume handshake). Read/auto tools run inline.
 import { useEffect, useRef, useState, useCallback } from 'react';
+import SharedRoomConsole from './SharedRoomConsole';
 
 const C = { cyan:'#00ffff', magenta:'#ff00ff', violet:'#8a2be2', gold:'#ffaa00',
             green:'#00ffaa', red:'#ff4444', dim:'rgba(0,255,255,0.35)', card:'rgba(0,15,35,0.75)' };
@@ -90,7 +91,7 @@ function ApprovalCard({p,onApprove,onDeny}:{p:Pending;onApprove:()=>void;onDeny:
   );
 }
 
-export default function ChatConsole(){
+function LocalChatConsole(){
   const [models,setModels] = useState<string[]>([]);
   const [model,setModel] = useState<string>('local:mastermind-hermes3:8b');
   const [mode,setMode] = useState<'gated'|'auto'|'readonly'>('gated');
@@ -323,4 +324,17 @@ export default function ChatConsole(){
       </div>
     </div>
   );
+}
+
+export default function ChatConsole(){
+ const [view,setView]=useState<'room'|'local'>('room');
+ const [localOpened,setLocalOpened]=useState(false);
+ return <div style={{display:'flex',flexDirection:'column',height:'100%',minHeight:0}}>
+  <nav aria-label="Conversation type" style={{display:'flex',gap:8,marginBottom:16}}>
+   <button type="button" aria-pressed={view==='room'} onClick={()=>setView('room')} style={{padding:'8px 12px',border:'1px solid #477080',borderRadius:7,background:view==='room'?'#214b59':'#102735',color:'#e0f3f2'}}>Shared room</button>
+   <button type="button" aria-pressed={view==='local'} onClick={()=>{setLocalOpened(true);setView('local');}} style={{padding:'8px 12px',border:'1px solid #477080',borderRadius:7,background:view==='local'?'#214b59':'#102735',color:'#e0f3f2'}}>Local assistant</button>
+  </nav>
+  <div hidden={view!=='room'} style={{flex:1,minHeight:0}}><SharedRoomConsole/></div>
+  <div hidden={view!=='local'} style={{flex:1,minHeight:0}}>{localOpened&&<LocalChatConsole/>}</div>
+ </div>;
 }
