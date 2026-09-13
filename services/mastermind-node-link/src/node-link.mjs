@@ -1,4 +1,5 @@
 import {NATIVE_REUSE_CAPABILITY} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
+import {NATIVE_SPECIFICATION_CAPABILITY} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
 import {NATIVE_CATALOG_CAPABILITY,sameNativeDisclosure} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import crypto from 'node:crypto';
 
@@ -258,7 +259,7 @@ export class MastermindNodeLink {
     // sending an outbox receipt, including after a worker restart/lost response.
     const recoveryDeadline = this.monotonicNow() + 30_000;
     for (const receipt of receipts) {
-      if (receipt.state !== 'succeeded' || ![NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(receipt.result?.kind)) continue;
+      if (receipt.state !== 'succeeded' || ![NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY].includes(receipt.result?.kind)) continue;
       if (typeof this.journal.commandForReceipt !== 'function' || typeof this.executor.authorizeReceipt !== 'function') {
         throw linkError('NODE_NATIVE_REPLAY_AUTH_REQUIRED', 'Native outbox recovery requires current task authority.');
       }
@@ -327,7 +328,7 @@ export class MastermindNodeLink {
       if (deadlineMs <= this.monotonicNow()) return { skipped: true, code: 'lease-lost' };
       const begun = await this.journal.begin(lease);
       if (begun.effect.terminal) {
-        if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(lease.capability) && begun.effect.terminal.state==='succeeded') {
+        if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY].includes(lease.capability) && begun.effect.terminal.state==='succeeded') {
           if(typeof this.executor.authorizeReplay!=='function')throw linkError('NODE_NATIVE_REPLAY_AUTH_REQUIRED','Native result recovery requires current task authority.');
           const recovered=await this.executor.authorizeReplay(lease,{signal,deadlineMs});
           if(!sameNativeDisclosure(recovered,begun.effect.terminal.result))throw linkError('NODE_NATIVE_REPLAY_CHANGED','Saved native result changed.');
@@ -343,7 +344,7 @@ export class MastermindNodeLink {
         const result = await this.executor.execute(lease, {
           signal,
           deadlineMs,
-          recoverOnly: lease.capability === NATIVE_REUSE_CAPABILITY && begun.effect.lastSequence > 0,
+          recoverOnly: [NATIVE_REUSE_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY].includes(lease.capability) && begun.effect.lastSequence > 0,
           emit: (stage) => this.journal.appendReceipt(lease, this.bootId, {
             state: 'running', stage, code: 'in-progress', retryable: false, result: null,
           }),
@@ -356,8 +357,8 @@ export class MastermindNodeLink {
         };
       } catch (error) {
         if (signal?.aborted) throw error;
-        if (lease.capability === NATIVE_REUSE_CAPABILITY &&
-          ['TASK_LOCAL_UNCERTAIN','TASK_RESULT_INVALID','TASK_LOCAL_REJECTED'].includes(error?.code)) {
+        if ([NATIVE_REUSE_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY].includes(lease.capability) &&
+          ['TASK_LOCAL_UNCERTAIN','TASK_RESULT_INVALID','TASK_LOCAL_REJECTED','TASK_SPECIFICATION_INVALID','TASK_SPECIFICATION_UNAVAILABLE'].includes(error?.code)) {
           // Preserve nonterminal state. A later delivery may recover only this
           // operation; it must never infer that a lost reply means no effect.
           throw linkError('NODE_NATIVE_RECOVERY_REQUIRED', 'Native outcome requires saved-operation recovery.', error);

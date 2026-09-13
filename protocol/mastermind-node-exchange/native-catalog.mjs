@@ -77,6 +77,11 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 export function sameNativeDisclosure(current,saved) {
+  if(saved?.kind==='mastermind.native.specification') {
+    if(current?.kind!==saved.kind||current.replayed!==true)return false;
+    const {replayed:currentReplay,...a}=current,{replayed:savedReplay,...b}=saved;
+    return canonical(a)===canonical(b);
+  }
   if(saved?.kind!==NATIVE_CATALOG_CAPABILITY)return current?.kind==='mastermind.native.reuse'&&saved?.kind===current.kind&&typeof saved.resultSha256==='string'&&current.resultSha256===saved.resultSha256;
   if(current?.kind!==saved.kind)return false;
   const {observedAt:currentTime,...a}=current,{observedAt:savedTime,...b}=saved;

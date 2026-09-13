@@ -1,5 +1,5 @@
 import {NativeTaskExecutor} from './native-task-executor.mjs';
-import {NATIVE_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
+import {NATIVE_CORE_WORKER,WIZARD_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
 import path from 'node:path';
 import { FileMastermindNodeEffectJournal } from './effect-journal.mjs';
 import { MastermindNodeLink } from './node-link.mjs';
@@ -20,6 +20,8 @@ export function coreWorkerEnvelope(now = Date.now) {
 }
 
 export function createMastermindCoreOnlyWorker(options = {}) {
+  if(options.enableNativeSpecifications!==undefined&&typeof options.enableNativeSpecifications!=='boolean'
+    ||options.enableNativeSpecifications===true&&options.enableNativeTasks!==true)throw new TypeError('Wizard requires explicit native task activation');
   if (typeof options.journalRoot !== 'string' || !path.isAbsolute(options.journalRoot) || options.journalRoot.includes('\0')) throw new TypeError('An absolute canonical journal root is required');
   const journal = options.journal ?? new FileMastermindNodeEffectJournal(path.resolve(options.journalRoot));
   const monotonicNow = options.monotonicNow ?? (() => Math.floor(performance.now()));
@@ -28,8 +30,8 @@ export function createMastermindCoreOnlyWorker(options = {}) {
     exchangeTransport: options.exchangeTransport, journal,
     executor: options.enableNativeTasks === true ? new NativeTaskExecutor({core,now:monotonicNow,native:options.nativeTaskClient}) : new CoreStatusExecutor({ core, now: monotonicNow }),
     statusProvider: { observeStatus: async () => coreWorkerEnvelope(options.now) },
-    agentVersion: options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
-    now: options.now, monotonicNow, worker: options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
+    agentVersion: options.enableNativeSpecifications === true ? '0.5.0-native-wizard' : options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
+    now: options.now, monotonicNow, worker: options.enableNativeSpecifications === true ? WIZARD_CORE_WORKER : options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
     // Preserve incompatible pending receipts. They require source/ledger
     // reconciliation, never silent deletion or a family-capability fallback.
     requireExistingPairing: true,

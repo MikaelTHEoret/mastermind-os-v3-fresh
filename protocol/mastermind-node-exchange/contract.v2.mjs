@@ -16,3 +16,6 @@ export const validateMastermindNodeReceipt = (value) => base.validateMastermindN
 export const digestMastermindNodeReceipt = (value) => base.digestMastermindNodeReceipt(value, { core: true });
 
 export const NATIVE_CORE_WORKER = Object.freeze({protocolVersion:2,capabilities:Object.freeze([Object.freeze({id:CORE_STATUS_CAPABILITY,version:1}),Object.freeze({id:'mastermind.native.catalog',version:1}),Object.freeze({id:'mastermind.native.reuse',version:1})])});
+export const WIZARD_CORE_WORKER = Object.freeze({protocolVersion:2,capabilities:Object.freeze([
+  ...NATIVE_CORE_WORKER.capabilities,Object.freeze({id:'mastermind.native.specification',version:1}),
+])});

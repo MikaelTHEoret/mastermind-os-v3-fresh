@@ -268,6 +268,9 @@ try:
     cursor.execute(f'SELECT {SCHEMA}.mastermind_catalog_authorized_v1(%s,%s,%s,%s)',('fixture',ACTOR,json.dumps(catalog_input),json.dumps(catalog_result)))
     assert cursor.fetchone()[0] is False
     receipt['checks'].append('catalog: task ownership, invalid requests, duplicate/conflict/busy, capability negotiation, revoked upload/result read, mismatched metadata and exact terminal replay')
+    if '--wizard' in sys.argv[2:]:
+        from wizard_sql_acceptance import verify
+        verify(globals())
     connection.rollback()
     cursor.execute('SELECT to_regnamespace(%s)',(SCHEMA,)); assert cursor.fetchone()[0] is None
     assert public_snapshot()==original_functions

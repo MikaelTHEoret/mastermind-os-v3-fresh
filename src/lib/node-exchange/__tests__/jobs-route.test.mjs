@@ -33,7 +33,7 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs') {
   };
   const route = load(fs.readFileSync(new URL(`../../../app/api/nodes/[nodeId]/${routeName}/route.ts`, import.meta.url), 'utf8'), {
     '@/lib/db': { getMemoryDb: () => database }, '@/lib/node-exchange/http': http,
-    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog') },
+    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard') },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
   });
@@ -53,6 +53,19 @@ test('authenticated owner dispatcher routes only the selected fixed capability w
   }
   const duplicate = harness({ ok: true }, 'duplicate');
   assert.equal((await duplicate.post({ capability: contract.MASTERMIND_CORE_STATUS_CAPABILITY, requestId })).status, 200);
+});
+
+test('Wizard submission requires owner and same-origin route before opening the database',async()=>{
+  const body={operationId:requestId,input:{request:'Prepare intent'}};
+  const allowed=harness({ok:true},'created','native-specification');
+  assert.equal((await allowed.post(body)).status,201);assert.equal(allowed.calls[0].kind,'wizard');
+  assert.deepEqual(JSON.parse(JSON.stringify(allowed.calls[0].id)),body);
+  const denied=harness({ok:false,status:403,reason:'Owner required'},'created','native-specification');
+  assert.equal((await denied.post(body)).status,403);assert.equal(denied.calls.length,0);
+  const foreign=harness({ok:true},'created','native-specification');
+  assert.equal((await foreign.post(body,{headers:{origin:'https://foreign.example'}})).status,403);assert.equal(foreign.calls.length,0);
+  const wrong=harness({ok:true},'created','native-specification');
+  assert.equal((await wrong.post(body,{path:`/api/nodes/${requestId}/native-specification`})).status,404);assert.equal(wrong.calls.length,0);
 });
 
 test('owner denial, foreign origin and mismatched route cannot enqueue or cross node scope', async () => {

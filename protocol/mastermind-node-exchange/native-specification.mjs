@@ -1,6 +1,7 @@
-// Local Wizard broker contract. This does not advertise a hosted job capability.
+// Wizard intent preparation. Execution remains separately authorized.
+import {createHash} from 'node:crypto';
 import {NativeTaskError} from './native-task.mjs';
-import {validateNativeCatalogRequest} from './native-catalog.mjs';
+import {validateNativeCatalogRequest,validateNativeCatalogInput} from './native-catalog.mjs';
 const SHA=/^[a-f0-9]{64}$/;
 const ID=/^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,199}$/;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -48,5 +49,29 @@ export function validateNativeSpecificationResult(value,raw,requestHash) {
   need(s.stage==='needs_specification'?s.requirementsHash===null&&s.missingCount>0:s.requirementsHash!==null&&s.missingCount===0);
   need(s.stage!=='reuse_available'||s.decision==='reuse');
   need(bytes(value)<=2048);
+  return structuredClone(value);
+}
+
+export const NATIVE_SPECIFICATION_CAPABILITY='mastermind.native.specification';
+export function specificationRequestHash(request) {
+  return createHash('sha256').update(specificationBindingCanonical(request),'utf8').digest('hex');
+}
+export function validateNativeSpecificationInput(value) {
+  const input=validateNativeSpecificationRequest(value);
+  validateNativeCatalogInput({schemaVersion:1,taskRef:input.taskRef,snapshotId:null,cursor:null});
+  need(input.action==='prepare'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(input.operationId));
+  // Fit the existing ledger and journal; reject, never truncate, a large request.
+  need(bytes(input)<=4096&&new TextEncoder().encode(JSON.stringify(input,null,2)).length<=3072);
+  return input;
+}
+export function validateNativeSpecificationReceipt(value,raw) {
+  need(object(value)&&value.kind===NATIVE_SPECIFICATION_CAPABILITY);
+  const {kind,...result}=value;
+  // A standalone receipt validates its shape. Command-aware readers additionally
+  // bind the original request hash; the request text is never duplicated here.
+  const request=validateNativeSpecificationInput(raw??{schemaVersion:1,action:'prepare',
+    taskRef:result.taskRef,operationId:result.operationId,request:'Saved intent',recipeId:null});
+  validateNativeSpecificationResult(result,request,raw?specificationRequestHash(request):result.requestHash);
+  need(bytes(value)<=1450&&new TextEncoder().encode(JSON.stringify(value,null,2)).length<=2900);
   return structuredClone(value);
 }

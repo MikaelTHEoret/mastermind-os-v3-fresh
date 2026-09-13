@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 import ts from 'typescript';
 
+import * as specification from '../../../../protocol/mastermind-node-exchange/native-specification.mjs';
 import * as catalog from '../../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import * as native from '../../../../protocol/mastermind-node-exchange/native-task.mjs';
 import * as contract from '../../../../protocol/mastermind-node-exchange/contract.mjs';
@@ -42,6 +43,7 @@ function loadStore() {
       if (identifier === '../../../protocol/mastermind-node-exchange/contract.mjs') return contract;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-task.mjs') return native;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-catalog.mjs') return catalog;
+      if (identifier === '../../../protocol/mastermind-node-exchange/native-specification.mjs') return specification;
       throw new Error(`Unexpected test import: ${identifier}`);
     },
     structuredClone,
@@ -304,6 +306,39 @@ test('latest core status rejects invalid identity, excess rows, other capabiliti
 const nativeInput = () => ({schemaVersion:1,action:'execute',taskRef:{taskId:ACTIVE_JOB_ID,project:'mastermind'},
   specificationId:'a'.repeat(64),operationId:JOB_ID,capability:'release-inventory.diff',candidateId:'b'.repeat(64),
   requirementsHash:'c'.repeat(64),inputSha256:'d'.repeat(64),arguments:{before:[],after:[]}});
+
+const wizardInput=()=>({schemaVersion:1,action:'prepare',taskRef:nativeInput().taskRef,operationId:JOB_ID,request:'Prepare a comparison',recipeId:null});
+test('Wizard admission binds retained UUID and reads current owner authority without granting execution',async()=>{
+  const store=loadStore(),input=wizardInput();
+  const sql=scriptedSql([(query,values)=>{
+    assert.match(query,/enqueue_mastermind_specification_job_v1/);assert.equal(values[0],JOB_ID);
+    assert.deepEqual(JSON.parse(values[6]),input);
+    return [{status:'duplicate',job_id:JOB_ID}];
+  },query=>{
+    assert.match(query,/mastermind_specification_authorized_v1/);assert.match(query,/job.created_by_player_id/);
+    return [{...jobRow(JOB_ID),capability:specification.NATIVE_SPECIFICATION_CAPABILITY,commandInput:input}];
+  }]);
+  const result=await store.enqueueOwnerNativeSpecificationJob(sql,NODE_ID,{operationId:JOB_ID,input});
+  assert.equal(result.status,'duplicate');assert.equal(result.job.capability,specification.NATIVE_SPECIFICATION_CAPABILITY);
+  const unused=scriptedSql([]);
+  for(const bad of [{operationId:BOOT_ID,input},{operationId:JOB_ID,input:{...input,grantRef:'caller'}},
+    {operationId:JOB_ID,input:{...input,action:'recover'}}])
+    await assert.rejects(store.enqueueOwnerNativeSpecificationJob(unused,NODE_ID,bad),{code:'NODE_REQUEST_INVALID'});
+  assert.equal(unused.calls(),0);
+});
+test('Wizard owner reader validates retained intent hash and refuses mismatched or unauthorized result',async()=>{
+  const store=loadStore(),input=wizardInput();
+  const result={kind:specification.NATIVE_SPECIFICATION_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,
+    operationId:JOB_ID,requestHash:specification.specificationRequestHash(input),specification:{specificationId:'a'.repeat(64),
+    title:'Comparison',decision:'create',stage:'needs_specification',requirementsHash:null,missingCount:3},
+    savedAt:'2026-08-15T12:01:00.000Z',replayed:false,executionAuthorized:false};
+  const row={...jobRow(JOB_ID),capability:specification.NATIVE_SPECIFICATION_CAPABILITY,commandInput:input,state:'succeeded',
+    terminalCode:'desired-state-reached',terminalResult:result,finishedAt:result.savedAt};
+  assert.equal((await store.getOwnerJob(scriptedSql([()=>[row]]),NODE_ID,JOB_ID)).terminal.result.requestHash,result.requestHash);
+  for(const edit of [{requestHash:'f'.repeat(64)},{executionAuthorized:true},{operationId:BOOT_ID}])
+    await assert.rejects(store.getOwnerJob(scriptedSql([()=>[{...row,terminalResult:{...result,...edit}}]]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+  await assert.rejects(store.getOwnerJob(scriptedSql([()=>[]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+});
 
 test('native owner enqueue binds exact command; duplicate recovery reads with current task authority', async () => {
   const store=loadStore(), input=nativeInput();

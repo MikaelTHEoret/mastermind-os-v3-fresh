@@ -1,4 +1,5 @@
 import 'server-only';
+import {NATIVE_SPECIFICATION_CAPABILITY,validateNativeSpecificationInput,validateNativeSpecificationReceipt} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
 import {NATIVE_CATALOG_CAPABILITY,validateNativeCatalogInput,validateNativeCatalogReceipt} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {NATIVE_REUSE_CAPABILITY, validateNativeCommandInput, validateNativeTaskResult} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 
@@ -349,7 +350,7 @@ export async function listOwnerNodes(
 export type PublicJob = Readonly<{
   jobId: string;
   nodeId: string;
-  capability: typeof MASTERMIND_NODE_CAPABILITY | typeof MASTERMIND_CORE_STATUS_CAPABILITY | typeof NATIVE_REUSE_CAPABILITY | typeof NATIVE_CATALOG_CAPABILITY;
+  capability: typeof MASTERMIND_NODE_CAPABILITY | typeof MASTERMIND_CORE_STATUS_CAPABILITY | typeof NATIVE_REUSE_CAPABILITY | typeof NATIVE_CATALOG_CAPABILITY | typeof NATIVE_SPECIFICATION_CAPABILITY;
   capabilityVersion: 1;
   policyClass: typeof MASTERMIND_NODE_POLICY_CLASS;
   state: 'queued' | 'leased' | 'running' | 'succeeded' | 'failed' | 'expired';
@@ -361,7 +362,7 @@ export type PublicJob = Readonly<{
 
 function publicJob(row: DatabaseRow): PublicJob {
   const command = validateMastermindNodeCommand({ jobId: row.jobId, nodeId: row.nodeId,
-    capability: row.capability, capabilityVersion: row.capabilityVersion, policyClass: row.policyClass, input: [NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY].includes(String(row.capability)) ? objectValue(row.commandInput, 'native input') : {} }, { core: true });
+    capability: row.capability, capabilityVersion: row.capabilityVersion, policyClass: row.policyClass, input: [NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY].includes(String(row.capability)) ? objectValue(row.commandInput, 'native input') : {} }, { core: true });
   const state = text(row.state, 'job state', 16);
   if (!JOB_STATES.has(state)) fail(503, 'NODE_STORE_INVALID', 'Stored job state is invalid.');
   const leaseId = row.leaseId === null || row.leaseId === undefined ? null : uuid(row.leaseId, 'lease ID');
@@ -389,6 +390,12 @@ function publicJob(row: DatabaseRow): PublicJob {
       try {validateNativeCatalogReceipt(terminalResult,command.input);}
       catch {fail(503,'NODE_STORE_INVALID','Stored catalog does not match its authorized task.');}
     } else if(terminalResult!==null) fail(503,'NODE_STORE_INVALID','Stored catalog failure cannot include metadata.');
+  }
+  if(command.capability===NATIVE_SPECIFICATION_CAPABILITY) {
+    if(state==='succeeded') {
+      try {validateNativeSpecificationReceipt(terminalResult,command.input);}
+      catch {fail(503,'NODE_STORE_INVALID','Stored specification does not match its authorized request.');}
+    } else if(terminalResult!==null)fail(503,'NODE_STORE_INVALID','Unsuccessful specification cannot include intent metadata.');
   }
   if (command.capability === NATIVE_REUSE_CAPABILITY) {
     if (state === 'succeeded') {
@@ -433,6 +440,10 @@ async function readOwnerJob(
     WHERE job.job_id = ${jobId}::uuid
       AND job.node_id = ${nodeId}::uuid
       AND job.household_id = ${profile.householdId}::text
+      AND (job.capability <> 'mastermind.native.specification' OR (
+        job.created_by_player_id = ${profile.parentPlayerId}::uuid
+        AND public.mastermind_specification_authorized_v1(${profile.householdId}::text, ${profile.parentPlayerId}::uuid, job.command_input, job.terminal_result)
+      ))
       AND (job.capability <> 'mastermind.native.catalog' OR (
         job.created_by_player_id = ${profile.parentPlayerId}::uuid
         AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text, ${profile.parentPlayerId}::uuid, job.command_input, job.terminal_result)
@@ -639,6 +650,43 @@ export async function enqueueOwnerNativeCatalogJob(
     const job = await readOwnerJob(sql, nodeId, operationId, profile);
     if (!job) fail(503, 'NODE_STORE_UNAVAILABLE', 'The native task was submitted; recover its saved operation before retrying.');
     if (job.capability !== NATIVE_CATALOG_CAPABILITY) fail(503, 'NODE_STORE_INVALID', 'Stored task capability is invalid.');
+    return Object.freeze({status: row.status === 'applied' ? 'created' : 'duplicate', job});
+  } catch (error) { databaseFailure(error); }
+}
+
+
+export async function enqueueOwnerNativeSpecificationJob(
+  sql: NodeExchangeSql, nodeId: string, rawRequest: unknown,
+  profile: OwnerNodeProfile = OWNER_NODE_PROFILE, now = new Date(),
+): Promise<Readonly<{ status: 'created' | 'duplicate'; job: PublicJob }>> {
+  if (!UUID.test(nodeId)) fail(400, 'NODE_REQUEST_INVALID', 'Node ID must be a UUID.');
+  if(!rawRequest || typeof rawRequest!=='object' || Array.isArray(rawRequest)
+    || Object.keys(rawRequest).length!==2 || !Object.prototype.hasOwnProperty.call(rawRequest,'operationId') || !Object.prototype.hasOwnProperty.call(rawRequest,'input'))
+    fail(400,'NODE_REQUEST_INVALID','Wizard requests need a saved operation and task selection.');
+  const {operationId,input:rawInput}=rawRequest as {operationId:unknown;input:unknown};
+  if(typeof operationId!=='string'||!UUID.test(operationId))fail(400,'NODE_REQUEST_INVALID','Invalid Wizard operation.');
+  let input;
+  try { input = validateNativeSpecificationInput(rawInput); }
+  catch { fail(400, 'NODE_REQUEST_INVALID', 'The native task request is invalid.'); }
+  if(input.operationId!==operationId)fail(400,'NODE_REQUEST_INVALID','Wizard operation must match its job.');
+  const command = {jobId: operationId, nodeId, capability: NATIVE_SPECIFICATION_CAPABILITY,
+    capabilityVersion: 1, policyClass: MASTERMIND_NODE_POLICY_CLASS, input};
+  const digest = digestMastermindNodeCommand(command, {core:true});
+  const expiresAt = new Date(now.getTime() + JOB_LIFETIME_MS).toISOString();
+  try {
+    const row = first(await sql`
+      SELECT * FROM public.enqueue_mastermind_specification_job_v1(
+        ${operationId}::uuid, ${digest}::text, ${nodeId}::uuid,
+        ${profile.householdId}::text, ${profile.parentPlayerId}::uuid,
+        ${expiresAt}::timestamptz, ${JSON.stringify(input)}::jsonb
+      )`, 'Native task enqueue');
+    if (row.status === 'busy') fail(409, 'NODE_NATIVE_BUSY', 'This worker already has a native task in progress.');
+    if (!['applied','duplicate'].includes(String(row.status)) || row.job_id !== operationId) {
+      fail(409, 'NODE_JOB_CONFLICT', 'This operation ID is already bound to another request.');
+    }
+    const job = await readOwnerJob(sql, nodeId, operationId, profile);
+    if (!job) fail(503, 'NODE_STORE_UNAVAILABLE', 'The native task was submitted; recover its saved operation before retrying.');
+    if (job.capability !== NATIVE_SPECIFICATION_CAPABILITY) fail(503, 'NODE_STORE_INVALID', 'Stored task capability is invalid.');
     return Object.freeze({status: row.status === 'applied' ? 'created' : 'duplicate', job});
   } catch (error) { databaseFailure(error); }
 }
