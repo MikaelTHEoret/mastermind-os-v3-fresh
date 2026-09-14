@@ -3,13 +3,26 @@ def verify(context):
     # Reuse the fixture's fake identities, original constraints and rollback.
     import hashlib
     import json
+    import re
     from datetime import datetime, timedelta, timezone
     cursor, schema = context['cursor'], context['SCHEMA']
     actor, task, node = context['ACTOR'], context['task'], context['NODE']
     uid, expected_error, exchange = (context[k] for k in ('uid','expected_error','exchange'))
     submit, make_receipt = context['submit'], context['make_receipt']
     migration = context['ROOT']/'memory-system/migrations/026_mastermind_native_specification_v1.sql'
+    # Execute the application's actual history query, including before migration026.
+    store_path=context['ROOT']/'src/lib/node-exchange/store.ts'
+    store=store_path.read_text(encoding='utf-8').split('export async function getLatestOwnerNativeJob(',1)[1]
+    history_source=re.search(r'const rows=await sql`([^`]+)`',store).group(1)
+    slots=re.findall(r'\$\{([^}]+)\}',history_source)
+    history_query=context['isolated'](re.sub(r'\$\{[^}]+\}','%s',history_source))
+    def history(reader=actor):
+        values={'nodeId':node,'taskId':task,'profile.householdId':'fixture','profile.parentPlayerId':reader}
+        cursor.execute(history_query,[values[key] for key in slots])
+        return cursor.fetchall()
+    history()  # Existing installations can query history without the026 functions.
     cursor.execute(context['isolated'](migration.read_text(encoding='utf-8')))
+    context['receipt']['sourceHashes'][store_path.relative_to(context['ROOT']).as_posix()] = hashlib.sha256(store_path.read_bytes()).hexdigest()
     context['receipt']['sourceHashes'][migration.relative_to(context['ROOT']).as_posix()] = hashlib.sha256(migration.read_bytes()).hexdigest()
     cursor.execute(f'UPDATE {schema}.mastermind_context_tasks_v1 SET permission_scope=%s WHERE task_id=%s', (json.dumps(context['scope']),task))
     cap='mastermind.native.specification'
@@ -68,4 +81,10 @@ def verify(context):
     assert authorized(request,result)
     cursor.execute(f'SELECT state,terminal_result FROM {schema}.mastermind_node_jobs_v1 WHERE job_id=%s',(request['operationId'],))
     assert cursor.fetchone()==('succeeded',result)
+    assert history()==[(request['operationId'],request)]
+    assert history(context['FOREIGN'])==[]
+    cursor.execute(f"UPDATE {schema}.mastermind_context_tasks_v1 SET permission_scope=jsonb_set(permission_scope,'{{status}}','\"revoked\"') WHERE task_id=%s",(task,))
+    assert history()==[]
+    cursor.execute(f'UPDATE {schema}.mastermind_context_tasks_v1 SET permission_scope=%s WHERE task_id=%s',(json.dumps(context['scope']),task))
+    context['receipt']['checks'].append('Actual shared-history SQL: works before026; restores original Wizard input; foreign and revoked owners receive no history')
     context['receipt']['checks'].append('026 Wizard: Unicode canonical hashes, exact intent/job binding, no caller grants, owner/current-scope checks, shared busy limit, legacy worker exclusion, revoked lease/upload/read denial, exact durable terminal replay')

@@ -308,6 +308,20 @@ const nativeInput = () => ({schemaVersion:1,action:'execute',taskRef:{taskId:ACT
   requirementsHash:'c'.repeat(64),inputSha256:'d'.repeat(64),arguments:{before:[],after:[]}});
 
 const wizardInput=()=>({schemaVersion:1,action:'prepare',taskRef:nativeInput().taskRef,operationId:JOB_ID,request:'Prepare a comparison',recipeId:null});
+
+test('shared Wizard history recovers original input and rechecks current authority without enqueue',async()=>{
+ const store=loadStore(),input=wizardInput();
+ const sql=scriptedSql([(query)=>{
+   assert.match(query,/j.capability='mastermind.native.specification'/);assert.match(query,/mastermind_catalog_authorized_v1/);
+   assert.doesNotMatch(query,/INSERT|UPDATE|DELETE|enqueue_/i);return [{jobId:JOB_ID,input}];
+ },query=>{
+   assert.match(query,/mastermind_specification_authorized_v1/);return [{...jobRow(JOB_ID),capability:specification.NATIVE_SPECIFICATION_CAPABILITY,commandInput:input}];
+ }]);
+ const saved=await store.getLatestOwnerNativeJob(sql,NODE_ID,ACTIVE_JOB_ID);
+ assert.deepEqual(JSON.parse(JSON.stringify(saved.request.body)),{operationId:JOB_ID,input});assert.equal(saved.request.capability,specification.NATIVE_SPECIFICATION_CAPABILITY);assert.equal(sql.calls(),2);
+ const changed=scriptedSql([()=>[{jobId:JOB_ID,input:{...input,operationId:BOOT_ID}}],()=>[{...jobRow(JOB_ID),capability:specification.NATIVE_SPECIFICATION_CAPABILITY,commandInput:input}]]);
+ await assert.rejects(store.getLatestOwnerNativeJob(changed,NODE_ID,ACTIVE_JOB_ID),{code:'NODE_STORE_INVALID'});
+});
 test('Wizard admission binds retained UUID and reads current owner authority without granting execution',async()=>{
   const store=loadStore(),input=wizardInput();
   const sql=scriptedSql([(query,values)=>{

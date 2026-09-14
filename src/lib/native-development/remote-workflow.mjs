@@ -1,7 +1,26 @@
 import {validateNativeCommandInput} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 import {validateNativeCatalogReceipt} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {parseNodeJob,parseNodeJobEnqueue} from '../../components/node-control-contract.mjs';
+import {NATIVE_SPECIFICATION_CAPABILITY,validateNativeSpecificationInput,specificationBindingCanonical,validateNativeSpecificationReceiptFields} from '../../../protocol/mastermind-node-exchange/native-specification-contract.mjs';
 export const CATALOG='mastermind.native.catalog',REUSE='mastermind.native.reuse';
+export const SPECIFICATION=NATIVE_SPECIFICATION_CAPABILITY;
+export function specificationRequest(taskRef,request,operationId) {
+  return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null})};
+}
+export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(pending.capability!==SPECIFICATION)return checkedJob(envelope,pending,enqueue);
+  const input=validateNativeSpecificationInput(pending.body.input);
+  if(input.operationId!==pending.operationId||pending.body.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId)throw Error('Saved Wizard binding changed.');
+  const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,SPECIFICATION).job:
+    parseNodeJob(envelope,pending.nodeId,pending.operationId,SPECIFICATION).job;
+  if(job.jobId!==pending.operationId)throw Error('The saved operation changed.');
+  if(job.state==='succeeded') {
+    const bytes=await subtle.digest('SHA-256',new TextEncoder().encode(specificationBindingCanonical(input)));
+    const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+    validateNativeSpecificationReceiptFields(job.terminal.result,input,hash);
+  }
+  return job;
+}
 export function canonical(value) {
   if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
   if(value!==null&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}';

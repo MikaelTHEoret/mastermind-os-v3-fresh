@@ -715,16 +715,18 @@ export async function getLatestOwnerNativeJob(sql:NodeExchangeSql,nodeId:string,
       WHERE j.node_id=${nodeId}::uuid AND j.household_id=${profile.householdId}::text
       AND j.created_by_player_id=${profile.parentPlayerId}::uuid AND j.command_input->'taskRef'->>'taskId'=${taskId}::text
       AND ((j.capability='mastermind.native.catalog' AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,j.command_input,j.terminal_result))
-        OR (j.capability='mastermind.native.reuse' AND public.mastermind_native_task_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,j.command_input)))
+        OR (j.capability='mastermind.native.reuse' AND public.mastermind_native_task_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,j.command_input))
+        OR (j.capability='mastermind.native.specification' AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,
+          jsonb_build_object('schemaVersion',1,'taskRef',j.command_input->'taskRef','snapshotId',NULL,'cursor',NULL),NULL)))
       ORDER BY j.created_at DESC,j.job_id DESC LIMIT 1`;
     if(!Array.isArray(rows)||rows.length>1)fail(503,'NODE_STORE_INVALID','Saved native history is unavailable.');
     if(!rows.length)return null;
     const jobId=uuid(rows[0].jobId,'saved job ID');
     const job=await readOwnerJob(sql,nodeId,jobId,profile);
     if(!job)fail(403,'NODE_OWNER_REQUIRED','Saved task authority changed.');
-    const input=job.capability===NATIVE_CATALOG_CAPABILITY?validateNativeCatalogInput(rows[0].input):validateNativeCommandInput(rows[0].input);
-    if(input.taskRef.taskId!==taskId||(job.capability===NATIVE_REUSE_CAPABILITY&&input.operationId!==jobId))fail(503,'NODE_STORE_INVALID','Saved task binding changed.');
+    const input=job.capability===NATIVE_CATALOG_CAPABILITY?validateNativeCatalogInput(rows[0].input):job.capability===NATIVE_SPECIFICATION_CAPABILITY?validateNativeSpecificationInput(rows[0].input):validateNativeCommandInput(rows[0].input);
+    if(input.taskRef.taskId!==taskId||(job.capability!==NATIVE_CATALOG_CAPABILITY&&input.operationId!==jobId))fail(503,'NODE_STORE_INVALID','Saved task binding changed.');
     return {job,request:{nodeId,operationId:jobId,capability:job.capability,taskId,
-      body:job.capability===NATIVE_CATALOG_CAPABILITY?{operationId:jobId,input}:input}};
+      body:job.capability===NATIVE_REUSE_CAPABILITY?input:{operationId:jobId,input}}};
   } catch(error){databaseFailure(error);}
 }
