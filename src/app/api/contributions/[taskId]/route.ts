@@ -29,6 +29,8 @@ export async function GET(request:Request,context:Context){
 export async function POST(request:Request,context:Context){
  try{const {taskId}=await context.params;const {store}=await access(request,taskId,true);
   const record=await readNodeJson(request,110000);
+  // Verified remote attribution is added only by the authenticated MCP adapter.
+  if(record&&typeof record==='object'&&'submission' in record)throw new ContributionError('CONTRIBUTION_ATTRIBUTION_DENIED',403);
   if(!record||typeof record!=='object'||Array.isArray(record)||!('taskRef' in record))throw new ContributionError('CONTRIBUTION_INVALID');
   const ref=taskRef((record as {taskRef:unknown}).taskRef);
   if(ref.taskId!==taskId||ref.project!=='mastermind')throw new ContributionError('CONTRIBUTION_TASK_MISMATCH');

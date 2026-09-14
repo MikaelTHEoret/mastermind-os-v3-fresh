@@ -62,7 +62,7 @@ export default function ExternalContributions(){
  }
  return <section aria-label="External contributors" style={{background:'#091c28',border:'1px solid #356b79',borderRadius:10,padding:20,marginTop:20,color:'#e4f1f4',fontFamily:'system-ui,sans-serif'}}>
   <h2 style={{marginTop:0}}>Work with external models</h2>
-  <p>Prepare a bounded assignment, collect original responses, then review them. This first connection uses copy and paste; it does not send messages or run returned code.</p>
+  <p>Prepare an assignment, collect original responses, then review them. You can paste a response here; authorized connected clients can submit directly when sharing is enabled. Returned code remains advice until tested and accepted.</p>
   {error&&<p role="alert" style={{color:'#ffb6aa'}}>{error}</p>}{notice&&<p role="status" style={{color:'#a8e9c8'}}>{notice}</p>}
   <label>Shared task<select style={field} value={taskId} disabled={busy||!!pending} onChange={e=>choose(e.target.value)}><option value="">Choose a task</option>{tasks.map(t=><option key={t.taskId} value={t.taskId}>{t.title}</option>)}</select></label>
   <button style={button} disabled={busy||!taskId} onClick={()=>void refresh(taskId)}>Refresh saved history</button>
@@ -90,7 +90,7 @@ export default function ExternalContributions(){
     <button style={button} disabled={blocked||!response.trim()}>Save original response</button>
    </form>
    <h3>Collected contributions</h3>
-   {responses.length===0?<p>No responses retained yet.</p>:responses.map(r=><details key={r.artifactId}><summary>{labels[r.record.provider]} · {r.record.model||'Model not recorded'} · {new Date(r.recordedAt).toLocaleString()}</summary><p>Manually imported; provider identity is recorded, not independently verified.</p><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{r.record.text}</pre>{rows.filter(x=>x.record.kind==='review'&&x.record.parentId===r.artifactId).map(x=><p key={x.artifactId}>{x.record.decision}: {x.record.assessment}</p>)}</details>)}
+   {responses.length===0?<p>No responses retained yet.</p>:responses.map(r=><details key={r.artifactId}><summary>{labels[r.record.provider]} · {r.record.model||'Model not recorded'} · {new Date(r.recordedAt).toLocaleString()}</summary><p>{r.record.submission?'Submitted through an authenticated connected client.':'Manually imported.'} Model and machine identity are reported, not independently verified.</p><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{r.record.text}</pre>{rows.filter(x=>x.record.kind==='review'&&x.record.parentId===r.artifactId).map(x=><p key={x.artifactId}>{x.record.decision}: {x.record.assessment}</p>)}</details>)}
    <form onSubmit={e=>{e.preventDefault();void submit({...base('review'),parentId:reviewId,decision,assessment,evidenceRefs:lines(evidence)});}}>
     <h3>Record a review</h3>
     <label>Response<select style={field} value={reviewId} onChange={e=>setReviewId(e.target.value)}><option value="">Choose a response</option>{responses.map(r=><option key={r.artifactId} value={r.artifactId}>{labels[r.record.provider]} · {r.record.model||'Unspecified model'}</option>)}</select></label>

@@ -23,3 +23,8 @@ test('denied identity, foreign origin, changed task and malformed JSON cannot sa
  const f=harness();assert.equal((await f.request('POST',{taskRef:{taskId:id,project:'another'}})).status,400);
  assert.equal((await f.request('POST','{')).status,400);assert.equal((await f.request('GET',null,{suffix:'?extra=1'})).status,404);assert.ok(!f.calls.includes('write'));
 });
+
+test('browser imports cannot forge verified MCP submission attribution',async()=>{
+ const f=harness();const result=await f.request('POST',{taskRef:{taskId:id,project:'mastermind'},submission:{transport:'oauth-mcp',subject:'user_owner',clientId:'forged'}});
+ assert.equal(result.status,403);assert.ok(!f.calls.includes('write'));
+});

@@ -3,6 +3,12 @@
 export class HostedOAuthError extends Error {
   constructor(code, status = 401) { super(code); this.code = code; this.status = status; }
 }
+const contributionWriteScope = 'mastermind:contributions:write';
+function flag(value) {
+  if (value === undefined || value === '' || value === 'false') return false;
+  if (value === 'true') return true;
+  throw new HostedOAuthError('MCP_OAUTH_CONFIGURATION_REQUIRED', 503);
+}
 const reject = (code, status = 401) => { throw new HostedOAuthError(code, status); };
 const scopePattern = /^[\x21\x23-\x5b\x5d-\x7e]{1,180}$/;
 // Identity/profile grants do not authorize this service's private context reads.
@@ -35,7 +41,12 @@ export function hostedOAuthPolicy(env) {
   if (!requiredScopes.some((scope) => !identityScopes.has(scope))) reject('MCP_OAUTH_SERVICE_SCOPE_REQUIRED', 503);
   const ownerSubject = env.OWNER_CLERK_USER_ID;
   if (typeof ownerSubject !== 'string' || !/^user_[A-Za-z0-9]+$/.test(ownerSubject)) reject('MCP_OAUTH_CONFIGURATION_REQUIRED', 503);
-  return Object.freeze({ issuer, resource, resourceOrigin: new URL(resource).origin, clientIds, requiredScopes, ownerSubject });
+  const contributionReadsEnabled = flag(env.MASTERMIND_MCP_CONTRIBUTIONS_ENABLED);
+  const contributionWritesEnabled = flag(env.MASTERMIND_MCP_CONTRIBUTION_WRITES_ENABLED);
+  // Never make an optional write permission mandatory for existing read clients.
+  if ((contributionWritesEnabled && !contributionReadsEnabled) || requiredScopes.includes(contributionWriteScope)) reject('MCP_OAUTH_CONFIGURATION_REQUIRED', 503);
+  return Object.freeze({ issuer, resource, resourceOrigin: new URL(resource).origin, clientIds, requiredScopes, ownerSubject,
+    contributionReadsEnabled, contributionWritesEnabled });
 }
 export function requireHostedOrigin(request, policy) {
   const url = new URL(request.url);
@@ -109,7 +120,7 @@ export function hostedOAuthFailure(error, policy, { metadata = false } = {}) {
 }
 export const metadataCorsHeaders = Object.freeze({ 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS', 'access-control-allow-headers': 'content-type', 'cache-control': 'no-store' });
 export function protectedHostedMetadata(policy) {
-  return { resource: policy.resource, authorization_servers: [policy.issuer], scopes_supported: [...policy.requiredScopes],
+  return { resource: policy.resource, authorization_servers: [policy.issuer], scopes_supported: [...policy.requiredScopes, ...(policy.contributionWritesEnabled ? [contributionWriteScope] : [])],
     bearer_methods_supported: ['header'], resource_name: 'Mastermind Embodiment Gateway' };
 }
 

@@ -1,12 +1,12 @@
 # External model contributions
 
-This candidate adds owner-only assignment, response and review records to the existing Mastermind task. It is the first stage of browser model delegation; automated dispatch, extension capture, GPT Actions and model execution are not implemented here.
+This adds owner-only assignment, response and review records to the existing Mastermind task. The optional [remote contribution adapter](remote-contributions.md) lets authenticated clients exchange the same records with a separate submission grant. Automated dispatch, GPT Actions and model execution are not provided by this contribution store.
 
 ## Workflow
 
 In Forge, select the shared task under **Work with external models**. Save a bounded assignment with selected source material, source references and acceptance criteria. Copy that assignment to ChatGPT, Grok, GLM / Z.ai or another contributor. Paste the original response back, optionally recording the displayed model and conversation URL. Add a separate review with evidence references. Existing records are immutable; a correction is another record.
 
-Provider identity on a pasted response is a user-supplied attribution, not verified provider provenance. Accepting useful advice grants no execution permission and activates no module. Returned code still requires the established candidate testing and promotion process. No paid API or external account is configured by this change.
+Provider identity on a response is a supplied attribution, not verified provider provenance. Remote submissions additionally retain the authenticated owner subject and registered client ID; this does not prove a physical machine or model identity. Accepting useful advice grants no execution permission and activates no module. Returned code still requires the established candidate testing and promotion process. No paid API or external account is configured by this change.
 
 Assignments and imported responses reside in the hosted task store, not only browser storage. After a lost save reply, the browser retains the exact pending request. Explicit reconciliation sends the same operation ID; a changed body conflicts. A fresh browser can read the same shared history after signing in. An unsubmitted draft is not yet durable. Browser storage may contain selected task material while a submission is pending.
 
@@ -22,7 +22,7 @@ The initial bounded profile supports at most 64 records per task, each at most 6
 
 Migration `025_mastermind_task_contributions_v1.sql` is additive and must precede enabling this interface. Existing task, worker, checkpoint and execution tables are unchanged. Apply using the existing authenticated migration process after checking the target and migration hash. Do not run the isolated fixture as a production migration.
 
-Rollback: restore the preceding web deployment. Keep the additive table and its records for future recovery; do not drop or truncate it. This candidate requires no worker restart, new capabilities, task permissions or runtime deployment. The underlying private Wizard source can remain uninstalled.
+Rollback: preserve a compatible reader and disable remote writes first. A deployment that predates optional remote attribution cannot read those new records. Follow the remote adapter's rollback order after enabling that feature. Keep the additive table and its records for future recovery; do not drop or truncate it. This contribution store requires no worker restart or runtime deployment. The underlying private Wizard source can remain uninstalled.
 
 ## Acceptance
 

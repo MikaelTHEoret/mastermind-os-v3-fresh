@@ -1,6 +1,6 @@
 // Reconciled from PR #2; OAuth transport delegates to the same canonical context service as stdio.
 import { auth } from '@clerk/nextjs/server';
-import { gatewayForAuthenticatedOwner } from '@/lib/mastermind-context/gateway';
+import { gatewayForAuthenticatedOwner, contributionsForAuthenticatedOwner } from '@/lib/mastermind-context/gateway';
 import { readBoundedJsonRequestBody } from '@/lib/memory/local-service-auth';
 import { HOSTED_REQUEST_BYTES } from '../../../../services/mastermind-context-gateway/src/hosted-adapter.mjs';
 import { createHostedMcpTransport } from '../../../../services/mastermind-context-gateway/src/hosted-mcp-transport.mjs';
@@ -19,6 +19,8 @@ const guardedHandler = createHostedOAuthHandler({
   readAuth: () => auth({ acceptsToken: 'oauth_token' }),
   createTransport: ({ policy, verifyToken }: HostedTransportOptions) => createHostedMcpTransport({
     verifyToken, gatewayForSubject: gatewayForAuthenticatedOwner,
+    contributionsForSubject: policy.contributionReadsEnabled ? contributionsForAuthenticatedOwner : undefined,
+    contributionWritesEnabled: policy.contributionWritesEnabled,
     requiredScopes: [...policy.requiredScopes], resourceUrl: policy.resourceOrigin,
     readBody: (request: Request) => readBoundedJsonRequestBody(request, { maxBytes: HOSTED_REQUEST_BYTES }),
   }),

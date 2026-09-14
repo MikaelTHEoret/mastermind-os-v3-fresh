@@ -40,3 +40,13 @@ test('owner saves a task assignment, lost reply survives reload, explicit reconc
  const fresh=fixture(new Map(),f.rows);await fresh.settle();fresh.field('Saved assignment').props.onChange({target:{value:f.rows[0].artifactId}});await fresh.settle();assert.match(fresh.html(),/Public source/);
  fresh.deny();fresh.button('Refresh saved history').props.onClick();await fresh.settle();assert.doesNotMatch(fresh.html(),/Public source/);assert.match(fresh.html(),/Access revoked/);
 });
+
+test('saved remote responses render their original and distinguish authenticated submission from model identity',async()=>{
+ const ref={taskId:TASK,project:'mastermind'},submission={transport:'oauth-mcp',subject:'user_fixture',clientId:'fixture-codex'};
+ const a={schemaVersion:1,operationId:randomUUID(),kind:'assignment',taskRef:ref,title:'Shared review',request:'Review evidence',context:'Source',sourceRefs:['gpt/fixture'],criteria:['Cite source'],providers:['other'],disclosure:'selected-material',submission};
+ const r={schemaVersion:1,operationId:randomUUID(),kind:'response',taskRef:ref,parentId:digest(a),provider:'other',model:'Reported Codex',conversationUrl:null,captureMode:'mcp',text:'Original remote finding',submission};
+ const f=fixture(new Map(),[a,r].map(record=>({record,artifactId:digest(record),recordedAt:'2026-09-14T00:00:00Z'})));
+ await f.settle();f.field('Saved assignment').props.onChange({target:{value:digest(a)}});await f.settle();
+ assert.match(f.html(),/Original remote finding/);assert.match(f.html(),/Submitted through an authenticated connected client/);
+ assert.match(f.html(),/Model and machine identity are reported, not independently verified/);assert.doesNotMatch(f.html(),/Manually imported/);
+});

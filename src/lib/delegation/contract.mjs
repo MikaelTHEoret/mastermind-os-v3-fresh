@@ -25,6 +25,12 @@ export function digestId(v){need(typeof v==='string'&&SHA.test(v));return v;}
 export function validateRecord(raw){
   need(object(raw)&&raw.schemaVersion===1&&typeof raw.operationId==='string'&&UUID.test(raw.operationId));taskRef(raw.taskRef);
   const common=['schemaVersion','kind','operationId','taskRef'];
+  if(Object.hasOwn(raw,'submission')){
+    need(exact(raw.submission,['transport','subject','clientId'])&&raw.submission.transport==='oauth-mcp');
+    need(typeof raw.submission.subject==='string'&&/^user_[A-Za-z0-9]+$/.test(raw.submission.subject));
+    text(raw.submission.subject,128);text(raw.submission.clientId,512);
+    common.push('submission');
+  }
   if(raw.kind==='assignment'){
     need(exact(raw,[...common,'title','request','context','sourceRefs','criteria','providers','disclosure']));
     text(raw.title,240);text(raw.request,6000);text(raw.context,24000,true);strings(raw.sourceRefs,12,512);strings(raw.criteria,12,1000);
@@ -32,7 +38,7 @@ export function validateRecord(raw){
     need(['public-material','selected-material'].includes(raw.disclosure));
   }else if(raw.kind==='response'){
     need(exact(raw,[...common,'parentId','provider','model','conversationUrl','captureMode','text']));
-    digestId(raw.parentId);need(PROVIDERS.includes(raw.provider)&&raw.captureMode==='manual');
+    digestId(raw.parentId);need(PROVIDERS.includes(raw.provider)&&raw.captureMode===(raw.submission?'mcp':'manual'));
     if(raw.model!==null)text(raw.model,160);
     if(raw.conversationUrl!==null){
       text(raw.conversationUrl,1500);let url;try{url=new URL(raw.conversationUrl);}catch{need(false);}

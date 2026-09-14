@@ -15,6 +15,8 @@ try:
  before=cur.fetchone()[0]
  cur.execute(f'CREATE SCHEMA {SCHEMA}')
  cur.execute(f'CREATE TABLE {SCHEMA}.owners(household_id text,actor uuid,allowed boolean)')
+ cur.execute(f'CREATE TABLE {SCHEMA}.mastermind_player_external_identities_v1(provider text,provider_subject text,household_id text,player_id uuid)')
+ cur.execute(f"INSERT INTO {SCHEMA}.mastermind_player_external_identities_v1 VALUES ('clerk','user_fixture','fixture',%s)",(A,))
  cur.execute(f"INSERT INTO {SCHEMA}.owners VALUES ('fixture',%s,true)",(A,))
  cur.execute(f"CREATE FUNCTION {SCHEMA}.verify_mastermind_memory_operator_v1(text,uuid) RETURNS boolean LANGUAGE sql AS $$ SELECT EXISTS(SELECT 1 FROM {SCHEMA}.owners WHERE household_id=$1 AND actor=$2 AND allowed) $$")
  cur.execute(f'CREATE TABLE {SCHEMA}.mastermind_context_tasks_v1(task_id uuid PRIMARY KEY,project_id text,household_id text,actor_player_id uuid,state text)')
@@ -26,15 +28,16 @@ try:
  source=(ROOT/'src/lib/delegation/store.mjs').read_text(encoding='utf-8')
  queries=re.findall(r'this\.query\(\x60([\s\S]*?)\x60',source)
  assert len(queries)==5
- def run(index,params):
+ def run(index,params,subject=None):
+  params=[*params,subject]
   sql=queries[index].replace('public.',SCHEMA+'.')
   sql=re.sub(r'\$(\d+)',lambda m:'%(p'+m[1]+')s',sql)
   cur.execute(sql,{'p'+str(i+1):v for i,v in enumerate(params)})
   return cur.fetchall()
  ref=[T,'mastermind','fixture',A]
- def insert(kind,op,aid,parent=None,task=T):
-  doc={'schemaVersion':1,'kind':kind,'operationId':op,'taskRef':{'taskId':task,'project':'mastermind'}}
-  return run(3,[task,'mastermind','fixture',A,aid,kind,op,parent,json.dumps(doc),'assignment' if kind=='response' else 'response'])
+ def insert(kind,op,aid,parent=None,task=T,document=None,subject=None):
+  doc=document if document is not None else {'schemaVersion':1,'kind':kind,'operationId':op,'taskRef':{'taskId':task,'project':'mastermind'}}
+  return run(3,[task,'mastermind','fixture',A,aid,kind,op,parent,json.dumps(doc),'assignment' if kind=='response' else 'response'],subject)
  op=str(uuid.uuid4());aid='a'*64
  assert len(insert('assignment',op,aid))==1
  assert insert('assignment',op,aid)==[]
@@ -48,6 +51,24 @@ try:
  assert insert('review',str(uuid.uuid4()),'c'*64,aid)==[]
  assert len(insert('review',str(uuid.uuid4()),'c'*64,'b'*64))==1
  receipt['checks'].append('parent presence and kind checked by actual insertion query')
+ remote_op=str(uuid.uuid4())
+ original=' Original caf\u00e9 \U0001f4da\n  proposed code with trailing spaces  \n'
+ remote={'schemaVersion':1,'kind':'response','operationId':remote_op,'taskRef':{'taskId':T,'project':'mastermind'},
+  'parentId':aid,'provider':'other','model':'Reported Codex','conversationUrl':None,'captureMode':'mcp','text':original,
+  'submission':{'transport':'oauth-mcp','subject':'user_fixture','clientId':'fixture-codex'}}
+ remote_id=hashlib.sha256(json.dumps(remote,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+ assert len(insert('response',remote_op,remote_id,aid,document=remote,subject='user_fixture'))==1
+ assert insert('response',remote_op,remote_id,aid,document=remote,subject='user_fixture')==[]
+ retained=run(1,[*ref,remote_id],subject='user_fixture')[0][1]
+ if isinstance(retained,str):retained=json.loads(retained)
+ assert retained==remote and retained['text']==original
+ receipt['checks'].append('remote attribution and exact Unicode original survive real JSONB storage and duplicate recovery without schema changes')
+ for subject in ('user_foreign','user_fixture'):
+  if subject=='user_fixture':cur.execute(f'DELETE FROM {SCHEMA}.mastermind_player_external_identities_v1')
+  assert run(0,[*ref,False],subject)==[] and run(1,[*ref,remote_id],subject)==[] and run(2,ref,subject)==[]
+  assert run(4,[*ref,'response',remote_op],subject)==[]
+  assert insert('assignment',str(uuid.uuid4()),'e'*64,subject=subject)==[]
+ receipt['checks'].append('foreign or removed Clerk binding denied inside every actual SQL statement, including insertion and reconciliation')
  assert run(2,[T,'mastermind','foreign',A])==[]
  cur.execute(f'UPDATE {SCHEMA}.owners SET allowed=false')
  assert run(0,[*ref,False])==[] and run(1,[*ref,aid])==[] and run(2,ref)==[]
@@ -67,7 +88,7 @@ try:
   else:raise AssertionError('immutable write succeeded')
  for action in ('UPDATE '+SCHEMA+".mastermind_task_contributions_v1 SET kind='assignment'",'DELETE FROM '+SCHEMA+'.mastermind_task_contributions_v1','TRUNCATE '+SCHEMA+'.mastermind_task_contributions_v1'):rejected(action)
  receipt['checks'].append('update/delete/truncate cannot erase originals')
- for i in range(61):
+ for i in range(60):
   assert len(insert('assignment',str(uuid.uuid4()),hashlib.sha256(str(i).encode()).hexdigest()))==1
  assert insert('assignment',str(uuid.uuid4()),'d'*64)==[]
  assert len(run(2,ref))==64
