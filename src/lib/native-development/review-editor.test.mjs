@@ -15,7 +15,8 @@ function fixture(saved=new Map(),options={}){
  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
  const hooks={...React,useState(initial){const i=index++;if(!(i in slots))slots[i]=initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(v){const i=index++;return slots[i]??(slots[i]={current:v});},useEffect(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps)){slots[i]?.cleanup?.();slots[i]={deps};effects.push(()=>slots[i].cleanup=fn());}}};
  function ValueField(){return jsx.jsx('span',{children:'Schema-generated example fields'});}
- const module={exports:{}};vm.runInNewContext(compiled,{module,exports:module.exports,TextEncoder,crypto:webcrypto,structuredClone,
+ let digestCalls=0;const crypto={subtle:{async digest(...args){if(++digestCalls===1&&options.restoreWait)await options.restoreWait;return webcrypto.subtle.digest(...args);}}};
+ const module={exports:{}};vm.runInNewContext(compiled,{module,exports:module.exports,TextEncoder,crypto,structuredClone,
  localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {ValueField};if(name.includes('native-review-contract'))return review;throw Error(name);}});
  const props={specificationId:input.specificationId,parentOperationId:input.parentOperationId,taskRef:input.taskRef,request:reviewText,disabled:false,
  onSave:async c=>{calls.push(c);await options.wait;}};
@@ -42,4 +43,15 @@ test('review load refuses wrong source, extra authority and malformed examples',
 test('double click cannot create a second review while save is pending',async()=>{
  let release;const wait=new Promise(r=>release=r);const f=fixture(new Map(),{wait});await f.settle();await f.load(reviewInput().content);
  const button=f.save();button.props.onClick();button.props.onClick();await f.settle();assert.equal(f.calls.length,1);assert.equal(f.save().props.disabled,true);release();await f.settle();
+});
+test('a late restored draft cannot overwrite a newly loaded review',async()=>{
+ const original=fixture();await original.settle();await original.load(reviewInput().content);
+ let release;const restoreWait=new Promise(r=>release=r);const next=fixture(original.saved,{restoreWait});await next.settle();
+ const changed=reviewInput().content;changed.requirements.requirements[0]='Newly loaded requirement.';await next.load(changed);
+ release();await next.settle();assert.match(next.html(),/Newly loaded requirement/);
+});
+test('an unfinished requirement survives draft reload but cannot be submitted',async()=>{
+ const f=fixture();await f.settle();await f.load(reviewInput().content);f.all().find(n=>n.type==='textarea').props.onChange({target:{value:''}});await f.settle();
+ const next=fixture(f.saved);await next.settle();assert.equal(next.all().find(n=>n.type==='textarea').props.value,'');
+ next.save().props.onClick();await next.settle();assert.equal(next.calls.length,0);assert.match(next.html(),/role="alert"/);
 });

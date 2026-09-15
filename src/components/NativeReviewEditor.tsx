@@ -14,15 +14,17 @@ export default function NativeReviewEditor({specificationId,parentOperationId,ta
  const ticket=useRef(0),active=useRef(false);
  const key='mastermind.review-draft.v1.'+parentOperationId;
  const input=(c:ReviewContent)=>({schemaVersion:1,action:'prepare',taskRef,operationId:'00000000-0000-4000-8000-000000000000',specificationId,parentOperationId,originalRequest:request,content:c});
- async function checked(c:ReviewContent) {
-   validateNativeReviewInput(input(c));
+ async function checked(c:ReviewContent,draft=false) {
+   const candidate=structuredClone(c);
+   if(draft&&Array.isArray(candidate?.requirements?.requirements))candidate.requirements.requirements=candidate.requirements.requirements.map(text=>typeof text==='string'&&!text.trim()?'Unfinished requirement':text);
+   validateNativeReviewInput(input(candidate));
    const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(reviewCanonical(request)));
    if(Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('')!==c.requestSha256)throw Error('This review belongs to a different saved description.');
    const characters=Array.from(request);
    if(c.coverage.some(s=>characters.slice(s.start,s.end).join('')!==s.text))throw Error('A source passage does not match the saved description.');
    return c;
  }
- useEffect(()=>{let alive=true;void(async()=>{try{const raw=localStorage.getItem(key);if(raw&&raw.length<=32768){const c=await checked(JSON.parse(raw));if(alive)setReviewContent(c);}}catch{if(alive)setError('The unsent review could not be restored. Load its prepared file again.');}})();return()=>{alive=false;ticket.current++;};},[key]); // The saved operation fixes the request and task.
+ useEffect(()=>{const current=++ticket.current;void(async()=>{try{const raw=localStorage.getItem(key);if(raw&&raw.length<=32768){const c=await checked(JSON.parse(raw),true);if(current===ticket.current)setReviewContent(c);}}catch{if(current===ticket.current)setError('The unsent review could not be restored. Load its prepared file again.');}})();return()=>{ticket.current++;};},[key]); // The saved operation fixes the request and task.
  function update(c:ReviewContent){setReviewContent(c);try{localStorage.setItem(key,JSON.stringify(c));setError('');}catch{setError('These edits could not be saved in this browser. Keep this page open.');}}
  async function load(file?:File){if(!file)return;const current=++ticket.current;setBusy(true);setError('');try{
    if(file.size>16384)throw Error('Choose a prepared review of 16 KB or less.');

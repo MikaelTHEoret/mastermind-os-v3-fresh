@@ -181,7 +181,7 @@ function ReviewResult({input,value}:{input:{originalRequest:string;content:Revie
   <h5>Original request</h5><p style={{whiteSpace:'pre-wrap'}}>{input.originalRequest}</p>
   <h5>Saved requirements</h5><ol>{input.content.requirements.requirements.map((text,i)=><li key={i}>{text}</li>)}</ol>
   <p>{input.content.requirements.tests.cases.length} acceptance examples retained. No candidate has been tested or activated by this review.</p>
-  {result.holds.length>0&&<ul>{result.holds.map(code=><li key={code}>{explanation[code]??code.replaceAll('_',' ').toLowerCase()}</li>)}</ul>}
+  {result.holds.length>0&&<ul>{result.holds.map(code=><li key={code}>{explanation[code]??code.replace(/_/g,' ').toLowerCase()}</li>)}</ul>}
  </section>;
 }
 
