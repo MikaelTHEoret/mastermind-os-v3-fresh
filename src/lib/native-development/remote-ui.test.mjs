@@ -9,7 +9,7 @@ const TASK='99999999-9999-4999-8999-999999999999',NODE='22222222-2222-4222-8222-
 const page={kind:workflow.CATALOG,ok:true,schemaVersion:1,taskRef:{taskId:TASK,project:'mastermind'},snapshotId:'a'.repeat(64),entry:{specificationId:'b'.repeat(64),candidateId:'c'.repeat(64),requirementsHash:'d'.repeat(64),capability:'release-inventory.diff',title:'Compare releases',version:'1.0.0',effectClass:'READ_ONLY',inputSchema:{type:'object',properties:{before:{type:'array'},after:{type:'array'}}}},nextCursor:null,observedAt:AT,executionAuthorized:false};
 const computer={nodeId:NODE,displayName:'My PC',state:'active',connectivity:'online',agentVersion:'0.4.0',pairedAt:AT,lastExchangeAt:AT,lastJobReceiptAt:null,status:null,worker:{protocolVersion:2,capabilities:[{id:workflow.CATALOG,version:1},{id:workflow.REUSE,version:1}]}};
 const compiled=ts.transpileModule(fs.readFileSync(new URL('../../components/RemoteNativeWork.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
-function fixture(saved=new Map(),history=saved,options_={}) {
+export function fixture(saved=new Map(),history=saved,options_={}) {
  const slots=[],effects=[],calls=[];let index=0,tree,denied=false,lost=false;const jobs=new Map();
  const selectedComputer=options_.computer??computer;
  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
@@ -24,7 +24,7 @@ function fixture(saved=new Map(),history=saved,options_={}) {
    if(options.method==='POST'){
      const body=JSON.parse(options.body),isCatalog=url.endsWith('native-catalog'),isWizard=url.endsWith('native-specification');
      const result=isCatalog?page:isWizard?{kind:workflow.SPECIFICATION,ok:true,schemaVersion:1,taskRef:body.input.taskRef,operationId:id,requestHash:specificationRequestHash(body.input),savedAt:AT,replayed:false,executionAuthorized:false,
-       specification:{specificationId:'e'.repeat(64),title:'Saved development request',decision:'inspect_existing',stage:'needs_specification',requirementsHash:null,missingCount:2}}:
+       specification:{specificationId:'e'.repeat(64),title:'Saved development request',decision:'inspect_existing',stage:'needs_specification',requirementsHash:null,missingCount:2,...(options_.detailed?{missing:['Confirm inputs and expected outputs.','Review matching capabilities.']}: {})}}:
        {kind:workflow.REUSE,operationId:id,specificationId:body.specificationId,taskRef:body.taskRef,candidateId:body.candidateId,capability:body.capability,inputSha256:body.inputSha256,resultSha256:'f'.repeat(64),replayed:false,result:{added:['new artifact']}};
      const job={jobId:id,nodeId:NODE,capability:isCatalog?workflow.CATALOG:isWizard?workflow.SPECIFICATION:workflow.REUSE,capabilityVersion:1,policyClass:'routine',state:options_.queued?'queued':'succeeded',createdAt:AT,expiresAt:'2026-09-11T04:30:00.000Z',lease:null,terminal:options_.queued?null:{code:'desired-state-reached',finishedAt:AT,result}};
      const existing=jobs.get(id);if(!existing)jobs.set(id,job);if(lost){lost=false;throw Error('reply lost');}return {ok:true,status:existing?'duplicate':'created',job:existing??job};
@@ -36,7 +36,7 @@ function fixture(saved=new Map(),history=saved,options_={}) {
  const module={exports:{}};
  vm.runInNewContext(compiled,{module,exports:module.exports,console,AbortController,crypto:crypto.webcrypto,location:{origin:'https://mastermind-core.com'},setTimeout:()=>1,clearTimeout(){},localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>{if(options_.storageDenied)throw Error('storage denied');saved.set(k,v);},removeItem:k=>saved.delete(k)},require(name){
    if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {default:Inputs,__esModule:true};
-   if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,specificationRequest:(t,r,o)=>workflow.specificationRequest(plain(t),r,o),checkedRemoteJob:(v,p,e)=>workflow.checkedRemoteJob(plain(v),plain(p),e)};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
+   if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:(v,p,e)=>workflow.checkedRemoteJob(plain(v),plain(p),e)};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
  }});
  const Component=module.exports.default;
  const render=()=>{index=0;tree=Component();return tree;};
@@ -84,4 +84,25 @@ test('Wizard blocks unsupported workers and unsaved/oversized requests, while da
  const queued=fixture(new Map(),undefined,{computer:{...wizardComputer,connectivity:'offline'},queued:true});await queued.settle();
  queued.textarea().props.onChange({target:{value:'Prepare a bounded review'}});await queued.settle();queued.form().props.onSubmit({preventDefault(){}});await queued.settle();
  assert.match(queued.html(),/Queued/);assert.match(queued.html(),/last contact/);assert.equal(queued.textarea().props.disabled,true);assert.equal(queued.button('Save Wizard request').props.disabled,true);
+});
+
+
+test('detailed Wizard revision keeps original, binds parent, restores unsent edits and saves once',async()=>{
+ const f=fixture(new Map(),undefined,{computer:wizardComputer,detailed:true});await f.settle();
+ f.textarea().props.onChange({target:{value:'Compare release manifests'}});await f.settle();
+ f.form().props.onSubmit({preventDefault(){}});await f.settle();
+ assert.match(f.html(),/Confirm inputs and expected outputs/);
+ assert.equal(f.textarea().props.readOnly,true);
+ const first=Array.from(f.jobs.values())[0];
+ f.button('Revise saved request').props.onClick();await f.settle();
+ f.textarea().props.onChange({target:{value:'Compare release manifests. Missing paths are removed; new paths are added.'}});await f.settle();
+ const resumed=fixture(f.saved,f.saved,{computer:wizardComputer,detailed:true});for(const [id,job] of f.jobs)resumed.jobs.set(id,job);await resumed.settle();
+ assert.match(resumed.textarea().props.value,/Missing paths/);assert.equal(resumed.textarea().props.readOnly,false);
+ assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
+ resumed.form().props.onSubmit({preventDefault(){}});resumed.form().props.onSubmit({preventDefault(){}});await resumed.settle();
+ assert.equal(resumed.jobs.size,2);assert.deepEqual(resumed.jobs.get(first.jobId),first);
+ const sent=JSON.parse(resumed.calls.find(c=>c.options.method==='POST').options.body).input;
+ assert.deepEqual(sent.revisionOf,{operationId:first.jobId,requestHash:first.terminal.result.requestHash});
+ assert.notEqual(sent.operationId,first.jobId);assert.equal(resumed.textarea().props.readOnly,true);
+ assert.equal(resumed.button('Save revised request').props.disabled,true);
 });

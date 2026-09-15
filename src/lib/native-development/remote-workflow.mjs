@@ -4,8 +4,8 @@ import {parseNodeJob,parseNodeJobEnqueue} from '../../components/node-control-co
 import {NATIVE_SPECIFICATION_CAPABILITY,validateNativeSpecificationInput,specificationBindingCanonical,validateNativeSpecificationReceiptFields} from '../../../protocol/mastermind-node-exchange/native-specification-contract.mjs';
 export const CATALOG='mastermind.native.catalog',REUSE='mastermind.native.reuse';
 export const SPECIFICATION=NATIVE_SPECIFICATION_CAPABILITY;
-export function specificationRequest(taskRef,request,operationId) {
-  return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null})};
+export function specificationRequest(taskRef,request,operationId,revisionOf) {
+  return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
   if(pending.capability!==SPECIFICATION)return checkedJob(envelope,pending,enqueue);

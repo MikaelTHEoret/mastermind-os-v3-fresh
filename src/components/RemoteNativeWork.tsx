@@ -11,9 +11,11 @@ type Pending={nodeId:string;operationId:string;capability:string;body:Record<str
 type Page={kind:string;taskRef:{taskId:string;project:string};snapshotId:string;nextCursor:string|null;observedAt:string;
   entry:null|{specificationId:string;candidateId:string;requirementsHash:string;capability:string;title:string;version:string;inputSchema:NativeSchema}};
 const KEY='mastermind.remote-native.pending.v1';
+const DRAFT_KEY=KEY+'.draft';
 const terminal=(state?:string)=>['succeeded','failed','expired'].includes(state??'');
 const style={padding:16,marginBottom:16,border:'1px solid #377888',borderRadius:8,color:'#eaffff',background:'#09242d',fontFamily:'system-ui,sans-serif'};
 const button={padding:'8px 12px',margin:'8px 8px 0 0',background:'#164350',color:'#fff',border:'1px solid #377888',borderRadius:5};
+const field={display:'block',width:'100%',boxSizing:'border-box' as const,background:'#fff',color:'#172b35',colorScheme:'light',border:'1px solid #64828e',borderRadius:5,padding:10,fontFamily:'system-ui,sans-serif',fontSize:16,lineHeight:1.5};
 function Result({value,depth=0}:{value:unknown;depth?:number}) {
  if(depth>5)return <span>Further nested records are saved with the result.</span>;
  if(Array.isArray(value))return <ul>{value.slice(0,30).map((item,i)=><li key={i}><Result value={item} depth={depth+1}/></li>)}</ul>;
@@ -26,11 +28,19 @@ export default function RemoteNativeWork() {
  const [pending,setPending]=useState<Pending|null>(null),[job,setJob]=useState<{state:string;createdAt:string;terminal?:{result:unknown;code:string}|null}|null>(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[ready,setReady]=useState(false);
  const [requestText,setRequestText]=useState('');
+ const [editing,setEditing]=useState(false);
  const acting=useRef(false),alive=useRef(true),currentOperation=useRef<string|null>(null);
  const task=tasks.find(t=>t.taskId===taskId),node=nodes.find(n=>n.nodeId===nodeId);
  const supported=node?.worker?.capabilities.some(c=>c.id===CATALOG&&c.version===1);
  const wizardSupported=node?.worker?.capabilities.some(c=>c.id===SPECIFICATION&&c.version===1);
  const blocked=busy||!!pending&&!terminal(job?.state);
+ const savedSpecification=pending?.capability===SPECIFICATION&&job?.state==='succeeded';
+ const savedRequest=savedSpecification?(pending.body.input as {request:string}).request:'';
+ function restoreDraft(saved:Pending) {
+   try{const raw=localStorage.getItem(DRAFT_KEY);if(!raw||raw.length>12000)return;
+     const draft=JSON.parse(raw);if(draft.operationId===saved.operationId&&typeof draft.text==='string'&&draft.text.length<=4000){setRequestText(draft.text);setEditing(true);}
+   }catch{setError('The unsent revision could not be restored. The submitted request is still saved.');}
+ }
  const receive=useCallback(async(envelope:unknown,saved:Pending,enqueue=false)=>{
    const checked=await checkedRemoteJob(envelope,saved,enqueue);if(!alive.current||currentOperation.current!==saved.operationId)return;
    setJob(previous=>terminal(previous?.state)&&!terminal(checked.state)?previous:checked);setError('');
@@ -54,7 +64,7 @@ export default function RemoteNativeWork() {
          if(saved&&['nodeId','operationId','capability','body','taskId'].every(k=>Object.prototype.hasOwnProperty.call(saved,k))
            &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION].includes(saved.capability)
            &&computers.some((n:Computer)=>n.nodeId===saved.nodeId)&&owned.tasks.some((t:Task)=>t.taskId===saved.taskId)){
-           currentOperation.current=saved.operationId;setPending(saved);setNodeId(saved.nodeId);setTaskId(saved.taskId);if(saved.capability===SPECIFICATION)setRequestText(saved.body?.input?.request??'');await recover(saved,control.signal);
+           currentOperation.current=saved.operationId;setPending(saved);setNodeId(saved.nodeId);setTaskId(saved.taskId);if(saved.capability===SPECIFICATION){setRequestText(saved.body?.input?.request??'');restoreDraft(saved);}await recover(saved,control.signal);
          }
        }
      }catch{if(alive.current&&!control.signal.aborted)setError('Remote native work is not available yet. The computer, task permissions or hosted setup could not be verified.');}
@@ -67,9 +77,14 @@ export default function RemoteNativeWork() {
    const poll=async()=>{await recover(pending,control.signal);if(!control.signal.aborted)timer=setTimeout(poll,5000);};
    timer=setTimeout(poll,5000);return()=>{control.abort();clearTimeout(timer);};
  },[pending,job?.state,ready,recover]);
- function clearSelection(){try{localStorage.removeItem(KEY);}catch{setError('The saved request could not be cleared. Keep this task selected until browser storage is available.');return false;}currentOperation.current=null;setPending(null);setJob(null);setPage(null);setError('');setRequestText('');return true;}
+ function clearSelection(){try{localStorage.removeItem(KEY);}catch{setError('The saved request could not be cleared. Keep this task selected until browser storage is available.');return false;}currentOperation.current=null;setPending(null);setJob(null);setPage(null);setError('');setRequestText('');setEditing(false);return true;}
+ function editRequest(value:string) {
+   setRequestText(value);
+   if(savedSpecification&&pending)try{localStorage.setItem(DRAFT_KEY,JSON.stringify({operationId:pending.operationId,text:value}));}
+   catch{setError('This unsent revision could not be saved in this browser. Keep the page open or copy your edits.');}
+ }
  async function submit(saved:Pending) {
-   localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);
+   localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);setEditing(false);
    try{const suffix=saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
      await receive(await remoteJson(`/api/nodes/${saved.nodeId}/${suffix}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(saved.body)}),saved,true);
    }catch{setError('Submission could not be confirmed. Refresh this saved request before starting another.');}
@@ -83,7 +98,7 @@ export default function RemoteNativeWork() {
      if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||![CATALOG,REUSE,SPECIFICATION].includes(saved.capability))throw Error();
      const checked=await checkedRemoteJob({ok:true,job:data.saved.job},saved);
      localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setPage(null);setJob(checked);
-     if(saved.capability===SPECIFICATION)setRequestText(saved.body.input.request);
+     setEditing(false);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
      if(checked.state==='succeeded'&&checked.terminal&&saved.capability===CATALOG)setPage(checked.terminal.result);
    }catch{setJob(null);setPage(null);setError('Shared task history could not be verified.');}
    finally{acting.current=false;setBusy(false);}
@@ -100,9 +115,10 @@ export default function RemoteNativeWork() {
    }catch{setError('The discovery request could not be saved.');}finally{acting.current=false;setBusy(false);}
  }
  async function prepareSpecification() {
-   if(acting.current||!task||!wizardSupported||blocked)return;acting.current=true;setBusy(true);setError('');
+   if(acting.current||!task||!wizardSupported||blocked||(savedSpecification&&(!editing||requestText===savedRequest)))return;acting.current=true;setBusy(true);setError('');
    try {
-     const operationId=crypto.randomUUID(),body=specificationRequest({taskId:task.taskId,project:task.project},requestText,operationId);
+     const revisionOf=savedSpecification?{operationId:pending!.operationId,requestHash:(job!.terminal!.result as {requestHash:string}).requestHash}:undefined;
+     const operationId=crypto.randomUUID(),body=specificationRequest({taskId:task.taskId,project:task.project},requestText,operationId,revisionOf);
      setPage(null);await submit({nodeId,operationId,capability:SPECIFICATION,taskId,body});
    }catch{setError('This request could not be saved. Use a shorter description without leading or trailing spaces; the full request must fit the supported byte limit.');}
    finally{acting.current=false;setBusy(false);}
@@ -117,24 +133,27 @@ export default function RemoteNativeWork() {
  return <section style={style}><h3>Work on a connected computer</h3>
   <p>Choose an active task and describe what you want to accomplish, or discover an accepted capability to use.</p>
   {error&&<p role="alert">{error}</p>}
-  <label>Task <select disabled={blocked} value={taskId} onChange={e=>{if(clearSelection())setTaskId(e.target.value);}}>{tasks.map(t=><option key={t.taskId} value={t.taskId}>{t.title}</option>)}</select></label>{' '}
-  <label>Computer <select disabled={blocked} value={nodeId} onChange={e=>{if(clearSelection())setNodeId(e.target.value);}}>{nodes.map(n=><option key={n.nodeId} value={n.nodeId}>{n.displayName} · {n.connectivity}</option>)}</select></label>
+  <label>Task <select style={field} disabled={blocked||editing} value={taskId} onChange={e=>{if(clearSelection())setTaskId(e.target.value);}}>{tasks.map(t=><option key={t.taskId} value={t.taskId}>{t.title}</option>)}</select></label>{' '}
+  <label>Computer <select style={field} disabled={blocked||editing} value={nodeId} onChange={e=>{if(clearSelection())setNodeId(e.target.value);}}>{nodes.map(n=><option key={n.nodeId} value={n.nodeId}>{n.displayName} · {n.connectivity}</option>)}</select></label>
   {ready&&!supported&&<p>This computer has not enabled native capability discovery.</p>}
   {node&&<p>Computer status: {node.connectivity}{node.lastExchangeAt?` · last contact ${new Date(node.lastExchangeAt).toLocaleString()}`:' · no contact recorded'}.</p>}
   <form onSubmit={e=>{e.preventDefault();void prepareSpecification();}}>
     <h4>Ask the Wizard</h4>
-    <label>What would you like to accomplish?<textarea value={requestText} disabled={blocked} rows={4} maxLength={4000} onChange={e=>setRequestText(e.target.value)} style={{display:'block',width:'100%',boxSizing:'border-box'}}/></label>
+    <label>What would you like to accomplish?<textarea value={requestText} disabled={blocked} readOnly={!!savedSpecification&&!editing} rows={6} maxLength={4000} onChange={e=>editRequest(e.target.value)} style={field}/></label>
     <p>Describe the result and any examples or source references. The Wizard saves a specification; it does not run or activate code.</p>
     {ready&&!wizardSupported&&<p>This computer has not enabled Wizard requests yet.</p>}
     {wizardSupported&&node?.connectivity!=='online'&&<p>The computer is offline. An accepted request will wait in the queue until it reconnects or expires.</p>}
-    <button style={button} disabled={blocked||!ready||!task||!wizardSupported||!requestText.trim()}>Save Wizard request</button>
+    {savedSpecification&&<><p>{editing?'Add your answers and corrections to the description above. Saving creates a linked revision; the original request remains in history.':'This is the saved description. Choose Revise saved request to add answers or corrections.'}</p>
+      {!editing&&<button type="button" style={button} disabled={blocked} onClick={()=>setEditing(true)}>Revise saved request</button>}
+      {editing&&<button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);setRequestText(savedRequest);setEditing(false);setError('');}catch{setError('The draft could not be cleared.');}}}>Discard unsent edits</button>}</>}
+    <button style={button} disabled={blocked||!ready||!task||!wizardSupported||!requestText.trim()||!!savedSpecification&&(!editing||requestText===savedRequest)}>{savedSpecification?'Save revised request':'Save Wizard request'}</button>
   </form>
-  <div><button style={button} disabled={blocked||!task||!nodeId} onClick={()=>void resumeShared()}>Resume saved work</button>
-    <button style={button} disabled={blocked||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
+  <div><button style={button} disabled={blocked||editing||!task||!nodeId} onClick={()=>void resumeShared()}>Resume saved work</button>
+    <button style={button} disabled={blocked||editing||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
     {page?.nextCursor&&<button style={button} disabled={blocked} onClick={()=>void discover(true)}>Next capability</button>}
     {pending&&<button style={button} disabled={busy} onClick={()=>void recover(pending)}>Refresh saved status</button>}
     {pending&&error&&!job&&<button style={button} disabled={busy} onClick={()=>void retrySaved()}>Retry the same saved submission</button>}</div>
-  {job&&<p role="status">{job.state==='queued'?'Queued — waiting for the computer':job.state==='running'||job.state==='leased'?'Working':job.state==='succeeded'?'Completed':job.state==='expired'?'Request expired':`Held or failed: ${job.terminal?.code??'review required'}`} · submitted {new Date(job.createdAt).toLocaleString()}</p>}
+  {job&&<p role="status">{job.state==='queued'?'Queued — waiting for the computer':job.state==='running'||job.state==='leased'?'Working':job.state==='succeeded'?(pending?.capability===SPECIFICATION?'Request saved':'Completed'):job.state==='expired'?'Request expired':`Held or failed: ${job.terminal?.code??'review required'}`} · submitted {new Date(job.createdAt).toLocaleString()}</p>}
   {page&&(page.entry?<><h4>{page.entry.title} · {page.entry.version}</h4><small>Verified on the computer at {new Date(page.observedAt).toLocaleString()}. Execution checks the current version and permissions again.</small>
     <NativeCapabilityInputs key={page.entry.specificationId+page.entry.capability} contracts={[{name:page.entry.capability,inputSchema:page.entry.inputSchema}]} disabled={blocked} onRun={(cap,args)=>void run(cap,args)}/></>:<p>No accepted reuse capability was found for this task.</p>)}
   {job?.state==='succeeded'&&pending?.capability===REUSE&&<Result value={(job.terminal?.result as {result?:unknown})?.result}/>}
@@ -143,12 +162,12 @@ export default function RemoteNativeWork() {
 }
 
 function WizardResult({value}:{value:unknown}) {
- const result=value as {savedAt:string;specification:{title:string;decision:string;stage:string;missingCount:number}};
+ const result=value as {savedAt:string;specification:{title:string;decision:string;stage:string;missingCount:number;missing?:string[]}};
  const s=result.specification;
  const decisions:Record<string,string>={reuse:'Use an existing capability',extend:'Extend an existing capability',assimilate:'Adapt supplied material',create:'Create a capability',inspect_existing:'Inspect existing capabilities'};
  return <section aria-label="Saved Wizard specification"><h4>{s.title}</h4>
    <p>{s.stage==='needs_specification'?`More specification is needed (${s.missingCount} unresolved item${s.missingCount===1?'':'s'}).`:s.stage==='reuse_available'?'An existing capability is available for review.':'Specification saved for review.'}</p>
    <p>Suggested direction: {decisions[s.decision]}.</p><p>Saved {new Date(result.savedAt).toLocaleString()}. No code execution or activation was authorised.</p>
-   {s.stage==='needs_specification'&&<p>The saved summary does not contain the detailed questions yet. Review the original request before preparing a revised specification.</p>}
+   {s.stage==='needs_specification'&&(s.missing?<><h5>What needs clarification</h5><ol>{s.missing.map((question,i)=><li key={i}>{question}</li>)}</ol><p>Use Revise saved request to add answers. Find capabilities lets you inspect accepted behavior before deciding how to proceed. Answers remain a draft until requirements and tests are reviewed.</p></>:<p>This older saved receipt contains only the number of unresolved items. Its detailed questions are unavailable here; they have not been guessed. A revised request will ask a compatible worker for details.</p>)}
  </section>;
 }
