@@ -13,11 +13,11 @@ const compiled=ts.transpileModule(fs.readFileSync(new URL('../../components/Nati
 function fixture(saved=new Map(),options={}){
  const input=reviewInput(),slots=[],effects=[],calls=[];let index=0,tree;
  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
- const hooks={...React,useState(initial){const i=index++;if(!(i in slots))slots[i]=initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(v){const i=index++;return slots[i]??(slots[i]={current:v});},useEffect(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps)){slots[i]?.cleanup?.();slots[i]={deps};effects.push(()=>slots[i].cleanup=fn());}}};
+ const hooks={...React,useCallback(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps))slots[i]={deps,fn};return slots[i].fn;},useState(initial){const i=index++;if(!(i in slots))slots[i]=initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(v){const i=index++;return slots[i]??(slots[i]={current:v});},useEffect(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps)){slots[i]?.cleanup?.();slots[i]={deps};effects.push(()=>slots[i].cleanup=fn());}}};
  function ValueField(){return jsx.jsx('span',{children:'Schema-generated example fields'});}
  let digestCalls=0;const crypto={subtle:{async digest(...args){if(++digestCalls===1&&options.restoreWait)await options.restoreWait;return webcrypto.subtle.digest(...args);}}};
  const module={exports:{}};vm.runInNewContext(compiled,{module,exports:module.exports,TextEncoder,crypto,structuredClone,
- localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {ValueField};if(name.includes('native-review-contract'))return review;throw Error(name);}});
+ localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {ValueField};if(name.includes('native-review-contract'))return {...review,validateNativeReviewInput:v=>review.validateNativeReviewInput(JSON.parse(JSON.stringify(v)))};throw Error(name);}});
  const props={specificationId:input.specificationId,parentOperationId:input.parentOperationId,taskRef:input.taskRef,request:reviewText,disabled:false,
  onSave:async c=>{calls.push(c);await options.wait;}};
  const render=()=>{index=0;tree=module.exports.default(props);};
@@ -54,4 +54,15 @@ test('an unfinished requirement survives draft reload but cannot be submitted',a
  const f=fixture();await f.settle();await f.load(reviewInput().content);f.all().find(n=>n.type==='textarea').props.onChange({target:{value:''}});await f.settle();
  const next=fixture(f.saved);await next.settle();assert.equal(next.all().find(n=>n.type==='textarea').props.value,'');
  next.save().props.onClick();await next.settle();assert.equal(next.calls.length,0);assert.match(next.html(),/role="alert"/);
+});
+
+test('a revision opens from saved content without upload and has its own recoverable draft',async()=>{
+ const initial=reviewInput().content,original=structuredClone(initial);const f=fixture();
+ f.props.initialContent=initial;f.props.draftId='saved-review-operation';await f.settle();
+ assert.ok(f.save());f.all().find(n=>n.type==='textarea').props.onChange({target:{value:'Corrected text.'}});await f.settle();
+ assert.deepEqual(initial,original);
+ const resumed=fixture(f.saved);resumed.props.initialContent=initial;resumed.props.draftId='saved-review-operation';await resumed.settle();
+ assert.match(resumed.html(),/Corrected text/);
+ const other=fixture(f.saved);other.props.initialContent=initial;other.props.draftId='different-review-operation';await other.settle();
+ assert.doesNotMatch(other.html(),/Corrected text/);
 });

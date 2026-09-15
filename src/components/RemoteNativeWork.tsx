@@ -14,6 +14,7 @@ type Page={kind:string;taskRef:{taskId:string;project:string};snapshotId:string;
   entry:null|{specificationId:string;candidateId:string;requirementsHash:string;capability:string;title:string;version:string;inputSchema:NativeSchema}};
 const KEY='mastermind.remote-native.pending.v1';
 const DRAFT_KEY=KEY+'.draft';
+const REVIEW_EDIT_KEY=KEY+'.review-edit';
 const terminal=(state?:string)=>['succeeded','failed','expired'].includes(state??'');
 const style={padding:16,marginBottom:16,border:'1px solid #377888',borderRadius:8,color:'#eaffff',background:'#09242d',fontFamily:'system-ui,sans-serif'};
 const button={padding:'8px 12px',margin:'8px 8px 0 0',background:'#164350',color:'#fff',border:'1px solid #377888',borderRadius:5};
@@ -31,13 +32,16 @@ export default function RemoteNativeWork() {
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[ready,setReady]=useState(false);
  const [requestText,setRequestText]=useState('');
  const [editing,setEditing]=useState(false);
+ const [reviewEditing,setReviewEditing]=useState(false);
  const acting=useRef(false),alive=useRef(true),currentOperation=useRef<string|null>(null);
  const task=tasks.find(t=>t.taskId===taskId),node=nodes.find(n=>n.nodeId===nodeId);
  const supported=node?.worker?.capabilities.some(c=>c.id===CATALOG&&c.version===1);
  const wizardSupported=node?.worker?.capabilities.some(c=>c.id===SPECIFICATION&&c.version===1);
+ const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&c.version===1);
  const blocked=busy||!!pending&&!terminal(job?.state);
  const savedSpecification=pending?.capability===SPECIFICATION&&job?.state==='succeeded';
  const savedRequest=savedSpecification?(pending.body.input as {request:string}).request:'';
+ const savedReview=pending?.capability===REVIEW&&job?.state==='succeeded';
  function restoreDraft(saved:Pending) {
    try{const raw=localStorage.getItem(DRAFT_KEY);if(!raw||raw.length>12000)return;
      const draft=JSON.parse(raw);if(draft.operationId===saved.operationId&&typeof draft.text==='string'&&draft.text.length<=4000){setRequestText(draft.text);setEditing(true);}
@@ -46,6 +50,7 @@ export default function RemoteNativeWork() {
  const receive=useCallback(async(envelope:unknown,saved:Pending,enqueue=false)=>{
    const checked=await checkedRemoteJob(envelope,saved,enqueue);if(!alive.current||currentOperation.current!==saved.operationId)return;
    setJob(previous=>terminal(previous?.state)&&!terminal(checked.state)?previous:checked);setError('');
+   if(saved.capability===REVIEW&&checked.state==='succeeded')try{setReviewEditing(localStorage.getItem(REVIEW_EDIT_KEY)===saved.operationId);}catch{setError('The saved review is available, but its edit state could not be restored.');}
    if(checked.state==='succeeded'&&checked.terminal&&saved.capability===CATALOG){validateNativeCatalogReceipt(checked.terminal.result,saved.body.input);setPage(checked.terminal.result);}
  },[]);
  const recover=useCallback(async(saved:Pending,signal?:AbortSignal)=>{
@@ -79,28 +84,28 @@ export default function RemoteNativeWork() {
    const poll=async()=>{await recover(pending,control.signal);if(!control.signal.aborted)timer=setTimeout(poll,5000);};
    timer=setTimeout(poll,5000);return()=>{control.abort();clearTimeout(timer);};
  },[pending,job?.state,ready,recover]);
- function clearSelection(){try{localStorage.removeItem(KEY);}catch{setError('The saved request could not be cleared. Keep this task selected until browser storage is available.');return false;}currentOperation.current=null;setPending(null);setJob(null);setPage(null);setError('');setRequestText('');setEditing(false);return true;}
+ function clearSelection(){try{localStorage.removeItem(KEY);}catch{setError('The saved request could not be cleared. Keep this task selected until browser storage is available.');return false;}currentOperation.current=null;setPending(null);setJob(null);setPage(null);setError('');setRequestText('');setEditing(false);setReviewEditing(false);return true;}
  function editRequest(value:string) {
    setRequestText(value);
    if(savedSpecification&&pending)try{localStorage.setItem(DRAFT_KEY,JSON.stringify({operationId:pending.operationId,text:value}));}
    catch{setError('This unsent revision could not be saved in this browser. Keep the page open or copy your edits.');}
  }
  async function submit(saved:Pending) {
-   localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);setEditing(false);
+   localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);setEditing(false);setReviewEditing(false);
    try{const suffix=saved.capability===REVIEW?'native-review':saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
      await receive(await remoteJson(`/api/nodes/${saved.nodeId}/${suffix}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(saved.body)}),saved,true);
    }catch{setError('Submission could not be confirmed. Refresh this saved request before starting another.');}
  }
- async function resumeShared() {
+ async function resumeShared(reviewOnly=false) {
    if(acting.current||!task)return;acting.current=true;setBusy(true);setError('');
    try {
-     const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}`);
+     const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}${reviewOnly?'/review':''}`);
      if(data.saved===null){setError('No saved native work was found for this task and computer.');return;}
      const saved=data.saved?.request;
-     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||![CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability))throw Error();
+     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||reviewOnly&&saved.capability!==REVIEW||![CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability))throw Error();
      const checked=await checkedRemoteJob({ok:true,job:data.saved.job},saved);
      localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setPage(null);setJob(checked);
-     setEditing(false);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
+     setEditing(false);setReviewEditing(saved.capability===REVIEW&&checked.state==='succeeded'&&localStorage.getItem(REVIEW_EDIT_KEY)===saved.operationId);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
      if(checked.state==='succeeded'&&checked.terminal&&saved.capability===CATALOG)setPage(checked.terminal.result);
    }catch{setJob(null);setPage(null);setError('Shared task history could not be verified.');}
    finally{acting.current=false;setBusy(false);}
@@ -117,7 +122,7 @@ export default function RemoteNativeWork() {
    }catch{setError('The discovery request could not be saved.');}finally{acting.current=false;setBusy(false);}
  }
  async function prepareSpecification() {
-   if(acting.current||!task||!wizardSupported||blocked||(savedSpecification&&(!editing||requestText===savedRequest)))return;acting.current=true;setBusy(true);setError('');
+   if(acting.current||!task||!wizardSupported||blocked||reviewEditing||(savedSpecification&&(!editing||requestText===savedRequest)))return;acting.current=true;setBusy(true);setError('');
    try {
      const revisionOf=savedSpecification?{operationId:pending!.operationId,requestHash:(job!.terminal!.result as {requestHash:string}).requestHash}:undefined;
      const operationId=crypto.randomUUID(),body=specificationRequest({taskId:task.taskId,project:task.project},requestText,operationId,revisionOf);
@@ -126,8 +131,8 @@ export default function RemoteNativeWork() {
    finally{acting.current=false;setBusy(false);}
  }
  async function saveReview(content:ReviewContent) {
-   if(acting.current||!savedSpecification||!pending||!task)return;acting.current=true;setBusy(true);setError('');
-   try {const operationId=crypto.randomUUID();const input=validateNativeReviewInput({schemaVersion:1,action:'prepare',taskRef:(pending.body.input as {taskRef:unknown}).taskRef,operationId,parentOperationId:pending.operationId,specificationId:content.specificationId,originalRequest:savedRequest,content});
+   if(acting.current||!reviewSupported||!(savedSpecification||savedReview&&reviewEditing)||!pending||!task)return;acting.current=true;setBusy(true);setError('');
+   try {const prior=pending.body.input as {taskRef:unknown;parentOperationId:string;originalRequest:string};const operationId=crypto.randomUUID();const input=validateNativeReviewInput({schemaVersion:1,action:'prepare',taskRef:prior.taskRef,operationId,parentOperationId:savedReview?prior.parentOperationId:pending.operationId,specificationId:content.specificationId,originalRequest:savedReview?prior.originalRequest:savedRequest,content});
      await submit({nodeId,operationId,capability:REVIEW,taskId,body:{operationId,input}});
    } finally{acting.current=false;setBusy(false);}
  }
@@ -141,27 +146,37 @@ export default function RemoteNativeWork() {
  return <section style={style}><h3>Work on a connected computer</h3>
   <p>Choose an active task and describe what you want to accomplish, or discover an accepted capability to use.</p>
   {error&&<p role="alert">{error}</p>}
-  <label>Task <select style={field} disabled={blocked||editing} value={taskId} onChange={e=>{if(clearSelection())setTaskId(e.target.value);}}>{tasks.map(t=><option key={t.taskId} value={t.taskId}>{t.title}</option>)}</select></label>{' '}
-  <label>Computer <select style={field} disabled={blocked||editing} value={nodeId} onChange={e=>{if(clearSelection())setNodeId(e.target.value);}}>{nodes.map(n=><option key={n.nodeId} value={n.nodeId}>{n.displayName} · {n.connectivity}</option>)}</select></label>
+  <label>Task <select style={field} disabled={blocked||editing||reviewEditing} value={taskId} onChange={e=>{if(clearSelection())setTaskId(e.target.value);}}>{tasks.map(t=><option key={t.taskId} value={t.taskId}>{t.title}</option>)}</select></label>{' '}
+  <label>Computer <select style={field} disabled={blocked||editing||reviewEditing} value={nodeId} onChange={e=>{if(clearSelection())setNodeId(e.target.value);}}>{nodes.map(n=><option key={n.nodeId} value={n.nodeId}>{n.displayName} · {n.connectivity}</option>)}</select></label>
   {ready&&!supported&&<p>This computer has not enabled native capability discovery.</p>}
   {node&&<p>Computer status: {node.connectivity}{node.lastExchangeAt?` · last contact ${new Date(node.lastExchangeAt).toLocaleString()}`:' · no contact recorded'}.</p>}
   <form onSubmit={e=>{e.preventDefault();void prepareSpecification();}}>
     <h4>Ask the Wizard</h4>
-    <label>What would you like to accomplish?<textarea value={requestText} disabled={blocked} readOnly={!!savedSpecification&&!editing} rows={6} maxLength={4000} onChange={e=>editRequest(e.target.value)} style={field}/></label>
+    <label>What would you like to accomplish?<textarea value={requestText} disabled={blocked||reviewEditing} readOnly={!!savedSpecification&&!editing} rows={6} maxLength={4000} onChange={e=>editRequest(e.target.value)} style={field}/></label>
     <p>Describe the result and any examples or source references. The Wizard saves a specification; it does not run or activate code.</p>
     {ready&&!wizardSupported&&<p>This computer has not enabled Wizard requests yet.</p>}
     {wizardSupported&&node?.connectivity!=='online'&&<p>The computer is offline. An accepted request will wait in the queue until it reconnects or expires.</p>}
     {savedSpecification&&<><p>{editing?'Add your answers and corrections to the description above. Saving creates a linked revision; the original request remains in history.':'This is the saved description. Choose Revise saved request to add answers or corrections.'}</p>
       {!editing&&<button type="button" style={button} disabled={blocked} onClick={()=>setEditing(true)}>Revise saved request</button>}
       {editing&&<button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);setRequestText(savedRequest);setEditing(false);setError('');}catch{setError('The draft could not be cleared.');}}}>Discard unsent edits</button>}</>}
-    <button style={button} disabled={blocked||!ready||!task||!wizardSupported||!requestText.trim()||!!savedSpecification&&(!editing||requestText===savedRequest)}>{savedSpecification?'Save revised request':'Save Wizard request'}</button>
+    <button style={button} disabled={blocked||reviewEditing||!ready||!task||!wizardSupported||!requestText.trim()||!!savedSpecification&&(!editing||requestText===savedRequest)}>{savedSpecification?'Save revised request':'Save Wizard request'}</button>
   </form>
-  {savedSpecification&&!editing&&node?.worker?.capabilities.some(c=>c.id===REVIEW&&c.version===1)&&<NativeReviewEditor key={pending!.operationId} parentOperationId={pending!.operationId}
+  {savedSpecification&&!editing&&reviewSupported&&<NativeReviewEditor key={pending!.operationId} parentOperationId={pending!.operationId}
     specificationId={(job!.terminal!.result as {specification:{specificationId:string}}).specification.specificationId}
     taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef} request={savedRequest} disabled={blocked} onSave={saveReview}/>}
   {pending?.capability===REVIEW&&<p>This saved review is a proposal. Its receipt records the worker's review at that time; it does not authorize a build or activation.</p>}
-  <div><button style={button} disabled={blocked||editing||!task||!nodeId} onClick={()=>void resumeShared()}>Resume saved work</button>
-    <button style={button} disabled={blocked||editing||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
+  {savedReview&&!reviewEditing&&<button type="button" style={button} disabled={blocked||!reviewSupported} onClick={()=>{try{localStorage.setItem(REVIEW_EDIT_KEY,pending!.operationId);setReviewEditing(true);}catch{setError('The review draft could not be saved in this browser.');}}}>Revise review proposal</button>}
+  {savedReview&&reviewEditing&&<><p>Edit a new review. The saved proposal and its result remain in history.</p>
+    <NativeReviewEditor key={'revision-'+pending!.operationId} draftId={pending!.operationId} parentOperationId={(pending!.body.input as {parentOperationId:string}).parentOperationId}
+      specificationId={(pending!.body.input as {specificationId:string}).specificationId}
+      initialContent={(pending!.body.input as {content:ReviewContent}).content}
+      taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef}
+      request={(pending!.body.input as {originalRequest:string}).originalRequest} disabled={blocked||!reviewSupported} onSave={saveReview}/>
+    <button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(REVIEW_EDIT_KEY);localStorage.removeItem('mastermind.review-draft.v1.'+pending!.operationId);setReviewEditing(false);}catch{setError('The review draft could not be discarded.');}}}>Discard unsent review edits</button>
+  </>}
+  <div><button style={button} disabled={blocked||editing||reviewEditing||!task||!nodeId} onClick={()=>void resumeShared()}>Resume saved work</button>
+    <button style={button} disabled={blocked||editing||reviewEditing||!task||!nodeId} onClick={()=>void resumeShared(true)}>Resume latest review</button>
+    <button style={button} disabled={blocked||editing||reviewEditing||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
     {page?.nextCursor&&<button style={button} disabled={blocked} onClick={()=>void discover(true)}>Next capability</button>}
     {pending&&<button style={button} disabled={busy} onClick={()=>void recover(pending)}>Refresh saved status</button>}
     {pending&&error&&!job&&<button style={button} disabled={busy} onClick={()=>void retrySaved()}>Retry the same saved submission</button>}</div>
