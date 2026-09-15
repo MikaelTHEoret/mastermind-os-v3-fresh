@@ -12,7 +12,7 @@ const page={kind:workflow.CATALOG,ok:true,schemaVersion:1,taskRef:{taskId:TASK,p
 const computer={nodeId:NODE,displayName:'My PC',state:'active',connectivity:'online',agentVersion:'0.4.0',pairedAt:AT,lastExchangeAt:AT,lastJobReceiptAt:null,status:null,worker:{protocolVersion:2,capabilities:[{id:workflow.CATALOG,version:1},{id:workflow.REUSE,version:1}]}};
 const compiled=ts.transpileModule(fs.readFileSync(new URL('../../components/RemoteNativeWork.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
 export function fixture(saved=new Map(),history=saved,options_={}) {
- const slots=[],effects=[],calls=[];let index=0,tree,denied=false,lost=false;const jobs=new Map();
+ const initialHistory=Array.from(history.values());const slots=[],effects=[],calls=[];let index=0,tree,denied=false,lost=false;const jobs=new Map();
  const selectedComputer=options_.computer??computer;
  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
  const hooks={...React,useState(initial){const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(initial){const i=index++;return slots[i]??(slots[i]={current:initial});},useCallback(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps))slots[i]={deps,fn};return slots[i].fn;},useEffect(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps)){slots[i]?.cleanup?.();slots[i]={deps};effects.push(()=>{slots[i].cleanup=fn();});}}};
@@ -22,7 +22,7 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
    calls.push({url,options});if(denied)throw Error('permission revoked');
    if(url==='/api/nodes')return {ok:true,nodes:[selectedComputer]};
    if(url==='/api/native/tasks')return {ok:true,tasks:[{taskId:TASK,project:'mastermind',title:'Finish Mastermind'}]};
-   if(url.includes('/native-history/')){const job=Array.from(jobs.values()).at(-1);const pointer=Array.from(history.values()).map(v=>JSON.parse(v)).find(v=>v.operationId===job?.jobId);return {ok:true,saved:job&&pointer?{job,request:pointer}:null};}
+   if(url.includes('/native-history/')){const job=Array.from(jobs.values()).filter(j=>!url.endsWith('/review')||j.capability===review.NATIVE_REVIEW_CAPABILITY).at(-1);const pointer=[...history.values(),...initialHistory].map(v=>JSON.parse(v)).find(v=>v.operationId===job?.jobId);return {ok:true,saved:job&&pointer?{job,request:pointer}:null};}
    const id=options.body?JSON.parse(options.body).operationId:url.split('/').at(-1);
    if(options.method==='POST'){
      const body=JSON.parse(options.body),isCatalog=url.endsWith('native-catalog'),isWizard=url.endsWith('native-specification'),isReview=url.endsWith('native-review');
@@ -165,4 +165,13 @@ test('shared review recovery restores a pending correction without resubmission'
  resumed.button('Resume saved work').props.onClick();await resumed.settle();
  assert.ok(resumed.reviewEditor());assert.equal(resumed.textarea().props.disabled,true);
  assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
+});
+
+test('a later capability lookup cannot hide the latest saved review',async()=>{
+ const {f,input,job}=savedReviewFixture();await f.settle();
+ f.button('Find capabilities').props.onClick();await f.settle();assert.ok(f.inputs());
+ f.button('Resume latest review').props.onClick();await f.settle();
+ assert.match(f.html(),/Review saved with unresolved items/);
+ assert.ok(f.button('Revise review proposal'));assert.deepEqual(f.jobs.get(job.jobId),job);
+ assert.equal(f.calls.filter(c=>c.options.method==='POST').length,1);
 });

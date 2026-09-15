@@ -763,13 +763,14 @@ export async function listOwnerNativeTasks(sql:NodeExchangeSql,profile:OwnerNode
 
 
 /** Recover the most recent authorized native operation on this task/computer. */
-export async function getLatestOwnerNativeJob(sql:NodeExchangeSql,nodeId:string,taskId:string,profile:OwnerNodeProfile=OWNER_NODE_PROFILE) {
-  if(!UUID.test(nodeId)||!UUID.test(taskId))fail(400,'NODE_REQUEST_INVALID','Task and computer identifiers are invalid.');
+export async function getLatestOwnerNativeJob(sql:NodeExchangeSql,nodeId:string,taskId:string,profile:OwnerNodeProfile=OWNER_NODE_PROFILE,reviewOnly=false) {
+  if(!UUID.test(nodeId)||!UUID.test(taskId)||typeof reviewOnly!=='boolean')fail(400,'NODE_REQUEST_INVALID','Task and computer identifiers are invalid.');
   try {
     const rows=await sql`SELECT j.job_id AS "jobId",j.command_input AS input
       FROM public.mastermind_node_jobs_v1 j
       WHERE j.node_id=${nodeId}::uuid AND j.household_id=${profile.householdId}::text
       AND j.created_by_player_id=${profile.parentPlayerId}::uuid AND j.command_input->'taskRef'->>'taskId'=${taskId}::text
+      AND (${reviewOnly}::boolean=false OR j.capability='mastermind.native.review')
       AND ((j.capability='mastermind.native.catalog' AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,j.command_input,j.terminal_result))
         OR (j.capability='mastermind.native.review' AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,
           jsonb_build_object('schemaVersion',1,'taskRef',j.command_input->'taskRef','snapshotId',NULL,'cursor',NULL),NULL))
@@ -782,6 +783,7 @@ export async function getLatestOwnerNativeJob(sql:NodeExchangeSql,nodeId:string,
     const jobId=uuid(rows[0].jobId,'saved job ID');
     const job=await readOwnerJob(sql,nodeId,jobId,profile);
     if(!job)fail(403,'NODE_OWNER_REQUIRED','Saved task authority changed.');
+    if(reviewOnly&&job.capability!==NATIVE_REVIEW_CAPABILITY)fail(503,'NODE_STORE_INVALID','Saved review binding changed.');
     const input=job.capability===NATIVE_REVIEW_CAPABILITY?validateNativeReviewInput(rows[0].input):job.capability===NATIVE_CATALOG_CAPABILITY?validateNativeCatalogInput(rows[0].input):job.capability===NATIVE_SPECIFICATION_CAPABILITY?validateNativeSpecificationInput(rows[0].input):validateNativeCommandInput(rows[0].input);
     if(input.taskRef.taskId!==taskId||(job.capability!==NATIVE_CATALOG_CAPABILITY&&input.operationId!==jobId))fail(503,'NODE_STORE_INVALID','Saved task binding changed.');
     return {job,request:{nodeId,operationId:jobId,capability:job.capability,taskId,

@@ -436,3 +436,12 @@ test('shared native resume resolves a durable operation with a fresh owner read 
  assert.equal(await store.getLatestOwnerNativeJob(scriptedSql([()=>[]]),NODE_ID,ACTIVE_JOB_ID),null);
  const revoked=scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[]]);await assert.rejects(store.getLatestOwnerNativeJob(revoked,NODE_ID,ACTIVE_JOB_ID),{code:'NODE_OWNER_REQUIRED'});
 });
+
+test('review-only recovery filters before limit and rejects a mismatched recovered capability',async()=>{
+ const store=loadStore();
+ const empty=scriptedSql([(query,values)=>{assert.match(query,/AND \(\?::boolean=false OR j.capability='mastermind.native.review'\)/);assert.ok(values.includes(true));assert.doesNotMatch(query,/INSERT|UPDATE|DELETE/i);return [];}]);
+ assert.equal(await store.getLatestOwnerNativeJob(empty,NODE_ID,ACTIVE_JOB_ID,undefined,true),null);
+ const noSql=scriptedSql([]);await assert.rejects(store.getLatestOwnerNativeJob(noSql,NODE_ID,ACTIVE_JOB_ID,undefined,'true'),{code:'NODE_REQUEST_INVALID'});assert.equal(noSql.calls(),0);
+ const input=wizardInput();const mismatch=scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[{...jobRow(JOB_ID),capability:specification.NATIVE_SPECIFICATION_CAPABILITY,commandInput:input}]]);
+ await assert.rejects(store.getLatestOwnerNativeJob(mismatch,NODE_ID,ACTIVE_JOB_ID,undefined,true),{code:'NODE_STORE_INVALID'});
+});

@@ -167,3 +167,31 @@ test('catalog route denies unrelated identities and cross-origin requests before
  const denied=harness({ok:false,status:403,reason:'Owner required'},'created','native-catalog');assert.equal((await denied.post(input)).status,403);assert.equal(denied.calls.length,0);
  const foreign=harness({ok:true},'created','native-catalog');assert.equal((await foreign.post(input,{headers:{origin:'https://foreign.invalid'}})).status,403);assert.equal(foreign.calls.length,0);
 });
+
+function reviewHistoryHarness(owner={ok:true},saved=null) {
+  const calls=[];
+  class ServiceError extends Error {}
+  class BodyError extends Error {}
+  const http=load(fs.readFileSync(new URL('../http.ts',import.meta.url),'utf8'),{
+    '@/lib/memory/local-service-auth':{LocalServiceRequestBodyError:BodyError},
+    '../../../protocol/mastermind-node-exchange/contract.mjs':contract,
+    './store':{NodeExchangeServiceError:ServiceError},
+  });
+  const route=load(fs.readFileSync(new URL('../../../app/api/nodes/[nodeId]/native-history/[taskId]/review/route.ts',import.meta.url),'utf8'),{
+    '@/lib/db':{getMemoryDb(){calls.push('database');return 'database';}},
+    '@/lib/node-exchange/http':http,
+    '@/lib/node-exchange/store':{async getLatestOwnerNativeJob(db,id,task,profile,only){calls.push(['read',db,id,task,profile,only]);return saved;}},
+    '@/lib/trading/auth':{async requireOwner(){calls.push('owner');return owner;}},
+  });
+  return {calls,get(options={}){return route.GET(new Request(base+(options.path??`/api/nodes/${nodeId}/native-history/${requestId}/review`),{
+    method:options.method??'GET',headers:{'sec-fetch-site':'same-origin',...options.headers},
+  }),{params:Promise.resolve({nodeId,taskId:requestId})});}};
+}
+
+
+test('latest review route keeps owner, origin and fixed-path boundaries before database access',async()=>{
+ for(const status of [401,403]){const f=reviewHistoryHarness({ok:false,status,reason:'Owner required.'});assert.equal((await f.get()).status,status);assert.deepEqual(f.calls,['owner']);}
+ for(const [options,status] of [[{headers:{'sec-fetch-site':'cross-site'}},403],[{path:'/api/nodes/wrong/native-history/task/review'},404],[{method:'POST'},405]]){const f=reviewHistoryHarness();assert.equal((await f.get(options)).status,status);assert.deepEqual(f.calls,[]);}
+ const f=reviewHistoryHarness();const response=await f.get();assert.equal(response.status,200);assert.deepEqual(await response.json(),{ok:true,saved:null});assert.match(response.headers.get('cache-control'),/no-store/);
+ assert.deepEqual(f.calls,['owner','database',['read','database',nodeId,requestId,undefined,true]]);
+});

@@ -96,13 +96,13 @@ export default function RemoteNativeWork() {
      await receive(await remoteJson(`/api/nodes/${saved.nodeId}/${suffix}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(saved.body)}),saved,true);
    }catch{setError('Submission could not be confirmed. Refresh this saved request before starting another.');}
  }
- async function resumeShared() {
+ async function resumeShared(reviewOnly=false) {
    if(acting.current||!task)return;acting.current=true;setBusy(true);setError('');
    try {
-     const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}`);
+     const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}${reviewOnly?'/review':''}`);
      if(data.saved===null){setError('No saved native work was found for this task and computer.');return;}
      const saved=data.saved?.request;
-     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||![CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability))throw Error();
+     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||reviewOnly&&saved.capability!==REVIEW||![CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability))throw Error();
      const checked=await checkedRemoteJob({ok:true,job:data.saved.job},saved);
      localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setPage(null);setJob(checked);
      setEditing(false);setReviewEditing(saved.capability===REVIEW&&checked.state==='succeeded'&&localStorage.getItem(REVIEW_EDIT_KEY)===saved.operationId);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
@@ -175,6 +175,7 @@ export default function RemoteNativeWork() {
     <button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(REVIEW_EDIT_KEY);localStorage.removeItem('mastermind.review-draft.v1.'+pending!.operationId);setReviewEditing(false);}catch{setError('The review draft could not be discarded.');}}}>Discard unsent review edits</button>
   </>}
   <div><button style={button} disabled={blocked||editing||reviewEditing||!task||!nodeId} onClick={()=>void resumeShared()}>Resume saved work</button>
+    <button style={button} disabled={blocked||editing||reviewEditing||!task||!nodeId} onClick={()=>void resumeShared(true)}>Resume latest review</button>
     <button style={button} disabled={blocked||editing||reviewEditing||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
     {page?.nextCursor&&<button style={button} disabled={blocked} onClick={()=>void discover(true)}>Next capability</button>}
     {pending&&<button style={button} disabled={busy} onClick={()=>void recover(pending)}>Refresh saved status</button>}
