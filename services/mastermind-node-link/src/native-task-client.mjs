@@ -1,5 +1,7 @@
 import {validateNativeCatalogRequest,validateNativeCatalogResult} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {createHash} from 'node:crypto';
+import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,reviewContentHash} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
+export const NATIVE_REVIEW_ENDPOINT='http://127.0.0.1:8770/specification_review';
 import {validateNativeSpecificationRequest,validateNativeSpecificationResult,specificationBindingCanonical} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
 export const NATIVE_SPECIFICATION_ENDPOINT = 'http://127.0.0.1:8770/task_specification';
 export const NATIVE_CATALOG_ENDPOINT = 'http://127.0.0.1:8770/task_catalog';
@@ -66,6 +68,38 @@ export class NativeTaskClient {
       need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
       need(response.status===200,'TASK_SPECIFICATION_UNAVAILABLE');
       return validateNativeSpecificationResult(result,body,requestHash);
+    } catch(error) {
+      if(error instanceof NativeTaskError)throw error;
+      throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');
+    }
+  }
+  async review(request,{signal,deadlineMs,recoverOnly=false}={}) {
+    const input=validateNativeReviewInput(request);
+    need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
+    const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
+    if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
+    const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
+    const body={schemaVersion:1,action:recoverOnly?'recover':'prepare',specificationId:input.specificationId,
+      operationId:input.operationId,content:input.content};
+    try {
+      combined.throwIfAborted();
+      const response=await abortable(this.fetchImpl(NATIVE_REVIEW_ENDPOINT,{method:'POST',redirect:'error',signal:combined,
+        headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify(body)}),combined,
+        response=>response?.body?.cancel().catch(()=>{}));
+      combined.throwIfAborted();
+      const result=await readResponse(response,combined);
+      need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      need(response.status===200,'TASK_REVIEW_UNAVAILABLE');
+      need(object(result)&&result.ok===true&&result.schemaVersion===1&&result.accepted===false&&result.executionAuthorized===false
+        &&result.operationId===input.operationId&&result.specificationId===input.specificationId
+        &&typeof result.replayed==='boolean'&&(!recoverOnly||result.replayed),'TASK_REVIEW_INVALID');
+      const r=result.review;
+      need(object(r)&&r.accepted===false&&r.executionAuthorized===false&&r.originalRequest===input.originalRequest
+        &&reviewContentHash(r.originalRequest)===input.content.requestSha256
+        &&reviewCanonical(r.content)===reviewCanonical(input.content)&&r.contentSha256===reviewContentHash(input.content),'TASK_REVIEW_INVALID');
+      return validateNativeReviewReceipt({kind:NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,
+        operationId:input.operationId,specificationId:input.specificationId,contentSha256:r.contentSha256,
+        reviewId:r.reviewId,state:r.state,holds:r.holds,replayed:result.replayed,accepted:false,executionAuthorized:false},input);
     } catch(error) {
       if(error instanceof NativeTaskError)throw error;
       throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');

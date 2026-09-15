@@ -44,7 +44,7 @@ function manifestRows(value:NativeJson,schema:NativeSchema):NativeJson[] {
   });
 }
 
-function ValueField({name,schema,value,onChange,disabled,depth=0,manifest=false}:{name:string;schema:NativeSchema;
+export function ValueField({name,schema,value,onChange,disabled,depth=0,manifest=false}:{name:string;schema:NativeSchema;
   value:NativeJson|undefined;onChange:(value:NativeJson)=>void;disabled:boolean;depth?:number;manifest?:boolean}) {
   const id=useId(),ticket=useRef(0);const [error,setError]=useState(''),[loaded,setLoaded]=useState('');
   useEffect(()=>()=>{ticket.current+=1;},[]);

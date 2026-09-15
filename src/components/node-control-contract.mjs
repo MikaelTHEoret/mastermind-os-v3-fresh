@@ -1,3 +1,4 @@
+import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewReceipt} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {validateNativeCatalogReceipt} from '../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {validateNativeTaskResult} from '../../protocol/mastermind-node-exchange/native-task.mjs';
 import {NATIVE_SPECIFICATION_CAPABILITY,validateNativeSpecificationReceiptFields} from '../../protocol/mastermind-node-exchange/native-specification-contract.mjs';
@@ -158,10 +159,10 @@ function parseWorker(value) {
   const worker = objectOf(value, 'worker advertisement');
   exactKeys(worker, ['protocolVersion', 'capabilities'], 'worker advertisement');
   if (worker.protocolVersion !== 2 || !Array.isArray(worker.capabilities)
-    || worker.capabilities.length < 1 || worker.capabilities.length > 4) reject('worker advertisement is unsupported');
+    || worker.capabilities.length < 1 || worker.capabilities.length > 5) reject('worker advertisement is unsupported');
   const capabilities = worker.capabilities.map((item) => {
     objectOf(item, 'worker capability'); exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY].includes(item.id) || item.version !== 1) {
+    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY].includes(item.id) || item.version !== 1) {
       reject('worker capability is unsupported');
     }
     return { id: item.id, version: item.version };
@@ -257,7 +258,7 @@ function parseJob(value) {
   const createdAt = timestamp(job.createdAt, 'job creation time');
   const expiresAt = timestamp(job.expiresAt, 'job expiry');
   if (Date.parse(expiresAt) <= Date.parse(createdAt)) reject('job lifetime is invalid');
-  if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse','mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY].includes(job.capability) || job.capabilityVersion !== 1 || job.policyClass !== 'routine') {
+  if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse','mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY].includes(job.capability) || job.capabilityVersion !== 1 || job.policyClass !== 'routine') {
     reject('node job capability is unsupported');
   }
   const lease = job.lease === null ? null : parseLease(job.lease);
@@ -276,7 +277,7 @@ function parseJob(value) {
     terminal = {
       code: enumValue(value.code, 'job terminal code', TERMINAL_CODES),
       result: value.result === null ? null : job.capability === NODE_CORE_STATUS_CAPABILITY
-        ? parseCoreStatus(value.result) : job.capability===NATIVE_SPECIFICATION_CAPABILITY?validateNativeSpecificationReceiptFields(value.result):job.capability==='mastermind.native.catalog'?validateNativeCatalogReceipt(value.result):job.capability==='mastermind.native.reuse'?validateNativeTaskResult(value.result):parseTerminalResult(value.result, 'job terminal state'),
+        ? parseCoreStatus(value.result) : job.capability===NATIVE_REVIEW_CAPABILITY?validateNativeReviewReceipt(value.result):job.capability===NATIVE_SPECIFICATION_CAPABILITY?validateNativeSpecificationReceiptFields(value.result):job.capability==='mastermind.native.catalog'?validateNativeCatalogReceipt(value.result):job.capability==='mastermind.native.reuse'?validateNativeTaskResult(value.result):parseTerminalResult(value.result, 'job terminal state'),
       finishedAt: timestamp(value.finishedAt, 'job finished time'),
     };
     if (Date.parse(terminal.finishedAt) < Date.parse(createdAt)) reject('node job finished before it was created');

@@ -1,3 +1,4 @@
+import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical} from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {validateNativeCommandInput} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 import {validateNativeCatalogReceipt} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {parseNodeJob,parseNodeJobEnqueue} from '../../components/node-control-contract.mjs';
@@ -8,6 +9,18 @@ export function specificationRequest(taskRef,request,operationId,revisionOf) {
   return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(pending.capability===NATIVE_REVIEW_CAPABILITY){
+    const input=validateNativeReviewInput(pending.body.input);
+    if(input.operationId!==pending.operationId||pending.body.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId)throw Error('Saved review binding changed.');
+    const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,NATIVE_REVIEW_CAPABILITY).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,NATIVE_REVIEW_CAPABILITY).job;
+    if(job.state==='succeeded'){
+      validateNativeReviewReceipt(job.terminal.result,input);
+      const bytes=await subtle.digest('SHA-256',new TextEncoder().encode(reviewCanonical(input.content)));
+      const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+      if(hash!==job.terminal.result.contentSha256)throw Error('Saved review content changed.');
+    }
+    return job;
+  }
   if(pending.capability!==SPECIFICATION)return checkedJob(envelope,pending,enqueue);
   const input=validateNativeSpecificationInput(pending.body.input);
   if(input.operationId!==pending.operationId||pending.body.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId)throw Error('Saved Wizard binding changed.');

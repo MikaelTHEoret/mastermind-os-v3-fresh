@@ -19,3 +19,6 @@ export const NATIVE_CORE_WORKER = Object.freeze({protocolVersion:2,capabilities:
 export const WIZARD_CORE_WORKER = Object.freeze({protocolVersion:2,capabilities:Object.freeze([
   ...NATIVE_CORE_WORKER.capabilities,Object.freeze({id:'mastermind.native.specification',version:1}),
 ])});
+
+// Explicit opt-in only after the configured local review host passes acceptance.
+export const REVIEW_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([...WIZARD_CORE_WORKER.capabilities,Object.freeze({id:'mastermind.native.review',version:1})])});

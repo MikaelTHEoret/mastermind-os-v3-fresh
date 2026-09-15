@@ -3,6 +3,7 @@ import fs from 'node:fs';import vm from 'node:vm';import test from 'node:test';i
 import * as React from 'react';import * as jsx from 'react/jsx-runtime';import {renderToStaticMarkup} from 'react-dom/server';
 import crypto from 'node:crypto';import * as workflow from './remote-workflow.mjs';
 import * as controls from '../../components/node-control-contract.mjs';
+import * as review from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import * as catalog from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {specificationRequestHash} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
 const TASK='99999999-9999-4999-8999-999999999999',NODE='22222222-2222-4222-8222-222222222222',AT='2026-09-11T04:00:00.000Z';
@@ -35,6 +36,7 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
  const plain=value=>JSON.parse(JSON.stringify(value));
  const module={exports:{}};
  vm.runInNewContext(compiled,{module,exports:module.exports,console,AbortController,crypto:crypto.webcrypto,location:{origin:'https://mastermind-core.com'},setTimeout:()=>1,clearTimeout(){},localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>{if(options_.storageDenied)throw Error('storage denied');saved.set(k,v);},removeItem:k=>saved.delete(k)},require(name){
+   if(name==='./NativeReviewEditor')return {default:()=>null,__esModule:true};if(name.includes('native-review-contract'))return review;
    if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {default:Inputs,__esModule:true};
    if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:(v,p,e)=>workflow.checkedRemoteJob(plain(v),plain(p),e)};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
  }});

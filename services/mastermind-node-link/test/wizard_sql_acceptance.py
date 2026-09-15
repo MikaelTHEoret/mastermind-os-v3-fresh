@@ -115,3 +115,6 @@ def verify(context):
     cursor.execute(f'SELECT terminal_result FROM {schema}.mastermind_node_jobs_v1 WHERE job_id=%s',(request['operationId'],))
     assert cursor.fetchone()[0]==result
     context['receipt']['checks'].append('027: old receipts readable; bounded detailed questions; linked revision hash parity, missing/altered/self parents denied; original immutable result preserved')
+    if '--review' in __import__('sys').argv:
+        from review_sql_acceptance import verify as verify_review
+        verify_review(context,request,result,worker,history)

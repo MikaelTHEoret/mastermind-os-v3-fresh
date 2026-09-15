@@ -8,14 +8,20 @@ import * as contract from '../../../../protocol/mastermind-node-exchange/contrac
 const nodeId = '11111111-1111-4111-8111-111111111111';
 const requestId = '22222222-2222-4222-8222-222222222222';
 const base = 'https://mastermind-core.com';
-function load(source, imports) {
+test('review route requires enabled deployment, same-origin owner and bounded input',async()=>{
+ const off=harness({ok:true},'created','native-review',false);assert.equal((await off.post({})).status,503);assert.equal(off.calls.length,0);
+ const denied=harness({ok:false,status:403,reason:'Owner required'},'created','native-review');assert.equal((await denied.post({})).status,403);assert.equal(denied.calls.length,0);
+ const foreign=harness({ok:true},'created','native-review');assert.equal((await foreign.post({},{headers:{origin:'https://foreign.invalid'}})).status,403);assert.equal(foreign.calls.length,0);
+ const yes=harness({ok:true},'created','native-review');assert.equal((await yes.post({operationId:requestId,input:{fixture:'bounded'}})).status,201);assert.equal(yes.calls[0].kind,'review');
+});
+function load(source, imports, env={}) {
   const module = { exports: {} };
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  vm.runInNewContext(compiled, { Error, Object, Response, URL, exports: module.exports, module,
+  vm.runInNewContext(compiled, { Error, Object, Response, URL, process:{env},exports: module.exports, module,
     require(id) { if (!(id in imports)) throw new Error('Unexpected import: ' + id); return imports[id]; } });
   return module.exports;
 }
-function harness(owner = { ok: true }, status = 'created', routeName = 'jobs') {
+function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true) {
   const calls = []; let authCalls = 0;
   class BodyError extends Error {}
   class ServiceError extends Error {}
@@ -33,10 +39,10 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs') {
   };
   const route = load(fs.readFileSync(new URL(`../../../app/api/nodes/[nodeId]/${routeName}/route.ts`, import.meta.url), 'utf8'), {
     '@/lib/db': { getMemoryDb: () => database }, '@/lib/node-exchange/http': http,
-    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard') },
+    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review') },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
-  });
+  },{MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false'});
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
     return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },

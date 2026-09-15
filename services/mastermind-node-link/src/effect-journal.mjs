@@ -14,7 +14,7 @@ const SHA256 = /^[a-f0-9]{64}$/;
 const EFFECT_FILE = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.json$/;
 const TEMP_FILE = /^([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/;
 const OWNER_TEMP_FILE = /^owner\.([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.tmp$/;
-const MAX_EFFECT_BYTES = 8 * 1024;
+const MAX_EFFECT_BYTES = 32 * 1024;
 const MAX_RECEIPT_BYTES = 4 * 1024;
 const MAX_OWNER_BYTES = 1024;
 const MAX_EFFECTS = 4_096;
@@ -423,8 +423,8 @@ export class FileMastermindNodeEffectJournal {
       this.#assertSelectedNode();
       if (options.allowedCapabilities !== undefined) {
         if (!Array.isArray(options.allowedCapabilities) || options.allowedCapabilities.length < 1
-          || options.allowedCapabilities.length > 4 || options.allowedCapabilities.some((item) =>
-            !['family-ecosystem.ensure-running','mastermind.core.status','mastermind.native.reuse','mastermind.native.catalog','mastermind.native.specification'].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
+          || options.allowedCapabilities.length > 5 || options.allowedCapabilities.some((item) =>
+            !['family-ecosystem.ensure-running','mastermind.core.status','mastermind.native.reuse','mastermind.native.catalog','mastermind.native.specification','mastermind.native.review'].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
         if ([...this.#receipts.values()].some((receipt) => {
           const effect = this.#effects.get(receipt.jobId);
           return !effect || effect.commandDigest !== receipt.commandDigest || effect.capabilityVersion !== 1

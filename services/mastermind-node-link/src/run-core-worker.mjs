@@ -24,6 +24,11 @@ export function validateCoreWorkerEnvironment(environment) {
     throw Object.assign(new Error('Explicit native reuse setting required'), {code:'NODE_NATIVE_PROFILE_INVALID'});
   }
   resolveMastermindNodeStateRoot(environment);
+  if(environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED!==undefined
+    &&!['true','false'].includes(environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED)
+    ||environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED==='true'&&environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED!=='true') {
+    throw Object.assign(new Error('Review requires explicit Wizard activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
+  }
   if(environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED!==undefined
     &&!['true','false'].includes(environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED)
     ||environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED==='true'&&environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED!=='true') {
@@ -45,6 +50,7 @@ export function createMastermindCoreWorkerFromEnvironment(options = {}) {
     credentialStore, exchangeTransport,
     enableNativeTasks: environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED === 'true',
     enableNativeSpecifications: environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED === 'true',
+    enableNativeReviews: environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED === 'true',
   });
 }
 

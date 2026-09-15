@@ -1,4 +1,6 @@
 'use client';
+import NativeReviewEditor,{type ReviewContent} from './NativeReviewEditor';
+import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import NativeCapabilityInputs,{type NativeJson,type NativeSchema} from './NativeCapabilityInputs';
 import {parseNodeInventory,isLocalNodeControlOrigin} from './node-control-contract.mjs';
@@ -60,9 +62,9 @@ export default function RemoteNativeWork() {
        if(!Array.isArray(owned.tasks)||owned.tasks.length>32||owned.tasks.some((t:Task)=>!t||typeof t.taskId!=='string'||typeof t.title!=='string'||typeof t.project!=='string'))throw Error();
        if(!alive.current)return;
        setTasks(owned.tasks);setNodes(computers);setTaskId(owned.tasks[0]?.taskId??'');setNodeId(computers[0]?.nodeId??'');setReady(true);
-       const raw=localStorage.getItem(KEY);if(raw&&raw.length<=8192){const saved=JSON.parse(raw);
+       const raw=localStorage.getItem(KEY);if(raw&&raw.length<=32768){const saved=JSON.parse(raw);
          if(saved&&['nodeId','operationId','capability','body','taskId'].every(k=>Object.prototype.hasOwnProperty.call(saved,k))
-           &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION].includes(saved.capability)
+           &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability)
            &&computers.some((n:Computer)=>n.nodeId===saved.nodeId)&&owned.tasks.some((t:Task)=>t.taskId===saved.taskId)){
            currentOperation.current=saved.operationId;setPending(saved);setNodeId(saved.nodeId);setTaskId(saved.taskId);if(saved.capability===SPECIFICATION){setRequestText(saved.body?.input?.request??'');restoreDraft(saved);}await recover(saved,control.signal);
          }
@@ -85,7 +87,7 @@ export default function RemoteNativeWork() {
  }
  async function submit(saved:Pending) {
    localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);setEditing(false);
-   try{const suffix=saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
+   try{const suffix=saved.capability===REVIEW?'native-review':saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
      await receive(await remoteJson(`/api/nodes/${saved.nodeId}/${suffix}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(saved.body)}),saved,true);
    }catch{setError('Submission could not be confirmed. Refresh this saved request before starting another.');}
  }
@@ -95,7 +97,7 @@ export default function RemoteNativeWork() {
      const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}`);
      if(data.saved===null){setError('No saved native work was found for this task and computer.');return;}
      const saved=data.saved?.request;
-     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||![CATALOG,REUSE,SPECIFICATION].includes(saved.capability))throw Error();
+     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||![CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability))throw Error();
      const checked=await checkedRemoteJob({ok:true,job:data.saved.job},saved);
      localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setPage(null);setJob(checked);
      setEditing(false);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
@@ -123,6 +125,12 @@ export default function RemoteNativeWork() {
    }catch{setError('This request could not be saved. Use a shorter description without leading or trailing spaces; the full request must fit the supported byte limit.');}
    finally{acting.current=false;setBusy(false);}
  }
+ async function saveReview(content:ReviewContent) {
+   if(acting.current||!savedSpecification||!pending||!task)return;acting.current=true;setBusy(true);setError('');
+   try {const operationId=crypto.randomUUID();const input=validateNativeReviewInput({schemaVersion:1,action:'prepare',taskRef:(pending.body.input as {taskRef:unknown}).taskRef,operationId,parentOperationId:pending.operationId,specificationId:content.specificationId,originalRequest:savedRequest,content});
+     await submit({nodeId,operationId,capability:REVIEW,taskId,body:{operationId,input}});
+   } finally{acting.current=false;setBusy(false);}
+ }
  async function run(capability:string,arguments_:Record<string,NativeJson>) {
    if(acting.current||!page?.entry||page.entry.capability!==capability)return;acting.current=true;setBusy(true);setError('');
    try{const operationId=crypto.randomUUID(),body=await executionRequest(page,arguments_,operationId);await submit({nodeId,operationId,capability:REUSE,taskId,body});}
@@ -148,6 +156,10 @@ export default function RemoteNativeWork() {
       {editing&&<button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);setRequestText(savedRequest);setEditing(false);setError('');}catch{setError('The draft could not be cleared.');}}}>Discard unsent edits</button>}</>}
     <button style={button} disabled={blocked||!ready||!task||!wizardSupported||!requestText.trim()||!!savedSpecification&&(!editing||requestText===savedRequest)}>{savedSpecification?'Save revised request':'Save Wizard request'}</button>
   </form>
+  {savedSpecification&&!editing&&node?.worker?.capabilities.some(c=>c.id===REVIEW&&c.version===1)&&<NativeReviewEditor key={pending!.operationId} parentOperationId={pending!.operationId}
+    specificationId={(job!.terminal!.result as {specification:{specificationId:string}}).specification.specificationId}
+    taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef} request={savedRequest} disabled={blocked} onSave={saveReview}/>}
+  {pending?.capability===REVIEW&&<p>This saved review is a proposal. Its receipt records the worker's review at that time; it does not authorize a build or activation.</p>}
   <div><button style={button} disabled={blocked||editing||!task||!nodeId} onClick={()=>void resumeShared()}>Resume saved work</button>
     <button style={button} disabled={blocked||editing||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
     {page?.nextCursor&&<button style={button} disabled={blocked} onClick={()=>void discover(true)}>Next capability</button>}
@@ -158,6 +170,18 @@ export default function RemoteNativeWork() {
     <NativeCapabilityInputs key={page.entry.specificationId+page.entry.capability} contracts={[{name:page.entry.capability,inputSchema:page.entry.inputSchema}]} disabled={blocked} onRun={(cap,args)=>void run(cap,args)}/></>:<p>No accepted reuse capability was found for this task.</p>)}
   {job?.state==='succeeded'&&pending?.capability===REUSE&&<Result value={(job.terminal?.result as {result?:unknown})?.result}/>}
   {job?.state==='succeeded'&&pending?.capability===SPECIFICATION&&<WizardResult value={job.terminal?.result}/>}
+  {job?.state==='succeeded'&&pending?.capability===REVIEW&&<ReviewResult input={pending.body.input as {originalRequest:string;content:ReviewContent}} value={job.terminal?.result}/>}
+ </section>;
+}
+
+function ReviewResult({input,value}:{input:{originalRequest:string;content:ReviewContent};value:unknown}) {
+ const result=value as {state:string;holds:string[]};
+ const explanation:Record<string,string>={SPEC_REVIEW_TASK_SNAPSHOT_CHANGED:'The task checkpoint changed after this review.',SPEC_REVIEW_ACTIVE_REVISION_CHANGED:'The active module changed after this review.',SPEC_REVIEW_ARTIFACT_MODE_UNSUPPORTED:'This proposal needs the reuse or assimilation acceptance path.'};
+ return <section aria-label="Saved review proposal"><h4>{result.state==='held'?'Review saved with unresolved items':'Review proposal saved'}</h4>
+  <h5>Original request</h5><p style={{whiteSpace:'pre-wrap'}}>{input.originalRequest}</p>
+  <h5>Saved requirements</h5><ol>{input.content.requirements.requirements.map((text,i)=><li key={i}>{text}</li>)}</ol>
+  <p>{input.content.requirements.tests.cases.length} acceptance examples retained. No candidate has been tested or activated by this review.</p>
+  {result.holds.length>0&&<ul>{result.holds.map(code=><li key={code}>{explanation[code]??code.replaceAll('_',' ').toLowerCase()}</li>)}</ul>}
  </section>;
 }
 

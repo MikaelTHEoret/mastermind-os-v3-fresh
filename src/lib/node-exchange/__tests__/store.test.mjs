@@ -5,6 +5,8 @@ import vm from 'node:vm';
 
 import ts from 'typescript';
 
+import * as review from '../../../../protocol/mastermind-node-exchange/native-review.mjs';
+import {reviewInput} from '../../../../protocol/mastermind-node-exchange/review-fixture.mjs';
 import * as specification from '../../../../protocol/mastermind-node-exchange/native-specification.mjs';
 import * as catalog from '../../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import * as native from '../../../../protocol/mastermind-node-exchange/native-task.mjs';
@@ -43,6 +45,7 @@ function loadStore() {
       if (identifier === '../../../protocol/mastermind-node-exchange/contract.mjs') return contract;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-task.mjs') return native;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-catalog.mjs') return catalog;
+      if(identifier === '../../../protocol/mastermind-node-exchange/native-review.mjs')return review;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-specification.mjs') return specification;
       throw new Error(`Unexpected test import: ${identifier}`);
     },
@@ -322,6 +325,24 @@ test('shared Wizard history recovers original input and rechecks current authori
  const changed=scriptedSql([()=>[{jobId:JOB_ID,input:{...input,operationId:BOOT_ID}}],()=>[{...jobRow(JOB_ID),capability:specification.NATIVE_SPECIFICATION_CAPABILITY,commandInput:input}]]);
  await assert.rejects(store.getLatestOwnerNativeJob(changed,NODE_ID,ACTIVE_JOB_ID),{code:'NODE_STORE_INVALID'});
 });
+test('review owner admission and history require current parent authority; older reads do not resolve028',async()=>{
+ const store=loadStore(),input=reviewInput(JOB_ID);
+ const row={...jobRow(JOB_ID),capability:review.NATIVE_REVIEW_CAPABILITY,commandInput:input};
+ const sql=scriptedSql([(query,values)=>{assert.match(query,/enqueue_mastermind_review_job_v1/);assert.deepEqual(JSON.parse(values[6]),input);return [{status:'applied',job_id:JOB_ID}];},
+  query=>{assert.match(query,/job.created_by_player_id/);assert.doesNotMatch(query,/mastermind_review_authorized_v1/);return [row];},
+  query=>{assert.match(query,/mastermind_review_authorized_v1/);return [{allowed:true}];}]);
+ assert.equal((await store.enqueueOwnerNativeReviewJob(sql,NODE_ID,{operationId:JOB_ID,input})).job.capability,review.NATIVE_REVIEW_CAPABILITY);
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[row],()=>[{allowed:false}]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+ const noSql=scriptedSql([]);await assert.rejects(store.enqueueOwnerNativeReviewJob(noSql,NODE_ID,{operationId:JOB_ID,input:{...input,source:{}}}),{code:'NODE_REQUEST_INVALID'});assert.equal(noSql.calls(),0);
+ const result={kind:review.NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,operationId:JOB_ID,specificationId:input.specificationId,
+  contentSha256:review.reviewContentHash(input.content),reviewId:'b'.repeat(64),state:'proposed',holds:[],replayed:false,accepted:false,executionAuthorized:false};
+ const finished={...row,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-08-15T12:01:00.000Z'};
+ const recovered=await store.getLatestOwnerNativeJob(scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[finished],()=>[{allowed:true}]]),NODE_ID,input.taskRef.taskId);
+ assert.deepEqual(JSON.parse(JSON.stringify(recovered.request.body)),{operationId:JOB_ID,input});
+ const bad={...finished,terminalResult:{...result,contentSha256:'f'.repeat(64)}};
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[bad],()=>[{allowed:true}]]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+});
+
 test('Wizard admission binds retained UUID and reads current owner authority without granting execution',async()=>{
   const store=loadStore(),input=wizardInput();
   const sql=scriptedSql([(query,values)=>{
