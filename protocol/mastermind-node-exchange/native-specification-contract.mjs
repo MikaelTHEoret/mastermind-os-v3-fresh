@@ -11,12 +11,18 @@ const bytes=v=>new TextEncoder().encode(JSON.stringify(v)).length;
 const text=(v,max)=>typeof v==='string'&&v.isWellFormed()&&[...v].length>0&&[...v].length<=max;
 
 export function validateNativeSpecificationRequest(value) {
-  need(exact(value,['schemaVersion','action','taskRef','operationId','request','recipeId'])&&value.schemaVersion===1
+  need((exact(value,['schemaVersion','action','taskRef','operationId','request','recipeId'])
+    ||exact(value,['schemaVersion','action','taskRef','operationId','request','recipeId','revisionOf']))&&value.schemaVersion===1
     &&['prepare','recover'].includes(value.action));
   validateNativeCatalogRequest({schemaVersion:1,taskRef:value.taskRef,snapshotId:null,cursor:null});
   need(typeof value.operationId==='string'&&UUID.test(value.operationId));
   need(text(value.request,4000)&&value.request===value.request.trim()&&!/[\x00-\x08\x0b-\x1f]/.test(value.request));
   need(value.recipeId===null||typeof value.recipeId==='string'&&ID.test(value.recipeId));
+  if(Object.hasOwn(value,'revisionOf')){
+    const parent=value.revisionOf;
+    need(exact(parent,['operationId','requestHash'])&&typeof parent.operationId==='string'&&UUID.test(parent.operationId)
+      &&parent.operationId!==value.operationId&&typeof parent.requestHash==='string'&&SHA.test(parent.requestHash));
+  }
   need(bytes(value)<=8192);
   return structuredClone(value);
 }
@@ -39,7 +45,8 @@ export function validateNativeSpecificationResult(value,raw,requestHash) {
   need(typeof value.savedAt==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(value.savedAt)
     &&Number.isFinite(Date.parse(value.savedAt)));
   const s=value.specification;
-  need(exact(s,['specificationId','title','decision','stage','requirementsHash','missingCount'])
+  need((exact(s,['specificationId','title','decision','stage','requirementsHash','missingCount'])
+    ||exact(s,['specificationId','title','decision','stage','requirementsHash','missingCount','missing']))
     &&typeof s.specificationId==='string'&&SHA.test(s.specificationId)&&text(s.title,80)
     &&['reuse','extend','assimilate','create','inspect_existing'].includes(s.decision)
     &&['needs_specification','specified','reuse_available'].includes(s.stage)
@@ -47,6 +54,8 @@ export function validateNativeSpecificationResult(value,raw,requestHash) {
     &&Number.isSafeInteger(s.missingCount)&&s.missingCount>=0&&s.missingCount<=100);
   need(s.stage==='needs_specification'?s.requirementsHash===null&&s.missingCount>0:s.requirementsHash!==null&&s.missingCount===0);
   need(s.stage!=='reuse_available'||s.decision==='reuse');
+  if(Object.hasOwn(s,'missing'))need(Array.isArray(s.missing)&&s.missing.length===s.missingCount
+    &&s.missing.length<=8&&s.missing.every(item=>text(item,160)&&item===item.trim()&&!/[\x00-\x1f]/.test(item)));
   need(bytes(value)<=2048);
   return structuredClone(value);
 }

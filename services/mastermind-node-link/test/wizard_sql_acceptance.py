@@ -88,3 +88,30 @@ def verify(context):
     cursor.execute(f'UPDATE {schema}.mastermind_context_tasks_v1 SET permission_scope=%s WHERE task_id=%s',(json.dumps(context['scope']),task))
     context['receipt']['checks'].append('Actual shared-history SQL: works before026; restores original Wizard input; foreign and revoked owners receive no history')
     context['receipt']['checks'].append('026 Wizard: Unicode canonical hashes, exact intent/job binding, no caller grants, owner/current-scope checks, shared busy limit, legacy worker exclusion, revoked lease/upload/read denial, exact durable terminal replay')
+    followups = context['ROOT']/'memory-system/migrations/027_mastermind_wizard_followups_v1.sql'
+    cursor.execute(context['isolated'](followups.read_text(encoding='utf-8')))
+    context['receipt']['sourceHashes'][followups.relative_to(context['ROOT']).as_posix()] = hashlib.sha256(followups.read_bytes()).hexdigest()
+    assert authorized(request, result)  # Historical count-only receipts remain readable.
+    detailed = {**result, 'specification': {**result['specification'], 'missing': ['Confirm behavior.', 'Supply tests.', 'Review existing capabilities.']}}
+    assert authorized(request, detailed)
+    for missing in (None, 'not a list', ['too few'], ['a', 'b', 'x'*161], ['a', 'b', 'bad\nquestion'], ['a','b',{}]):
+        assert not authorized(request, {**result,'specification':{**result['specification'],'missing':missing}})
+    revised = {**request, 'operationId': uid(), 'request': 'Revised inputs and expected outputs: é 💡',
+               'revisionOf': {'operationId': request['operationId'], 'requestHash': digest}}
+    for parent in ({'operationId':uid(),'requestHash':digest}, {'operationId':request['operationId'],'requestHash':'f'*64}):
+        expected_error('42501',lambda parent=parent:enqueue({**revised,'revisionOf':parent}))
+    for parent in (None, {}, {'operationId':revised['operationId'],'requestHash':digest}):
+        expected_error('22023',lambda parent=parent:enqueue({**revised,'revisionOf':parent}))
+    binding = {key:value for key,value in revised.items() if key!='action'}
+    revised_hash=hashlib.sha256(json.dumps(binding,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+    cursor.execute(f'SELECT {schema}.mastermind_specification_hash_v1(%s)',(json.dumps(revised),))
+    assert cursor.fetchone()[0]==revised_hash
+    assert enqueue(revised)[0]=='applied' and enqueue(revised)[0]=='duplicate'
+    revised_lease=exchange(worker=worker)[4]
+    revised_result={**detailed,'operationId':revised['operationId'],'requestHash':revised_hash}
+    receipt=make_receipt(revised_lease,result=revised_result)
+    assert receipt['receiptId'] in submit(receipt,worker=worker)[3]
+    assert history()==[(revised['operationId'],revised)]
+    cursor.execute(f'SELECT terminal_result FROM {schema}.mastermind_node_jobs_v1 WHERE job_id=%s',(request['operationId'],))
+    assert cursor.fetchone()[0]==result
+    context['receipt']['checks'].append('027: old receipts readable; bounded detailed questions; linked revision hash parity, missing/altered/self parents denied; original immutable result preserved')
