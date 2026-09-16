@@ -1,3 +1,4 @@
+import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical} from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {validateNativeCommandInput} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 import {validateNativeCatalogReceipt} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
@@ -9,6 +10,12 @@ export function specificationRequest(taskRef,request,operationId,revisionOf) {
   return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(pending.capability===REVIEW_REUSE){
+    const input=validateReviewReuseInput(pending.body.input);
+    if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved link binding changed.');
+    const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,REVIEW_REUSE).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,REVIEW_REUSE).job;
+    if(job.state==='succeeded')validateReviewReuseReceipt(job.terminal.result,input);return job;
+  }
   if(pending.capability===NATIVE_REVIEW_CAPABILITY){
     const input=validateNativeReviewInput(pending.body.input);
     if(input.operationId!==pending.operationId||pending.body.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId)throw Error('Saved review binding changed.');

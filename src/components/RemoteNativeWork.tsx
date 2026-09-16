@@ -1,4 +1,6 @@
 'use client';
+import NativeReviewReuseResult,{type ReviewReuseResult} from './NativeReviewReuseResult';
+import {REVIEW_REUSE,validateReviewReuseInput,disposition} from '../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 import NativeReviewEditor,{type ReviewContent} from './NativeReviewEditor';
 import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {useCallback,useEffect,useRef,useState} from 'react';
@@ -37,6 +39,7 @@ export default function RemoteNativeWork() {
  const task=tasks.find(t=>t.taskId===taskId),node=nodes.find(n=>n.nodeId===nodeId);
  const supported=node?.worker?.capabilities.some(c=>c.id===CATALOG&&c.version===1);
  const wizardSupported=node?.worker?.capabilities.some(c=>c.id===SPECIFICATION&&c.version===1);
+ const linkSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_REUSE&&c.version===1);
  const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&c.version===1);
  const blocked=busy||!!pending&&!terminal(job?.state);
  const savedSpecification=pending?.capability===SPECIFICATION&&job?.state==='succeeded';
@@ -69,7 +72,7 @@ export default function RemoteNativeWork() {
        setTasks(owned.tasks);setNodes(computers);setTaskId(owned.tasks[0]?.taskId??'');setNodeId(computers[0]?.nodeId??'');setReady(true);
        const raw=localStorage.getItem(KEY);if(raw&&raw.length<=32768){const saved=JSON.parse(raw);
          if(saved&&['nodeId','operationId','capability','body','taskId'].every(k=>Object.prototype.hasOwnProperty.call(saved,k))
-           &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability)
+           &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION,REVIEW,REVIEW_REUSE].includes(saved.capability)
            &&computers.some((n:Computer)=>n.nodeId===saved.nodeId)&&owned.tasks.some((t:Task)=>t.taskId===saved.taskId)){
            currentOperation.current=saved.operationId;setPending(saved);setNodeId(saved.nodeId);setTaskId(saved.taskId);if(saved.capability===SPECIFICATION){setRequestText(saved.body?.input?.request??'');restoreDraft(saved);}await recover(saved,control.signal);
          }
@@ -92,7 +95,7 @@ export default function RemoteNativeWork() {
  }
  async function submit(saved:Pending) {
    localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);setEditing(false);setReviewEditing(false);
-   try{const suffix=saved.capability===REVIEW?'native-review':saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
+   try{const suffix=saved.capability===REVIEW_REUSE?'review-reuse':saved.capability===REVIEW?'native-review':saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
      await receive(await remoteJson(`/api/nodes/${saved.nodeId}/${suffix}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(saved.body)}),saved,true);
    }catch{setError('Submission could not be confirmed. Refresh this saved request before starting another.');}
  }
@@ -102,7 +105,7 @@ export default function RemoteNativeWork() {
      const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}${reviewOnly?'/review':''}`);
      if(data.saved===null){setError('No saved native work was found for this task and computer.');return;}
      const saved=data.saved?.request;
-     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||reviewOnly&&saved.capability!==REVIEW||![CATALOG,REUSE,SPECIFICATION,REVIEW].includes(saved.capability))throw Error();
+     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||reviewOnly&&saved.capability!==REVIEW||![CATALOG,REUSE,SPECIFICATION,REVIEW,REVIEW_REUSE].includes(saved.capability))throw Error();
      const checked=await checkedRemoteJob({ok:true,job:data.saved.job},saved);
      localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setPage(null);setJob(checked);
      setEditing(false);setReviewEditing(saved.capability===REVIEW&&checked.state==='succeeded'&&localStorage.getItem(REVIEW_EDIT_KEY)===saved.operationId);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
@@ -128,6 +131,23 @@ export default function RemoteNativeWork() {
      const operationId=crypto.randomUUID(),body=specificationRequest({taskId:task.taskId,project:task.project},requestText,operationId,revisionOf);
      setPage(null);await submit({nodeId,operationId,capability:SPECIFICATION,taskId,body});
    }catch{setError('This request could not be saved. Use a shorter description without leading or trailing spaces; the full request must fit the supported byte limit.');}
+   finally{acting.current=false;setBusy(false);}
+ }
+ async function reuseReview(accept=false) {
+   if(acting.current||blocked||!linkSupported||!pending||job?.state!=='succeeded')return;
+   if(!accept&&pending.capability!==REVIEW||accept&&pending.capability!==REVIEW_REUSE)return;
+   acting.current=true;setBusy(true);setError('');
+   try {
+     const result=job.terminal?.result as ReviewReuseResult;
+     if(accept&&(result.action!=='assess'||result.holds?.length))throw Error();
+     const prior=pending.body.input as {taskRef:unknown;specificationId:string};
+     const operationId=accept?(result.existingOperationId??crypto.randomUUID()):crypto.randomUUID();
+     const input=validateReviewReuseInput({schemaVersion:1,action:accept?'accept':'assess',taskRef:prior.taskRef,
+       operationId,parentOperationId:pending.operationId,specificationId:prior.specificationId,reviewId:result.reviewId,
+       acceptedSpecificationId:accept?result.acceptedSpecificationId:null,qualificationId:accept?result.qualificationId:null,
+       decisions:accept?(result.differences??[]).map(field=>({field,disposition:disposition(field)})):[]});
+     await submit({nodeId,operationId,capability:REVIEW_REUSE,taskId,body:{operationId,input}});
+   }catch{setError('The reuse decision could not be saved. Keep the current request and refresh its status before retrying.');}
    finally{acting.current=false;setBusy(false);}
  }
  async function saveReview(content:ReviewContent) {
@@ -165,6 +185,7 @@ export default function RemoteNativeWork() {
     specificationId={(job!.terminal!.result as {specification:{specificationId:string}}).specification.specificationId}
     taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef} request={savedRequest} disabled={blocked} onSave={saveReview}/>}
   {pending?.capability===REVIEW&&<p>This saved review is a proposal. Its receipt records the worker's review at that time; it does not authorize a build or activation.</p>}
+  {savedReview&&!reviewEditing&&linkSupported&&<button type="button" style={button} disabled={blocked} onClick={()=>void reuseReview()}>Check accepted reuse evidence</button>}
   {savedReview&&!reviewEditing&&<button type="button" style={button} disabled={blocked||!reviewSupported} onClick={()=>{try{localStorage.setItem(REVIEW_EDIT_KEY,pending!.operationId);setReviewEditing(true);}catch{setError('The review draft could not be saved in this browser.');}}}>Revise review proposal</button>}
   {savedReview&&reviewEditing&&<><p>Edit a new review. The saved proposal and its result remain in history.</p>
     <NativeReviewEditor key={'revision-'+pending!.operationId} draftId={pending!.operationId} parentOperationId={(pending!.body.input as {parentOperationId:string}).parentOperationId}
@@ -185,6 +206,7 @@ export default function RemoteNativeWork() {
     <NativeCapabilityInputs key={page.entry.specificationId+page.entry.capability} contracts={[{name:page.entry.capability,inputSchema:page.entry.inputSchema}]} disabled={blocked} onRun={(cap,args)=>void run(cap,args)}/></>:<p>No accepted reuse capability was found for this task.</p>)}
   {job?.state==='succeeded'&&pending?.capability===REUSE&&<Result value={(job.terminal?.result as {result?:unknown})?.result}/>}
   {job?.state==='succeeded'&&pending?.capability===SPECIFICATION&&<WizardResult value={job.terminal?.result}/>}
+  {job?.state==='succeeded'&&pending?.capability===REVIEW_REUSE&&<NativeReviewReuseResult key={pending.operationId} value={job.terminal?.result as ReviewReuseResult} disabled={blocked||!linkSupported} onAccept={()=>void reuseReview(true)}/>}
   {job?.state==='succeeded'&&pending?.capability===REVIEW&&<ReviewResult input={pending.body.input as {originalRequest:string;content:ReviewContent}} value={job.terminal?.result}/>}
  </section>;
 }

@@ -6,6 +6,8 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 import * as review from '../../../../protocol/mastermind-node-exchange/native-review.mjs';
+import * as reviewReuse from '../../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
+import {reuseInput,reuseReceipt} from '../../../../protocol/mastermind-node-exchange/review-reuse-fixture.mjs';
 import {reviewInput} from '../../../../protocol/mastermind-node-exchange/review-fixture.mjs';
 import * as specification from '../../../../protocol/mastermind-node-exchange/native-specification.mjs';
 import * as catalog from '../../../../protocol/mastermind-node-exchange/native-catalog.mjs';
@@ -46,6 +48,7 @@ function loadStore() {
       if (identifier === '../../../protocol/mastermind-node-exchange/native-task.mjs') return native;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-catalog.mjs') return catalog;
       if(identifier === '../../../protocol/mastermind-node-exchange/native-review.mjs')return review;
+      if(identifier === '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs')return reviewReuse;
       if (identifier === '../../../protocol/mastermind-node-exchange/native-specification.mjs') return specification;
       throw new Error(`Unexpected test import: ${identifier}`);
     },
@@ -66,6 +69,17 @@ const LEASE_ID = '44444444-4444-4444-8444-444444444444';
 const EXCHANGE_ID = '55555555-5555-4555-8555-555555555555';
 const BOOT_ID = '66666666-6666-4666-8666-666666666666';
 const OLD_BOOT_ID = '77777777-7777-4777-8777-777777777777';
+
+test('reuse link enqueue and recovery apply current authority before returning evidence',async()=>{
+ const store=loadStore(),input=reuseInput(JOB_ID,'accept'),result=reuseReceipt(input);
+ const row={...jobRow(JOB_ID),capability:reviewReuse.REVIEW_REUSE,commandInput:input,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-08-15T12:01:00.000Z'};
+ const auth=query=>{assert.match(query,/mastermind_review_reuse_authorized_v1/);return [{allowed:true}];};
+ const sql=scriptedSql([(query,values)=>{assert.match(query,/enqueue_mastermind_review_reuse_job_v1/);assert.deepEqual(JSON.parse(values[6]),input);return [{status:'duplicate',job_id:JOB_ID}];},()=>[row],auth]);
+ const saved=await store.enqueueOwnerReviewReuseJob(sql,NODE_ID,{operationId:JOB_ID,input});assert.equal(saved.job.terminal.result.linkId,result.linkId);assert.equal(sql.calls(),3);
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[row],()=>[{allowed:false}]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[{...row,terminalResult:{...result,qualificationId:'0'.repeat(64)}}],auth]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+ const none=scriptedSql([]);await assert.rejects(store.enqueueOwnerReviewReuseJob(none,NODE_ID,{operationId:BOOT_ID,input}),{code:'NODE_REQUEST_INVALID'});assert.equal(none.calls(),0);
+});
 const RECEIPT_ID = '88888888-8888-4888-8888-888888888888';
 
 test('typed core enqueue retains queued/offline timestamps and reports its actual capability', async () => {

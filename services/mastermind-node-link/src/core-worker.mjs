@@ -1,5 +1,5 @@
 import {NativeTaskExecutor} from './native-task-executor.mjs';
-import {NATIVE_CORE_WORKER,WIZARD_CORE_WORKER,REVIEW_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
+import {NATIVE_CORE_WORKER,WIZARD_CORE_WORKER,REVIEW_CORE_WORKER,REVIEW_REUSE_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
 import path from 'node:path';
 import { FileMastermindNodeEffectJournal } from './effect-journal.mjs';
 import { MastermindNodeLink } from './node-link.mjs';
@@ -20,6 +20,7 @@ export function coreWorkerEnvelope(now = Date.now) {
 }
 
 export function createMastermindCoreOnlyWorker(options = {}) {
+  if(options.enableReviewReuse!==undefined&&typeof options.enableReviewReuse!=='boolean'||options.enableReviewReuse===true&&options.enableNativeReviews!==true)throw new TypeError('Reuse links require explicit review activation');
   if(options.enableNativeReviews!==undefined&&typeof options.enableNativeReviews!=='boolean'
     ||options.enableNativeReviews===true&&options.enableNativeSpecifications!==true)throw new TypeError('Review requires explicit Wizard activation');
   if(options.enableNativeSpecifications!==undefined&&typeof options.enableNativeSpecifications!=='boolean'
@@ -32,8 +33,8 @@ export function createMastermindCoreOnlyWorker(options = {}) {
     exchangeTransport: options.exchangeTransport, journal,
     executor: options.enableNativeTasks === true ? new NativeTaskExecutor({core,now:monotonicNow,native:options.nativeTaskClient}) : new CoreStatusExecutor({ core, now: monotonicNow }),
     statusProvider: { observeStatus: async () => coreWorkerEnvelope(options.now) },
-    agentVersion: options.enableNativeReviews === true ? '0.6.0-native-review' : options.enableNativeSpecifications === true ? '0.5.0-native-wizard' : options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
-    now: options.now, monotonicNow, worker: options.enableNativeReviews === true ? REVIEW_CORE_WORKER : options.enableNativeSpecifications === true ? WIZARD_CORE_WORKER : options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
+    agentVersion: options.enableReviewReuse===true?'0.7.0-review-reuse':options.enableNativeReviews === true ? '0.6.0-native-review' : options.enableNativeSpecifications === true ? '0.5.0-native-wizard' : options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
+    now: options.now, monotonicNow, worker: options.enableReviewReuse===true?REVIEW_REUSE_CORE_WORKER:options.enableNativeReviews === true ? REVIEW_CORE_WORKER : options.enableNativeSpecifications === true ? WIZARD_CORE_WORKER : options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
     // Preserve incompatible pending receipts. They require source/ledger
     // reconciliation, never silent deletion or a family-capability fallback.
     requireExistingPairing: true,

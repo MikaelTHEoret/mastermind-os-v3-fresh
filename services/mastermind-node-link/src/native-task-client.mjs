@@ -1,4 +1,6 @@
 import {validateNativeCatalogRequest,validateNativeCatalogResult} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
+import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
+export const REVIEW_REUSE_ENDPOINT='http://127.0.0.1:8770/specification_review_reuse';
 import {createHash} from 'node:crypto';
 import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,reviewContentHash} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
 export const NATIVE_REVIEW_ENDPOINT='http://127.0.0.1:8770/specification_review';
@@ -72,6 +74,43 @@ export class NativeTaskClient {
       if(error instanceof NativeTaskError)throw error;
       throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');
     }
+  }
+  async reviewReuse(request,{signal,deadlineMs,recoverOnly=false}={}) {
+    const input=validateReviewReuseInput(request);
+    need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
+    const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
+    if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
+    const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
+    const body={schemaVersion:1,action:input.action==='assess'?'assess':recoverOnly?'recover':'accept',
+      specificationId:input.specificationId,reviewId:input.reviewId,acceptedSpecificationId:input.acceptedSpecificationId,
+      ...(input.action==='accept'?{operationId:input.operationId,expectedQualificationId:input.qualificationId,decisions:input.decisions}:{})};
+    try {
+      combined.throwIfAborted();
+      const response=await abortable(this.fetchImpl(REVIEW_REUSE_ENDPOINT,{method:'POST',redirect:'error',signal:combined,
+        headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify(body)}),combined,
+        response=>response?.body?.cancel().catch(()=>{}));
+      const result=await readResponse(response,combined);combined.throwIfAborted();
+      need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      need(response.status===200&&result?.ok===true&&result.executionAuthorized===false,'TASK_REVIEW_REUSE_UNAVAILABLE');
+      const common={kind:REVIEW_REUSE,schemaVersion:1,action:input.action,taskRef:input.taskRef,
+        operationId:input.operationId,specificationId:input.specificationId,reviewId:input.reviewId,executionAuthorized:false};
+      if(input.action==='assess') {
+        const q=result.qualification,e=q?.evidence?.assessment;
+        need(object(q)&&reviewContentHash(q)===result.qualificationId&&object(e)&&reviewContentHash(e)===q.evidence.assessmentId
+          &&q.specificationId===input.specificationId&&q.reviewId===input.reviewId&&q.executionAuthorized===false&&q.reviewAccepted===false
+          &&e.specificationId===input.specificationId&&e.reviewId===input.reviewId&&e.executionAuthorized===false&&e.accepted===false
+          &&reviewCanonical(e.taskRef)===reviewCanonical({taskId:input.taskRef.taskId,project:input.taskRef.project}), 'TASK_REVIEW_REUSE_INVALID');
+        return validateReviewReuseReceipt({...common,acceptedSpecificationId:q.acceptedSpecificationId,
+          qualificationId:result.qualificationId,candidateId:e.candidateId,differences:q.differences.map(d=>d.field),holds:q.holds,
+          exampleCount:e.cases.length,coveredCount:e.cases.filter(c=>c.evidence!=='missing').length,suiteCaseCount:e.acceptedSuiteCaseCount,
+          existingOperationId:result.existingLink?.operationId??null,existingLinkId:result.existingLink?.linkId??null,replayed:recoverOnly},input);
+      }
+      need(result.operationId===input.operationId&&result.specificationId===input.specificationId&&result.reviewId===input.reviewId
+        &&(!recoverOnly||result.replayed===true),'TASK_REVIEW_REUSE_INVALID');
+      return validateReviewReuseReceipt({...common,acceptedSpecificationId:result.acceptedSpecificationId,
+        qualificationId:result.qualificationId,candidateId:result.candidateId,linkId:result.linkId,
+        replayed:result.replayed,reuseLinkAccepted:result.reuseLinkAccepted,reviewAccepted:result.reviewAccepted},input);
+    } catch(error) {if(error instanceof NativeTaskError)throw error;throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');}
   }
   async review(request,{signal,deadlineMs,recoverOnly=false}={}) {
     const input=validateNativeReviewInput(request);

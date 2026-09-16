@@ -3,6 +3,8 @@ import fs from 'node:fs';import vm from 'node:vm';import test from 'node:test';i
 import * as React from 'react';import * as jsx from 'react/jsx-runtime';import {renderToStaticMarkup} from 'react-dom/server';
 import crypto from 'node:crypto';import * as workflow from './remote-workflow.mjs';
 import * as controls from '../../components/node-control-contract.mjs';
+import * as reviewReuse from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
+import {reuseReceipt,reuseOperation} from '../../../protocol/mastermind-node-exchange/review-reuse-fixture.mjs';
 import * as review from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import * as catalog from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {specificationRequestHash} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
@@ -18,6 +20,7 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
  const hooks={...React,useState(initial){const i=index++;if(!(i in slots))slots[i]=typeof initial==='function'?initial():initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(initial){const i=index++;return slots[i]??(slots[i]={current:initial});},useCallback(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps))slots[i]={deps,fn};return slots[i].fn;},useEffect(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps)){slots[i]?.cleanup?.();slots[i]={deps};effects.push(()=>{slots[i].cleanup=fn();});}}};
  function Inputs(){return jsx.jsx('p',{children:'Generated capability inputs'});}
  function ReviewEditor(){return null;}
+ function ReuseResult(){return null;}
  async function api(url,options={}) {
    calls.push({url,options});if(denied)throw Error('permission revoked');
    if(url==='/api/nodes')return {ok:true,nodes:[selectedComputer]};
@@ -25,11 +28,11 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
    if(url.includes('/native-history/')){const job=Array.from(jobs.values()).filter(j=>!url.endsWith('/review')||j.capability===review.NATIVE_REVIEW_CAPABILITY).at(-1);const pointer=[...history.values(),...initialHistory].map(v=>JSON.parse(v)).find(v=>v.operationId===job?.jobId);return {ok:true,saved:job&&pointer?{job,request:pointer}:null};}
    const id=options.body?JSON.parse(options.body).operationId:url.split('/').at(-1);
    if(options.method==='POST'){
-     const body=JSON.parse(options.body),isCatalog=url.endsWith('native-catalog'),isWizard=url.endsWith('native-specification'),isReview=url.endsWith('native-review');
-     const result=isReview?reviewResult(body.input):isCatalog?page:isWizard?{kind:workflow.SPECIFICATION,ok:true,schemaVersion:1,taskRef:body.input.taskRef,operationId:id,requestHash:specificationRequestHash(body.input),savedAt:AT,replayed:false,executionAuthorized:false,
+     const body=JSON.parse(options.body),isCatalog=url.endsWith('native-catalog'),isWizard=url.endsWith('native-specification'),isReview=url.endsWith('native-review'),isLink=url.endsWith('review-reuse');
+     const result=isLink?reuseReceipt(body.input):isReview?reviewResult(body.input):isCatalog?page:isWizard?{kind:workflow.SPECIFICATION,ok:true,schemaVersion:1,taskRef:body.input.taskRef,operationId:id,requestHash:specificationRequestHash(body.input),savedAt:AT,replayed:false,executionAuthorized:false,
        specification:{specificationId:'e'.repeat(64),title:'Saved development request',decision:'inspect_existing',stage:'needs_specification',requirementsHash:null,missingCount:2,...(options_.detailed?{missing:['Confirm inputs and expected outputs.','Review matching capabilities.']}: {})}}:
        {kind:workflow.REUSE,operationId:id,specificationId:body.specificationId,taskRef:body.taskRef,candidateId:body.candidateId,capability:body.capability,inputSha256:body.inputSha256,resultSha256:'f'.repeat(64),replayed:false,result:{added:['new artifact']}};
-     const job={jobId:id,nodeId:NODE,capability:isReview?review.NATIVE_REVIEW_CAPABILITY:isCatalog?workflow.CATALOG:isWizard?workflow.SPECIFICATION:workflow.REUSE,capabilityVersion:1,policyClass:'routine',state:options_.queued?'queued':'succeeded',createdAt:AT,expiresAt:'2026-09-11T04:30:00.000Z',lease:null,terminal:options_.queued?null:{code:'desired-state-reached',finishedAt:AT,result}};
+     const job={jobId:id,nodeId:NODE,capability:isLink?reviewReuse.REVIEW_REUSE:isReview?review.NATIVE_REVIEW_CAPABILITY:isCatalog?workflow.CATALOG:isWizard?workflow.SPECIFICATION:workflow.REUSE,capabilityVersion:1,policyClass:'routine',state:options_.queued?'queued':'succeeded',createdAt:AT,expiresAt:'2026-09-11T04:30:00.000Z',lease:null,terminal:options_.queued?null:{code:'desired-state-reached',finishedAt:AT,result}};
      const existing=jobs.get(id);if(!existing)jobs.set(id,job);if(lost){lost=false;throw Error('reply lost');}return {ok:true,status:existing?'duplicate':'created',job:existing??job};
    }
    if(jobs.has(id))return {ok:true,job:jobs.get(id)};
@@ -38,6 +41,7 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
  const plain=value=>JSON.parse(JSON.stringify(value));
  const module={exports:{}};
  vm.runInNewContext(compiled,{module,exports:module.exports,console,AbortController,crypto:crypto.webcrypto,location:{origin:'https://mastermind-core.com'},setTimeout:()=>1,clearTimeout(){},localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>{if(options_.storageDenied)throw Error('storage denied');saved.set(k,v);},removeItem:k=>saved.delete(k)},require(name){
+   if(name==='./NativeReviewReuseResult')return {default:ReuseResult,__esModule:true};if(name.includes('native-review-reuse'))return {...reviewReuse,validateReviewReuseInput:v=>reviewReuse.validateReviewReuseInput(plain(v))};
    if(name==='./NativeReviewEditor')return {default:ReviewEditor,__esModule:true};if(name.includes('native-review-contract'))return {...review,validateNativeReviewInput:v=>review.validateNativeReviewInput(plain(v))};
    if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {default:Inputs,__esModule:true};
    if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:(v,p,e)=>workflow.checkedRemoteJob(plain(v),plain(p),e)};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
@@ -46,10 +50,29 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
  const render=()=>{index=0;tree=Component();return tree;};
  const settle=async()=>{for(let i=0;i<6;i++){render();while(effects.length)effects.shift()();await new Promise(resolve=>setImmediate(resolve));}render();};
  function all(node=tree){if(!node||typeof node!=='object')return [];return [node,...React.Children.toArray(node.props?.children).flatMap(all)];}
- return {saved,jobs,calls,settle,render,deny:()=>{denied=true;},loseReply:()=>{lost=true;},html:()=>renderToStaticMarkup(tree),button:text=>all().find(n=>n.type==='button'&&n.props.children===text),inputs:()=>all().find(n=>n.type===Inputs),reviewEditor:()=>all().find(n=>n.type===ReviewEditor),textarea:()=>all().find(n=>n.type==='textarea'),form:()=>all().find(n=>n.type==='form')};
+ return {saved,jobs,calls,settle,render,deny:()=>{denied=true;},loseReply:()=>{lost=true;},html:()=>renderToStaticMarkup(tree),button:text=>all().find(n=>n.type==='button'&&n.props.children===text),inputs:()=>all().find(n=>n.type===Inputs),reviewEditor:()=>all().find(n=>n.type===ReviewEditor),reuseResult:()=>all().find(n=>n.type===ReuseResult),textarea:()=>all().find(n=>n.type==='textarea'),form:()=>all().find(n=>n.type==='form')};
 }
 
 function reviewResult(input){return {kind:review.NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,operationId:input.operationId,specificationId:input.specificationId,contentSha256:crypto.createHash('sha256').update(review.reviewCanonical(input.content)).digest('hex'),reviewId:'f'.repeat(64),state:'held',holds:['ACCEPTED_REUSE_EVIDENCE_REQUIRED'],replayed:false,accepted:false,executionAuthorized:false};}
+
+test('review reuse uses the existing decision ID, survives a lost reply and resumes without resubmission',async()=>{
+ const {f:prior,job,options}=savedReviewFixture();
+ options.computer.worker.capabilities.push({id:reviewReuse.REVIEW_REUSE,version:1});
+ const f=fixture(prior.saved,prior.saved,options);f.jobs.set(job.jobId,job);await f.settle();
+ f.button('Check accepted reuse evidence').props.onClick();await f.settle();
+ const assessed=f.reuseResult().props.value;assert.equal(assessed.coveredCount,8);assert.equal(assessed.existingOperationId,reuseOperation);
+ const accept=f.reuseResult().props.onAccept;f.loseReply();accept();accept();await f.settle();
+ const posts=f.calls.filter(c=>c.options.method==='POST');assert.equal(posts.length,2);
+ const body=JSON.parse(posts[1].options.body);assert.equal(body.operationId,reuseOperation);assert.equal(body.input.qualificationId,assessed.qualificationId);
+ assert.equal(body.input.decisions.length,4);assert.equal(body.input.decisions[0].acceptedSha256,undefined);
+ assert.deepEqual(f.jobs.get(job.jobId),job);assert.equal(f.jobs.size,3);
+ const resumed=fixture(f.saved,f.saved,options);for(const [id,j] of f.jobs)resumed.jobs.set(id,j);await resumed.settle();
+ assert.equal(resumed.reuseResult().props.value.action,'accept');assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
+ const fresh=fixture(new Map(),f.saved,options);for(const [id,j] of f.jobs)fresh.jobs.set(id,j);await fresh.settle();
+ fresh.button('Resume saved work').props.onClick();await fresh.settle();assert.equal(fresh.reuseResult().props.value.operationId,reuseOperation);
+ assert.equal(fresh.calls.filter(c=>c.options.method==='POST').length,0);
+ resumed.deny();resumed.button('Refresh saved status').props.onClick();await resumed.settle();assert.equal(resumed.reuseResult(),undefined);
+});
 
 function savedReviewFixture(){
  const input=reviewInput();input.taskRef={taskId:TASK,project:'mastermind'};input.content.requirements.taskRef=input.taskRef;

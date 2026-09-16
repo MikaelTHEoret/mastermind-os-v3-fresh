@@ -16,6 +16,8 @@ def verify(context,parent,parent_result,old_worker,history):
       'requirements':['Preserve exact supplied text.'],'contracts':[{'name':'fixture.echo','effectClass':'READ_ONLY','inputSchema':{'type':'object'},'outputSchema':{'type':'object'}}],
       'tests':{'schemaVersion':1,'cases':[{'id':'echo','capability':'fixture.echo','input':{'é':'💡'},'expected':{'é':'💡'}}]}},
       'coverage':[{'start':0,'end':len(parent['request']),'text':parent['request'],'requirements':[0],'status':'covered'}]}
+    if '--review-reuse' in __import__('sys').argv:
+      content.update(mode='reuse',expectedActiveRevision='c'*64)
     value={'schemaVersion':1,'action':'prepare','taskRef':task,'operationId':uid(),'specificationId':sid,'parentOperationId':parent['operationId'],'originalRequest':parent['request'],'content':content}
     def enqueue(v=value,who=actor,computer=node):
       cursor.execute(f'SELECT * FROM {schema}.enqueue_mastermind_review_job_v1('+','.join(['%s']*7)+')',
@@ -57,3 +59,6 @@ def verify(context,parent,parent_result,old_worker,history):
     assert history()==[(value['operationId'],value)]
     cursor.execute(f'SELECT terminal_result FROM {schema}.mastermind_node_jobs_v1 WHERE job_id=%s',(parent['operationId'],));assert cursor.fetchone()[0]==parent_result
     context['receipt']['checks'].append('028: actual enqueue/lease/receipt/history; exact parent, Unicode content hash, unchanged Wizard history, duplicate/conflict/busy, old worker exclusion, revoked/foreign reads and receipts denied; no execution approval')
+    if '--review-reuse' in __import__('sys').argv:
+      from review_reuse_sql_acceptance import verify as verify_reuse
+      verify_reuse(context,value,result,worker)

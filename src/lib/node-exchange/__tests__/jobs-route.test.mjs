@@ -8,6 +8,12 @@ import * as contract from '../../../../protocol/mastermind-node-exchange/contrac
 const nodeId = '11111111-1111-4111-8111-111111111111';
 const requestId = '22222222-2222-4222-8222-222222222222';
 const base = 'https://mastermind-core.com';
+test('reuse link route is opt-in and enforces same-origin owner access before enqueue',async()=>{
+ for(const [owner,enabled,headers,expected] of [[{ok:true},false,{},503],[{ok:false,status:403,reason:'Owner required'},true,{},403],[{ok:true},true,{origin:'https://foreign.invalid'},403]]){
+  const f=harness(owner,'created','review-reuse',enabled);assert.equal((await f.post({},{headers})).status,expected);assert.equal(f.calls.length,0);
+ }
+ const f=harness({ok:true},'created','review-reuse');assert.equal((await f.post({operationId:requestId,input:{fixture:'bounded'}})).status,201);assert.equal(f.calls[0].kind,'review-reuse');
+});
 test('review route requires enabled deployment, same-origin owner and bounded input',async()=>{
  const off=harness({ok:true},'created','native-review',false);assert.equal((await off.post({})).status,503);assert.equal(off.calls.length,0);
  const denied=harness({ok:false,status:403,reason:'Owner required'},'created','native-review');assert.equal((await denied.post({})).status,403);assert.equal(denied.calls.length,0);
@@ -39,10 +45,10 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', r
   };
   const route = load(fs.readFileSync(new URL(`../../../app/api/nodes/[nodeId]/${routeName}/route.ts`, import.meta.url), 'utf8'), {
     '@/lib/db': { getMemoryDb: () => database }, '@/lib/node-exchange/http': http,
-    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review') },
+    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse') },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
-  },{MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false'});
+  },{MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
     return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },

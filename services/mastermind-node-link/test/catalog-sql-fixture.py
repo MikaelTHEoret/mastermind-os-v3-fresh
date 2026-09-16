@@ -277,6 +277,7 @@ try:
     receipt['rollbackVerified']=True; receipt['publicFunctionsUnchanged']=True; receipt['ok']=True
 except Exception as error:
     receipt['ok']=False; receipt['error']={'type':type(error).__name__,'sqlstate':getattr(error,'pgcode',None),'fixtureLine':traceback.extract_tb(error.__traceback__)[-1].lineno}
+    if getattr(error,'pgcode',None)=='42601': receipt['sqlSyntax']={'position':error.diag.statement_position,'message':error.diag.message_primary}
 finally:
     if connection:
         connection.rollback()

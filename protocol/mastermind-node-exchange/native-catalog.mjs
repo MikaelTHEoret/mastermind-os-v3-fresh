@@ -77,7 +77,7 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 export function sameNativeDisclosure(current,saved) {
-  if(['mastermind.native.specification','mastermind.native.review'].includes(saved?.kind)) {
+  if(['mastermind.native.specification','mastermind.native.review','mastermind.native.review-reuse'].includes(saved?.kind)) {
     if(current?.kind!==saved.kind||current.replayed!==true)return false;
     const {replayed:currentReplay,...a}=current,{replayed:savedReplay,...b}=saved;
     return canonical(a)===canonical(b);

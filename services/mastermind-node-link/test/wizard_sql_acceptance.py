@@ -17,7 +17,7 @@ def verify(context):
     slots=re.findall(r'\$\{([^}]+)\}',history_source)
     history_query=context['isolated'](re.sub(r'\$\{[^}]+\}','%s',history_source))
     def history(reader=actor):
-        values={'nodeId':node,'taskId':task,'profile.householdId':'fixture','profile.parentPlayerId':reader}
+        values={'nodeId':node,'taskId':task,'profile.householdId':'fixture','profile.parentPlayerId':reader,'reviewOnly':False}
         cursor.execute(history_query,[values[key] for key in slots])
         return cursor.fetchall()
     history()  # Existing installations can query history without the026 functions.
