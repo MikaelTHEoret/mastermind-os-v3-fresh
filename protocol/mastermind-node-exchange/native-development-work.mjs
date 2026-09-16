@@ -12,15 +12,16 @@ const need=ok=>{if(!ok)throw new NativeTaskError('TASK_DEVELOPMENT_INVALID');};
 const hash=v=>typeof v==='string'&&SHA.test(v);
 const uuid=v=>typeof v==='string'&&UUID.test(v);
 const bytes=v=>new TextEncoder().encode(JSON.stringify(v)).length;
-const base=['schemaVersion','action','taskRef','operationId','artifactOperationId','specificationId','reviewId'];
+const base=['schemaVersion','action','taskRef','operationId','parentOperationId','artifactOperationId','specificationId','reviewId'];
 const holds=v=>Array.isArray(v)&&v.length<=16&&new Set(v).size===v.length&&v.every(x=>typeof x==='string'&&/^[A-Z][A-Z0-9_]{1,95}$/.test(x));
 export function validateDevelopmentInput(kind,v){
  need(DEVELOPMENT_CAPABILITIES.includes(kind)&&exact(v,[...base,...(kind===REVIEW_BUILD_PLAN?['buildOperationId']:[])])
-  &&v.schemaVersion===1&&uuid(v.operationId)&&uuid(v.artifactOperationId)&&v.operationId!==v.artifactOperationId
+  &&v.schemaVersion===1&&uuid(v.operationId)&&uuid(v.artifactOperationId)&&uuid(v.parentOperationId)
+  &&new Set([v.operationId,v.artifactOperationId,v.parentOperationId]).size===3&&exact(v.taskRef,['taskId','project'])
   &&hash(v.specificationId)&&hash(v.reviewId)&&bytes(v)<=2048);
  validateNativeCatalogInput({schemaVersion:1,taskRef:v.taskRef,snapshotId:null,cursor:null});
  if(kind===REVIEW_BUILD_PLAN)need(['prepare','recover'].includes(v.action)&&uuid(v.buildOperationId)
-  &&new Set([v.operationId,v.artifactOperationId,v.buildOperationId]).size===3);
+  &&new Set([v.operationId,v.artifactOperationId,v.buildOperationId,v.parentOperationId]).size===4);
  else need(['prepare','recover','publish','reconcile','resume'].includes(v.action));
  return structuredClone(v);
 }

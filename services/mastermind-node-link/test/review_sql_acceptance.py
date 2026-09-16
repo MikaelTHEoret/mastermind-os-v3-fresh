@@ -62,3 +62,6 @@ def verify(context,parent,parent_result,old_worker,history):
     if '--review-reuse' in __import__('sys').argv:
       from review_reuse_sql_acceptance import verify as verify_reuse
       verify_reuse(context,value,result,worker)
+    if '--development-work' in __import__('sys').argv:
+      from development_sql_acceptance import verify as verify_development
+      verify_development(context,value,result,worker)

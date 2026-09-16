@@ -14,7 +14,7 @@ import {NODE_ID,NODE_CREDENTIAL,PAIRING_ID,BOOT_ID,JOB_ID,command,lease} from '.
 const AT='2026-08-15T04:00:02.000Z';
 const artifactId='00000000-0000-4000-8000-000000000081',buildId='00000000-0000-4000-8000-000000000082';
 const input=(kind=ART,action='prepare')=>({schemaVersion:1,action,taskRef:{taskId:BOOT_ID,project:'mastermind'},
- operationId:JOB_ID,artifactOperationId:artifactId,specificationId:'a'.repeat(64),reviewId:'b'.repeat(64),...(kind===BUILD?{buildOperationId:buildId}:{})});
+ operationId:JOB_ID,parentOperationId:NODE_ID,artifactOperationId:artifactId,specificationId:'a'.repeat(64),reviewId:'b'.repeat(64),...(kind===BUILD?{buildOperationId:buildId}:{})});
 const hash=v=>createHash('sha256').update(reviewCanonical(v)).digest('hex');
 function reply(kind,body,original){
  const common={ok:true,schemaVersion:1,taskRef:body.taskRef,operationId:body.operationId,specificationId:body.specificationId,
@@ -110,7 +110,7 @@ test('Python 7eed235 synthetic host output round-trips without losing source/tes
  let published;
  for(const [kind,key,recoverOnly] of [[ART,'prepared',false],[ART,'published',false],[ART,'recovered',true],[BUILD,'planned',false],[BUILD,'recoveredPlan',true]]){
   const local=fixture[kind===ART?'artifactRequest':'buildRequest'];
-  const request={...local,operationId:JOB_ID,artifactOperationId:kind===ART?local.operationId:local.artifactOperationId,
+  const request={...local,operationId:JOB_ID,parentOperationId:NODE_ID,artifactOperationId:kind===ART?local.operationId:local.artifactOperationId,
    action:kind===ART&&key!=='prepared'?'publish':'prepare',...(kind===BUILD?{buildOperationId:local.operationId}:{})};
   const client=new NativeTaskClient({now:()=>1,fetchImpl:async(_url,init)=>{
    assert.deepEqual(JSON.parse(init.body),developmentLocalRequest(kind,request,recoverOnly));return Response.json(fixture[key]);}});

@@ -1,3 +1,4 @@
+import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,developmentLocalRequest,validateDevelopmentInput,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical} from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {validateNativeCommandInput} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
@@ -10,6 +11,21 @@ export function specificationRequest(taskRef,request,operationId,revisionOf) {
   return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(DEVELOPMENT_CAPABILITIES.includes(pending.capability)){
+    const input=validateDevelopmentInput(pending.capability,pending.body.input);
+    if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved development binding changed.');
+    const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,pending.capability).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,pending.capability).job;
+    if(job.state==='succeeded'){
+      const receipt=validateDevelopmentReceipt(job.terminal.result,input);
+      if(pending.capability===REVIEW_BUILD_PLAN){
+        const {action,...binding}=developmentLocalRequest(pending.capability,input);
+        const bytes=await subtle.digest('SHA-256',new TextEncoder().encode(reviewCanonical(binding)));
+        const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
+        if(hash!==receipt.requestHash)throw Error('Saved build plan changed.');
+      }
+    }
+    return job;
+  }
   if(pending.capability===REVIEW_REUSE){
     const input=validateReviewReuseInput(pending.body.input);
     if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved link binding changed.');
@@ -84,4 +100,31 @@ export async function remoteJson(url,options={}) {
   const value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));
   if(!response.ok||value.ok!==true)throw Error('The request could not be confirmed. Refresh its saved status before starting another.');
   return value;
+}
+
+/** Explicit user transitions only; reconnects read the saved network operation. */
+export function developmentRequest(pending,job,kind,action,newId=()=>crypto.randomUUID()) {
+  if(!pending||job?.state!=='succeeded'||job.jobId!==pending.operationId||job.nodeId!==pending.nodeId)throw Error('Recover the saved result first.');
+  const prior=pending.body.input, result=job.terminal?.result;
+  let input;
+  if(pending.capability===NATIVE_REVIEW_CAPABILITY){
+    validateNativeReviewInput(prior);validateNativeReviewReceipt(result,prior);
+    if(kind!==REVIEW_ARTIFACTS||action!=='prepare'||!['create','extend'].includes(prior.content.mode))throw Error('This review needs a different workflow.');
+    input={schemaVersion:1,action,taskRef:prior.taskRef,operationId:newId(),parentOperationId:pending.operationId,
+      artifactOperationId:newId(),specificationId:prior.specificationId,reviewId:result.reviewId};
+  }else{
+    validateDevelopmentInput(pending.capability,prior);validateDevelopmentReceipt(result,prior);
+    input={...prior,action,operationId:newId()};
+    if(kind===REVIEW_BUILD_PLAN&&pending.capability===REVIEW_ARTIFACTS){
+      if(action!=='prepare'||result.artifactState!=='published'||result.holds.length)throw Error('A published source package is required.');
+      input.buildOperationId=newId();
+    }else if(kind===REVIEW_ARTIFACTS&&pending.capability===REVIEW_ARTIFACTS){
+      const allowed=action==='recover'||action==='reconcile'||action==='publish'&&result.artifactState==='proposed'
+        ||action==='resume'&&result.artifactState==='prepared'&&result.holds.length===1&&result.holds[0]==='MATERIALIZER_REF_NOT_PUBLISHED';
+      if(!allowed)throw Error('Check publication status before continuing.');
+    }else if(kind!==REVIEW_BUILD_PLAN||pending.capability!==REVIEW_BUILD_PLAN||action!=='recover')throw Error('Invalid development transition.');
+  }
+  input=validateDevelopmentInput(kind,input);
+  if(input.taskRef.taskId!==pending.taskId)throw Error('Saved task changed.');
+  return {nodeId:pending.nodeId,taskId:pending.taskId,operationId:input.operationId,capability:kind,body:{operationId:input.operationId,input}};
 }

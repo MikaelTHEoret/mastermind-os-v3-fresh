@@ -45,10 +45,10 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', r
   };
   const route = load(fs.readFileSync(new URL(`../../../app/api/nodes/[nodeId]/${routeName}/route.ts`, import.meta.url), 'utf8'), {
     '@/lib/db': { getMemoryDb: () => database }, '@/lib/node-exchange/http': http,
-    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse') },
+    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse'),enqueueOwnerDevelopmentJob:async(db,node,body,capability)=>{assert.equal(capability,'mastermind.native.'+routeName);return enqueue('development')(db,node,body);} },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
-  },{MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
+  },{MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
     return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },
@@ -200,4 +200,13 @@ test('latest review route keeps owner, origin and fixed-path boundaries before d
  for(const [options,status] of [[{headers:{'sec-fetch-site':'cross-site'}},403],[{path:'/api/nodes/wrong/native-history/task/review'},404],[{method:'POST'},405]]){const f=reviewHistoryHarness();assert.equal((await f.get(options)).status,status);assert.deepEqual(f.calls,[]);}
  const f=reviewHistoryHarness();const response=await f.get();assert.equal(response.status,200);assert.deepEqual(await response.json(),{ok:true,saved:null});assert.match(response.headers.get('cache-control'),/no-store/);
  assert.deepEqual(f.calls,['owner','database',['read','database',nodeId,requestId,undefined,true]]);
+});
+
+for(const route of ['review-artifacts','review-build-plan'])test(route+' requires opt-in, owner, same origin and fixed capability',async()=>{
+ for(const [owner,enabled,headers,expected] of [[{ok:true},false,{},503],[{ok:false,status:403,reason:'Owner required'},true,{},403],[{ok:true},true,{origin:'https://foreign.invalid'},403]]){
+  const f=harness(owner,'created',route,enabled);assert.equal((await f.post({},{headers})).status,expected);assert.equal(f.calls.length,0);
+ }
+ const f=harness({ok:true},'created',route);const body={operationId:requestId,input:{fixture:'bounded'}};
+ assert.equal((await f.post(body)).status,201);assert.equal(f.calls[0].kind,'development');assert.deepEqual(JSON.parse(JSON.stringify(f.calls[0].id)),body);
+ const duplicate=harness({ok:true},'duplicate',route);assert.equal((await duplicate.post(body)).status,200);
 });
