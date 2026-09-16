@@ -23,6 +23,7 @@ export function validateCoreWorkerEnvironment(environment) {
     && !['true','false'].includes(environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED)) {
     throw Object.assign(new Error('Explicit native reuse setting required'), {code:'NODE_NATIVE_PROFILE_INVALID'});
   }
+  if(environment.MASTERMIND_NODE_DEVELOPMENT_WORK_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_DEVELOPMENT_WORK_ENABLED)||environment.MASTERMIND_NODE_DEVELOPMENT_WORK_ENABLED==='true'&&environment.MASTERMIND_NODE_REVIEW_REUSE_ENABLED!=='true')throw Object.assign(new Error('Development work requires explicit review reuse activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
   resolveMastermindNodeStateRoot(environment);
   if(environment.MASTERMIND_NODE_REVIEW_REUSE_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_REVIEW_REUSE_ENABLED)||environment.MASTERMIND_NODE_REVIEW_REUSE_ENABLED==='true'&&environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED!=='true')throw Object.assign(new Error('Reuse links require explicit review activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
   if(environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED!==undefined
@@ -51,6 +52,7 @@ export function createMastermindCoreWorkerFromEnvironment(options = {}) {
     credentialStore, exchangeTransport,
     enableNativeTasks: environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED === 'true',
     enableNativeSpecifications: environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED === 'true',
+    enableDevelopmentWork:environment.MASTERMIND_NODE_DEVELOPMENT_WORK_ENABLED==='true',
     enableReviewReuse:environment.MASTERMIND_NODE_REVIEW_REUSE_ENABLED==='true',
     enableNativeReviews: environment.MASTERMIND_NODE_NATIVE_REVIEW_ENABLED === 'true',
   });

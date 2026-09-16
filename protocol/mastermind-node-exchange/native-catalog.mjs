@@ -77,6 +77,14 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 export function sameNativeDisclosure(current,saved) {
+  if(['mastermind.native.review-artifacts','mastermind.native.review-build-plan'].includes(saved?.kind)) {
+    if(current?.kind!==saved.kind||current.replayed!==true)return false;
+    // Recover is read-only history, not a fresh assertion about Git. All source
+    // hashes, phases, holds and task bindings must still match the saved receipt.
+    const {replayed:cr,gitVerified:cv,gitVerifiedAt:ct,historicalSnapshot:ch,...a}=current;
+    const {replayed:sr,gitVerified:sv,gitVerifiedAt:st,historicalSnapshot:sh,...b}=saved;
+    return canonical(a)===canonical(b);
+  }
   if(['mastermind.native.specification','mastermind.native.review','mastermind.native.review-reuse'].includes(saved?.kind)) {
     if(current?.kind!==saved.kind||current.replayed!==true)return false;
     const {replayed:currentReplay,...a}=current,{replayed:savedReplay,...b}=saved;

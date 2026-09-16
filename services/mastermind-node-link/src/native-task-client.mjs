@@ -2,6 +2,8 @@ import {validateNativeCatalogRequest,validateNativeCatalogResult} from '../../..
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 export const REVIEW_REUSE_ENDPOINT='http://127.0.0.1:8770/specification_review_reuse';
 import {createHash} from 'node:crypto';
+import {REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,validateDevelopmentInput,developmentLocalRequest,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
+const DEVELOPMENT_ENDPOINTS=Object.freeze({[REVIEW_ARTIFACTS]:'http://127.0.0.1:8770/task_review_artifacts',[REVIEW_BUILD_PLAN]:'http://127.0.0.1:8770/task_build_plan'});
 import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,reviewContentHash} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
 export const NATIVE_REVIEW_ENDPOINT='http://127.0.0.1:8770/specification_review';
 import {validateNativeSpecificationRequest,validateNativeSpecificationResult,specificationBindingCanonical} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
@@ -52,6 +54,43 @@ export class NativeTaskClient {
     need(typeof fetchImpl === 'function' && typeof now === 'function' && Number.isSafeInteger(timeoutMs)
       && timeoutMs >= 100 && timeoutMs <= 60000);
     this.fetchImpl = fetchImpl; this.now = now; this.timeoutMs = timeoutMs;
+  }
+  async development(kind,request,{signal,deadlineMs,recoverOnly=false}={}) {
+    const input=validateDevelopmentInput(kind,request),body=developmentLocalRequest(kind,input,recoverOnly);
+    need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
+    const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
+    if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
+    const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
+    try {
+      combined.throwIfAborted();
+      const response=await abortable(this.fetchImpl(DEVELOPMENT_ENDPOINTS[kind],{method:'POST',redirect:'error',signal:combined,
+        headers:{'content-type':'application/json',accept:'application/json'},body:JSON.stringify(body)}),combined,
+        response=>response?.body?.cancel().catch(()=>{}));
+      const result=await readResponse(response,combined);combined.throwIfAborted();
+      need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      need(response.status===200&&result?.ok===true,'TASK_DEVELOPMENT_UNAVAILABLE');
+      need(result.schemaVersion===1&&result.operationId===body.operationId&&result.specificationId===input.specificationId
+        &&result.reviewId===input.reviewId&&reviewCanonical(result.taskRef)===reviewCanonical(input.taskRef)
+        &&result.executionAuthorized===false&&typeof result.replayed==='boolean'&&(!recoverOnly||result.replayed),'TASK_DEVELOPMENT_INVALID');
+      const common={...input,kind,replayed:result.replayed,executionAuthorized:false};
+      if(kind===REVIEW_ARTIFACTS){
+        need(result.action===body.action,'TASK_DEVELOPMENT_INVALID');
+        // A historical proposed/prepared record cannot confirm an uncertain publication.
+        if(recoverOnly&&['publish','resume'].includes(input.action))need(result.artifactState==='published','TASK_DEVELOPMENT_RECOVERY_REQUIRED');
+        const keys=['artifactState','bindingSha256','commit','fileCount','requirementsHash','testSpecHash','gitVerified',
+          'historicalSnapshot','holds','mayAutomaticallyRerun','candidateAcceptance'];
+        return validateDevelopmentReceipt({...common,...Object.fromEntries(keys.map(k=>[k,result[k]])),
+          gitVerifiedAt:result.gitVerified===true?new Date().toISOString():null},input);
+      }
+      const {action:ignored,...binding}=body;
+      need(result.requestHash===createHash('sha256').update(reviewCanonical(binding)).digest('hex')
+        &&result.workerInvoked===false&&object(result.buildPlan)&&result.buildPlan.operationId===body.operationId
+        &&result.buildPlan.executionAuthorized===false,'TASK_DEVELOPMENT_INVALID');
+      const keys=['planId','state','holds','current','historicalSnapshot','decision','moduleId','requirementsHash',
+        'jobState','candidateId','hasSourceReceipt'];
+      return validateDevelopmentReceipt({...common,requestHash:result.requestHash,workerInvoked:false,
+        ...Object.fromEntries(keys.map(k=>[k,result.buildPlan[k]]))},input);
+    }catch(error){if(error instanceof NativeTaskError)throw error;throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');}
   }
   async specification(request, {signal,deadlineMs} = {}) {
     const body=validateNativeSpecificationRequest(request);

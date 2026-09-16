@@ -1,0 +1,160 @@
+{
+  "artifactRequest": {
+    "schemaVersion": 1,
+    "action": "prepare",
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "operationId": "00000000-0000-4000-8000-000000000019"
+  },
+  "buildRequest": {
+    "schemaVersion": 1,
+    "action": "prepare",
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "operationId": "00000000-0000-4000-8000-000000000032",
+    "artifactOperationId": "00000000-0000-4000-8000-000000000019"
+  },
+  "prepared": {
+    "ok": true,
+    "schemaVersion": 1,
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "action": "prepare",
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "operationId": "00000000-0000-4000-8000-000000000019",
+    "artifactState": "proposed",
+    "bindingSha256": "f3ac40de50317a1d4d5d0581e98ad351bdcec31662863269e5a6e14e607c1f9d",
+    "commit": "0eaf0ddc4eb865525c8b6c49e4450262632a1e68",
+    "fileCount": 3,
+    "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+    "testSpecHash": "44938f8531baab310221c4a369772e7d13df3acb773edc4fc14f26338d52f7ca",
+    "gitVerified": false,
+    "historicalSnapshot": true,
+    "replayed": false,
+    "holds": [],
+    "mayAutomaticallyRerun": false,
+    "executionAuthorized": false,
+    "candidateAcceptance": "not-run"
+  },
+  "published": {
+    "ok": true,
+    "schemaVersion": 1,
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "action": "publish",
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "operationId": "00000000-0000-4000-8000-000000000019",
+    "artifactState": "published",
+    "bindingSha256": "f3ac40de50317a1d4d5d0581e98ad351bdcec31662863269e5a6e14e607c1f9d",
+    "commit": "0eaf0ddc4eb865525c8b6c49e4450262632a1e68",
+    "fileCount": 3,
+    "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+    "testSpecHash": "44938f8531baab310221c4a369772e7d13df3acb773edc4fc14f26338d52f7ca",
+    "gitVerified": true,
+    "historicalSnapshot": false,
+    "replayed": false,
+    "holds": [],
+    "mayAutomaticallyRerun": false,
+    "executionAuthorized": false,
+    "candidateAcceptance": "not-run"
+  },
+  "recovered": {
+    "ok": true,
+    "schemaVersion": 1,
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "action": "recover",
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "operationId": "00000000-0000-4000-8000-000000000019",
+    "artifactState": "published",
+    "bindingSha256": "f3ac40de50317a1d4d5d0581e98ad351bdcec31662863269e5a6e14e607c1f9d",
+    "commit": "0eaf0ddc4eb865525c8b6c49e4450262632a1e68",
+    "fileCount": 3,
+    "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+    "testSpecHash": "44938f8531baab310221c4a369772e7d13df3acb773edc4fc14f26338d52f7ca",
+    "gitVerified": false,
+    "historicalSnapshot": true,
+    "replayed": true,
+    "holds": [],
+    "mayAutomaticallyRerun": false,
+    "executionAuthorized": false,
+    "candidateAcceptance": "not-run"
+  },
+  "planned": {
+    "ok": true,
+    "schemaVersion": 1,
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "operationId": "00000000-0000-4000-8000-000000000032",
+    "requestHash": "320226885acc5d4a458779285bd1d362a4406c130c27df1d40b1a7a699b47b93",
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "buildPlan": {
+      "planId": "12bee4887334ff3c659905cd90dc0d5727d040b9c12a60d096dddddcee8fafee",
+      "operationId": "00000000-0000-4000-8000-000000000032",
+      "state": "awaiting_coding_authority",
+      "holds": [],
+      "current": true,
+      "historicalSnapshot": true,
+      "decision": "create",
+      "moduleId": "fixture-calculator",
+      "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+      "jobState": "prepared",
+      "candidateId": null,
+      "hasSourceReceipt": false,
+      "executionAuthorized": false
+    },
+    "replayed": false,
+    "workerInvoked": false,
+    "executionAuthorized": false
+  },
+  "recoveredPlan": {
+    "ok": true,
+    "schemaVersion": 1,
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "operationId": "00000000-0000-4000-8000-000000000032",
+    "requestHash": "320226885acc5d4a458779285bd1d362a4406c130c27df1d40b1a7a699b47b93",
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "ea662de9b4a664d883ba5759b9adf8afbb85bac42943b2382d3e2f12a852b5d7",
+    "buildPlan": {
+      "planId": "12bee4887334ff3c659905cd90dc0d5727d040b9c12a60d096dddddcee8fafee",
+      "operationId": "00000000-0000-4000-8000-000000000032",
+      "state": "awaiting_coding_authority",
+      "holds": [],
+      "current": true,
+      "historicalSnapshot": true,
+      "decision": "create",
+      "moduleId": "fixture-calculator",
+      "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+      "jobState": "prepared",
+      "candidateId": null,
+      "hasSourceReceipt": false,
+      "executionAuthorized": false
+    },
+    "replayed": true,
+    "workerInvoked": false,
+    "executionAuthorized": false
+  }
+}
