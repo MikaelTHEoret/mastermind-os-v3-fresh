@@ -42,17 +42,23 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
    throw Error('not found');
  }
  const plain=value=>JSON.parse(JSON.stringify(value));
+ // Job validation includes real WebCrypto work; event-loop turns alone do not wait for it.
+ const validations=new Set();
+ function verifyJob(v,p,e){
+   const work=(async()=>{if(options_.validationGate)await options_.validationGate;return workflow.checkedRemoteJob(plain(v),plain(p),e);})();
+   validations.add(work);work.then(()=>validations.delete(work),()=>validations.delete(work));return work;
+ }
  const module={exports:{}};
  vm.runInNewContext(compiled,{module,exports:module.exports,console,AbortController,crypto:crypto.webcrypto,location:{origin:'https://mastermind-core.com'},setTimeout:()=>1,clearTimeout(){},localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>{if(options_.storageDenied)throw Error('storage denied');saved.set(k,v);},removeItem:k=>saved.delete(k)},require(name){
    if(name==='./NativeDevelopmentResult')return {default:DevelopmentResult,__esModule:true};if(name.includes('native-development-work'))return development;
    if(name==='./NativeReviewReuseResult')return {default:ReuseResult,__esModule:true};if(name.includes('native-review-reuse'))return {...reviewReuse,validateReviewReuseInput:v=>reviewReuse.validateReviewReuseInput(plain(v))};
    if(name==='./NativeReviewEditor')return {default:ReviewEditor,__esModule:true};if(name.includes('native-review-contract'))return {...review,validateNativeReviewInput:v=>review.validateNativeReviewInput(plain(v))};
    if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {default:Inputs,__esModule:true};
-   if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,developmentRequest:(p,j,k,a)=>workflow.developmentRequest(plain(p),plain(j),k,a),specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:(v,p,e)=>workflow.checkedRemoteJob(plain(v),plain(p),e)};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
+   if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,developmentRequest:(p,j,k,a)=>workflow.developmentRequest(plain(p),plain(j),k,a),specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:verifyJob};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
  }});
  const Component=module.exports.default;
  const render=()=>{index=0;tree=Component();return tree;};
- const settle=async()=>{for(let i=0;i<6;i++){render();while(effects.length)effects.shift()();await new Promise(resolve=>setImmediate(resolve));}render();};
+ const settle=async()=>{for(let i=0;i<6;i++){render();while(effects.length)effects.shift()();await new Promise(resolve=>setImmediate(resolve));await Promise.allSettled([...validations]);}render();};
  function all(node=tree){if(!node||typeof node!=='object')return [];return [node,...React.Children.toArray(node.props?.children).flatMap(all)];}
  return {saved,jobs,calls,settle,render,deny:()=>{denied=true;},loseReply:()=>{lost=true;},html:()=>renderToStaticMarkup(tree),button:text=>all().find(n=>n.type==='button'&&n.props.children===text),inputs:()=>all().find(n=>n.type===Inputs),reviewEditor:()=>all().find(n=>n.type===ReviewEditor),developmentResult:()=>all().find(n=>n.type===DevelopmentResult),reuseResult:()=>all().find(n=>n.type===ReuseResult),textarea:()=>all().find(n=>n.type==='textarea'),form:()=>all().find(n=>n.type==='form')};
 }
@@ -191,6 +197,19 @@ test('shared review recovery restores a pending correction without resubmission'
  const resumed=fixture(local,f.saved,options);resumed.jobs.set(job.jobId,job);await resumed.settle();
  resumed.button('Resume saved work').props.onClick();await resumed.settle();
  assert.ok(resumed.reviewEditor());assert.equal(resumed.textarea().props.disabled,true);
+ assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
+});
+
+test('review recovery waits for actual asynchronous verification before fixture assertions',{timeout:3000},async()=>{
+ const {f:prior,job,options}=savedReviewFixture();await prior.settle();
+ let release;options.validationGate=new Promise(resolve=>{release=resolve;});
+ const resumed=fixture(prior.saved,prior.saved,options);resumed.jobs.set(job.jobId,job);
+ let complete=false;const settling=resumed.settle().then(()=>{complete=true;});
+ try {
+   for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(complete,false,'settle must await the real validation, not count loop turns');
+ } finally {release();}
+ await settling;assert.match(resumed.html(),/Review saved with unresolved items/);
  assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
 });
 
