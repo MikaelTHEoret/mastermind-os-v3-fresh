@@ -7,6 +7,8 @@ export const CODING_SOURCE_POLICY = Object.freeze({ action:'coding.source-work',
 export const CODING_CLI_PROFILE = 'codex-approve-for-me-workspace-write-v1';
 export const CODING_SUPPRESSED_CLI_PROFILE = 'codex-approve-for-me-workspace-write-suppressed-v2';
 export const CODING_SUPPRESSED_CLI_SHA256 = 'dacb96688b155e20dbbbc0bfd18bba7ce7920f1b239ab08a1627917f23b8d9cd';
+export const CODING_SUPPRESSED_CLI_0154_SHA256 = '081e4de4be8e38fac6ed4d95e3b1a0b9f6d31c090ddc36e1696b349fe406f575';
+export const CODING_SUPPRESSED_CLI_HASHES = Object.freeze([CODING_SUPPRESSED_CLI_SHA256,CODING_SUPPRESSED_CLI_0154_SHA256]);
 export const CODING_LIMITS = Object.freeze({wall_seconds:300,stdout_bytes:2097152,stderr_bytes:262144,
   memory_bytes:2147483648,active_processes:32,max_files:4096,max_file_bytes:8388608,
   max_inventory_bytes:67108864,diff_bytes:2097152});
@@ -20,7 +22,7 @@ const hash=(value,field)=>requiredString(value,field,64,HASH);
 function codingCliProfile(profile, executableHash) {
   hash(executableHash,'CLI hash');
   if(profile===CODING_CLI_PROFILE) return profile;
-  if(profile===CODING_SUPPRESSED_CLI_PROFILE && executableHash===CODING_SUPPRESSED_CLI_SHA256) return profile;
+  if(profile===CODING_SUPPRESSED_CLI_PROFILE && CODING_SUPPRESSED_CLI_HASHES.includes(executableHash)) return profile;
   fail();
 }
 const utf8Order=(a,b)=>Buffer.compare(Buffer.from(a.path,'utf8'),Buffer.from(b.path,'utf8'));

@@ -92,10 +92,16 @@ def function_query(guards, row):
       FROM pg_proc p JOIN pg_language l ON l.oid=p.prolang WHERE p.oid=to_regprocedure({signature});"""
 
 
-def _render(guards, base, extension, action, context_sql):
+def _render(guards, base, extension, action, context_sql, *, reviewed_transition=None):
     if action not in ('apply', 'rollback'):
         raise ValueError('PROFILE_EXTENSION_ACTION_INVALID')
     old, new = reviewed_pair(guards, base, extension)
+    transition_sha = EXTENSION_SHA
+    rollback_runtime = f"s->'runtime'->>'cliProfile'='{PROFILE}'"
+    if reviewed_transition is not None:
+        # Internal code-only adapter for a separately pinned compatible validator.
+        # No HTTP/configuration surface accepts this argument.
+        old, new, transition_sha, rollback_runtime = reviewed_transition
     source, target = (old, new) if action == 'apply' else (new, old)
     query = guards.snapshot_query(signatures(guards))
     current = function_query(guards, old)
@@ -106,11 +112,11 @@ def _render(guards, base, extension, action, context_sql):
         scope_hold = f"""IF EXISTS(SELECT 1 FROM public.mastermind_context_tasks_v1 t
         CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(t.permission_scope->'codingSources')='array'
           THEN t.permission_scope->'codingSources' ELSE '[]'::jsonb END) s
-        WHERE s->'runtime'->>'cliProfile'='{PROFILE}') THEN
+        WHERE {rollback_runtime}) THEN
         RAISE EXCEPTION 'RESTORE_CURRENT_SUPPRESSED_SCOPES_BEFORE_PROFILE_ROLLBACK';
       END IF;"""
     return f"""-- PREPARED ONLY. No task or permission setter is invoked.
--- Exact profile extension SHA256 {EXTENSION_SHA}.
+-- Exact profile extension SHA256 {transition_sha}.
 BEGIN READ WRITE;
 SET LOCAL statement_timeout='10000';
 SET LOCAL lock_timeout='2000';

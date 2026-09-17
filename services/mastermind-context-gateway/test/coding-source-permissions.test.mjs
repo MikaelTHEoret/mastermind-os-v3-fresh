@@ -6,7 +6,7 @@ import {validatePermissionScope,canonicalJson,permissionDigest,permissionGrantRe
   authorizeModuleFromTask,validateCodingSourceCheck,codingSourceScopeFromTask} from '../src/task-permissions.mjs';
 import {MastermindContextGateway} from '../src/context-gateway.mjs';
 import {NeonMemoryStore} from '../src/neon-store.mjs';
-import {CODING_SUPPRESSED_CLI_PROFILE,CODING_SUPPRESSED_CLI_SHA256} from '../src/coding-source-policy.mjs';
+import {CODING_SUPPRESSED_CLI_PROFILE,CODING_SUPPRESSED_CLI_SHA256,CODING_SUPPRESSED_CLI_0154_SHA256} from '../src/coding-source-policy.mjs';
 
 const fixture=JSON.parse(fs.readFileSync(new URL('./fixtures/coding-source-permissions-v2.json',import.meta.url),'utf8').replace(/^\uFEFF/,''));
 const fresh=()=>structuredClone(fixture);
@@ -66,6 +66,19 @@ test('suppressed profile retains its exact identity and executable without grant
  assert.deepEqual(scope.executionPolicy,fixture.v1.executionPolicy);
  assert.deepEqual(scope.codingSources[0].executionPolicy,fixture.codingEntry.executionPolicy);
  assert.deepEqual(scope.codingSources[0].limits,fixture.codingEntry.limits);
+});
+
+test('updated CLI pin is independently bound; previous executable remains valid',()=>{
+ const {scope,task,input}=setup({suppressed:true});
+ const updated=structuredClone(scope);updated.codingSources[0].runtime.codexSha256=CODING_SUPPRESSED_CLI_0154_SHA256;
+ assert.deepEqual(validatePermissionScope(updated),updated);
+ assert.deepEqual(validatePermissionScope(scope),scope);
+ assert.notEqual(permissionDigest(updated),permissionDigest(scope));
+ const changed=structuredClone(input);changed.workerBinding.codexSha256=CODING_SUPPRESSED_CLI_0154_SHA256;
+ assert.equal(codingSourceScopeFromTask(task,changed).scopeAuthorized,false);
+ for(const pin of [CODING_SUPPRESSED_CLI_0154_SHA256.toUpperCase(),'0'.repeat(64)]) {
+  updated.codingSources[0].runtime.codexSha256=pin;assert.throws(()=>validatePermissionScope(updated));
+ }
 });
 
 test('suppressed profile rejects unaccepted executables and arbitrary startup settings in scope and binding',()=>{
