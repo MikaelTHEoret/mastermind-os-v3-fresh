@@ -1,5 +1,6 @@
 /** Explicit v2 views. The default v1 validators and frozen registry remain strict. */
 import * as base from './contract.mjs';
+import {DEVELOPMENT_CAPABILITIES} from './native-development-work.mjs';
 
 export const CORE_STATUS_CAPABILITY = base.MASTERMIND_CORE_STATUS_CAPABILITY;
 export const CORE_WORKER = Object.freeze({ protocolVersion: 2, capabilities: Object.freeze([
@@ -24,3 +25,8 @@ export const WIZARD_CORE_WORKER = Object.freeze({protocolVersion:2,capabilities:
 export const REVIEW_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([...WIZARD_CORE_WORKER.capabilities,Object.freeze({id:'mastermind.native.review',version:1})])});
 
 export const REVIEW_REUSE_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([...REVIEW_CORE_WORKER.capabilities,Object.freeze({id:'mastermind.native.review-reuse',version:1})])});
+
+// Off by default; requires compatible hosted ledger and configured local hosts.
+export const DEVELOPMENT_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([
+ ...REVIEW_REUSE_CORE_WORKER.capabilities,...DEVELOPMENT_CAPABILITIES.map(id=>Object.freeze({id,version:1})),
+])});

@@ -1,3 +1,5 @@
+import {developmentFixtureReceipt} from '../../../protocol/mastermind-node-exchange/development-fixture.mjs';
+import * as development from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';import vm from 'node:vm';import test from 'node:test';import ts from 'typescript';
 import * as React from 'react';import * as jsx from 'react/jsx-runtime';import {renderToStaticMarkup} from 'react-dom/server';
@@ -21,6 +23,7 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
  function Inputs(){return jsx.jsx('p',{children:'Generated capability inputs'});}
  function ReviewEditor(){return null;}
  function ReuseResult(){return null;}
+ function DevelopmentResult(){return null;}
  async function api(url,options={}) {
    calls.push({url,options});if(denied)throw Error('permission revoked');
    if(url==='/api/nodes')return {ok:true,nodes:[selectedComputer]};
@@ -28,29 +31,36 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
    if(url.includes('/native-history/')){const job=Array.from(jobs.values()).filter(j=>!url.endsWith('/review')||j.capability===review.NATIVE_REVIEW_CAPABILITY).at(-1);const pointer=[...history.values(),...initialHistory].map(v=>JSON.parse(v)).find(v=>v.operationId===job?.jobId);return {ok:true,saved:job&&pointer?{job,request:pointer}:null};}
    const id=options.body?JSON.parse(options.body).operationId:url.split('/').at(-1);
    if(options.method==='POST'){
-     const body=JSON.parse(options.body),isCatalog=url.endsWith('native-catalog'),isWizard=url.endsWith('native-specification'),isReview=url.endsWith('native-review'),isLink=url.endsWith('review-reuse');
-     const result=isLink?reuseReceipt(body.input):isReview?reviewResult(body.input):isCatalog?page:isWizard?{kind:workflow.SPECIFICATION,ok:true,schemaVersion:1,taskRef:body.input.taskRef,operationId:id,requestHash:specificationRequestHash(body.input),savedAt:AT,replayed:false,executionAuthorized:false,
+     const body=JSON.parse(options.body),isCatalog=url.endsWith('native-catalog'),isWizard=url.endsWith('native-specification'),isReview=url.endsWith('native-review'),isLink=url.endsWith('review-reuse'),developmentKind=url.endsWith('review-artifacts')?development.REVIEW_ARTIFACTS:url.endsWith('review-build-plan')?development.REVIEW_BUILD_PLAN:null;
+     const result=developmentKind?developmentFixtureReceipt(developmentKind,body.input):isLink?reuseReceipt(body.input):isReview?reviewResult(body.input):isCatalog?page:isWizard?{kind:workflow.SPECIFICATION,ok:true,schemaVersion:1,taskRef:body.input.taskRef,operationId:id,requestHash:specificationRequestHash(body.input),savedAt:AT,replayed:false,executionAuthorized:false,
        specification:{specificationId:'e'.repeat(64),title:'Saved development request',decision:'inspect_existing',stage:'needs_specification',requirementsHash:null,missingCount:2,...(options_.detailed?{missing:['Confirm inputs and expected outputs.','Review matching capabilities.']}: {})}}:
        {kind:workflow.REUSE,operationId:id,specificationId:body.specificationId,taskRef:body.taskRef,candidateId:body.candidateId,capability:body.capability,inputSha256:body.inputSha256,resultSha256:'f'.repeat(64),replayed:false,result:{added:['new artifact']}};
-     const job={jobId:id,nodeId:NODE,capability:isLink?reviewReuse.REVIEW_REUSE:isReview?review.NATIVE_REVIEW_CAPABILITY:isCatalog?workflow.CATALOG:isWizard?workflow.SPECIFICATION:workflow.REUSE,capabilityVersion:1,policyClass:'routine',state:options_.queued?'queued':'succeeded',createdAt:AT,expiresAt:'2026-09-11T04:30:00.000Z',lease:null,terminal:options_.queued?null:{code:'desired-state-reached',finishedAt:AT,result}};
+     const job={jobId:id,nodeId:NODE,capability:developmentKind??(isLink?reviewReuse.REVIEW_REUSE:isReview?review.NATIVE_REVIEW_CAPABILITY:isCatalog?workflow.CATALOG:isWizard?workflow.SPECIFICATION:workflow.REUSE),capabilityVersion:1,policyClass:'routine',state:options_.queued?'queued':'succeeded',createdAt:AT,expiresAt:'2026-09-11T04:30:00.000Z',lease:null,terminal:options_.queued?null:{code:'desired-state-reached',finishedAt:AT,result}};
      const existing=jobs.get(id);if(!existing)jobs.set(id,job);if(lost){lost=false;throw Error('reply lost');}return {ok:true,status:existing?'duplicate':'created',job:existing??job};
    }
    if(jobs.has(id))return {ok:true,job:jobs.get(id)};
    throw Error('not found');
  }
  const plain=value=>JSON.parse(JSON.stringify(value));
+ // Job validation includes real WebCrypto work; event-loop turns alone do not wait for it.
+ const validations=new Set();
+ function verifyJob(v,p,e){
+   const work=(async()=>{if(options_.validationGate)await options_.validationGate;return workflow.checkedRemoteJob(plain(v),plain(p),e);})();
+   validations.add(work);work.then(()=>validations.delete(work),()=>validations.delete(work));return work;
+ }
  const module={exports:{}};
  vm.runInNewContext(compiled,{module,exports:module.exports,console,AbortController,crypto:crypto.webcrypto,location:{origin:'https://mastermind-core.com'},setTimeout:()=>1,clearTimeout(){},localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>{if(options_.storageDenied)throw Error('storage denied');saved.set(k,v);},removeItem:k=>saved.delete(k)},require(name){
+   if(name==='./NativeDevelopmentResult')return {default:DevelopmentResult,__esModule:true};if(name.includes('native-development-work'))return development;
    if(name==='./NativeReviewReuseResult')return {default:ReuseResult,__esModule:true};if(name.includes('native-review-reuse'))return {...reviewReuse,validateReviewReuseInput:v=>reviewReuse.validateReviewReuseInput(plain(v))};
    if(name==='./NativeReviewEditor')return {default:ReviewEditor,__esModule:true};if(name.includes('native-review-contract'))return {...review,validateNativeReviewInput:v=>review.validateNativeReviewInput(plain(v))};
    if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {default:Inputs,__esModule:true};
-   if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:(v,p,e)=>workflow.checkedRemoteJob(plain(v),plain(p),e)};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
+   if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,developmentRequest:(p,j,k,a)=>workflow.developmentRequest(plain(p),plain(j),k,a),specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:verifyJob};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
  }});
  const Component=module.exports.default;
  const render=()=>{index=0;tree=Component();return tree;};
- const settle=async()=>{for(let i=0;i<6;i++){render();while(effects.length)effects.shift()();await new Promise(resolve=>setImmediate(resolve));}render();};
+ const settle=async()=>{for(let i=0;i<6;i++){render();while(effects.length)effects.shift()();await new Promise(resolve=>setImmediate(resolve));await Promise.allSettled([...validations]);}render();};
  function all(node=tree){if(!node||typeof node!=='object')return [];return [node,...React.Children.toArray(node.props?.children).flatMap(all)];}
- return {saved,jobs,calls,settle,render,deny:()=>{denied=true;},loseReply:()=>{lost=true;},html:()=>renderToStaticMarkup(tree),button:text=>all().find(n=>n.type==='button'&&n.props.children===text),inputs:()=>all().find(n=>n.type===Inputs),reviewEditor:()=>all().find(n=>n.type===ReviewEditor),reuseResult:()=>all().find(n=>n.type===ReuseResult),textarea:()=>all().find(n=>n.type==='textarea'),form:()=>all().find(n=>n.type==='form')};
+ return {saved,jobs,calls,settle,render,deny:()=>{denied=true;},loseReply:()=>{lost=true;},html:()=>renderToStaticMarkup(tree),button:text=>all().find(n=>n.type==='button'&&n.props.children===text),inputs:()=>all().find(n=>n.type===Inputs),reviewEditor:()=>all().find(n=>n.type===ReviewEditor),developmentResult:()=>all().find(n=>n.type===DevelopmentResult),reuseResult:()=>all().find(n=>n.type===ReuseResult),textarea:()=>all().find(n=>n.type==='textarea'),form:()=>all().find(n=>n.type==='form')};
 }
 
 function reviewResult(input){return {kind:review.NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,operationId:input.operationId,specificationId:input.specificationId,contentSha256:crypto.createHash('sha256').update(review.reviewCanonical(input.content)).digest('hex'),reviewId:'f'.repeat(64),state:'held',holds:['ACCEPTED_REUSE_EVIDENCE_REQUIRED'],replayed:false,accepted:false,executionAuthorized:false};}
@@ -190,6 +200,19 @@ test('shared review recovery restores a pending correction without resubmission'
  assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
 });
 
+test('review recovery waits for actual asynchronous verification before fixture assertions',{timeout:3000},async()=>{
+ const {f:prior,job,options}=savedReviewFixture();await prior.settle();
+ let release;options.validationGate=new Promise(resolve=>{release=resolve;});
+ const resumed=fixture(prior.saved,prior.saved,options);resumed.jobs.set(job.jobId,job);
+ let complete=false;const settling=resumed.settle().then(()=>{complete=true;});
+ try {
+   for(let i=0;i<8;i++)await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(complete,false,'settle must await the real validation, not count loop turns');
+ } finally {release();}
+ await settling;assert.match(resumed.html(),/Review saved with unresolved items/);
+ assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);
+});
+
 test('a later capability lookup cannot hide the latest saved review',async()=>{
  const {f,input,job}=savedReviewFixture();await f.settle();
  f.button('Find capabilities').props.onClick();await f.settle();assert.ok(f.inputs());
@@ -197,4 +220,27 @@ test('a later capability lookup cannot hide the latest saved review',async()=>{
  assert.match(f.html(),/Review saved with unresolved items/);
  assert.ok(f.button('Revise review proposal'));assert.deepEqual(f.jobs.get(job.jobId),job);
  assert.equal(f.calls.filter(c=>c.options.method==='POST').length,1);
+});
+
+test('development preparation, publication and build plan preserve identities across lost reply and fresh client',async()=>{
+ const {f:prior,job,options}=savedReviewFixture();
+ options.computer.worker.capabilities.push(...development.DEVELOPMENT_CAPABILITIES.map(id=>({id,version:1})));
+ const f=fixture(prior.saved,prior.saved,options);f.jobs.set(job.jobId,job);await f.settle();
+ const prepare=f.button('Prepare source package').props.onClick;prepare();prepare();await f.settle();
+ let posts=f.calls.filter(c=>c.options.method==='POST');assert.equal(posts.length,1);
+ const first=JSON.parse(posts[0].options.body).input;assert.equal(first.parentOperationId,job.jobId);assert.notEqual(first.operationId,first.artifactOperationId);
+ const publish=f.developmentResult().props.onAction;f.loseReply();publish(development.REVIEW_ARTIFACTS,'publish');publish(development.REVIEW_ARTIFACTS,'publish');await f.settle();
+ posts=f.calls.filter(c=>c.options.method==='POST');assert.equal(posts.length,2);
+ const published=JSON.parse(posts[1].options.body).input;assert.equal(published.artifactOperationId,first.artifactOperationId);assert.equal(published.parentOperationId,job.jobId);
+ assert.notEqual(published.operationId,first.operationId);assert.match(f.html(),/could not be confirmed/);
+ const resumed=fixture(f.saved,f.saved,options);for(const [id,j] of f.jobs)resumed.jobs.set(id,j);await resumed.settle();
+ assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);assert.equal(resumed.developmentResult().props.value.artifactState,'published');
+ resumed.developmentResult().props.onAction(development.REVIEW_BUILD_PLAN,'prepare');await resumed.settle();
+ const plan=resumed.developmentResult().props.value;assert.equal(plan.artifactOperationId,first.artifactOperationId);assert.equal(plan.parentOperationId,job.jobId);assert.equal(plan.workerInvoked,false);
+ const fresh=fixture(new Map(),resumed.saved,options);for(const [id,j] of resumed.jobs)fresh.jobs.set(id,j);await fresh.settle();
+ fresh.button('Resume saved work').props.onClick();await fresh.settle();assert.equal(fresh.developmentResult().props.value.planId,plan.planId);
+ assert.equal(fresh.calls.filter(c=>c.options.method==='POST').length,0);
+ fresh.developmentResult().props.onAction(development.REVIEW_BUILD_PLAN,'recover');await fresh.settle();assert.equal(fresh.developmentResult().props.value.buildOperationId,plan.buildOperationId);
+ fresh.deny();fresh.button('Refresh saved status').props.onClick();await fresh.settle();assert.equal(fresh.developmentResult(),undefined);
+ assert.deepEqual(f.jobs.get(job.jobId),job);
 });

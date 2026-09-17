@@ -1,3 +1,4 @@
+import {DEVELOPMENT_CAPABILITIES,validateDevelopmentInput,validateDevelopmentReceipt} from './native-development-work.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from './native-review-reuse.mjs';
 import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt} from './native-review.mjs';
 import {NATIVE_REUSE_CAPABILITY, validateNativeCommandInput, validateNativeTaskResult} from './native-task.mjs';
@@ -223,13 +224,16 @@ export function validateMastermindNodeCommand(value, options = {}) {
   uuid(value.jobId, 'jobId');
   uuid(value.nodeId, 'nodeId');
   if ((value.capability !== MASTERMIND_NODE_CAPABILITY
-      && !(options.core === true && [MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE].includes(value.capability))) || value.capabilityVersion !== 1
+      && !(options.core === true && [MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(value.capability))) || value.capabilityVersion !== 1
     || value.policyClass !== MASTERMIND_NODE_POLICY_CLASS) {
     fail('NODE_UNSUPPORTED_CAPABILITY', 'node command capability is unsupported');
   }
   if (value.capability === NATIVE_REUSE_CAPABILITY) {
     try { validateNativeCommandInput(value.input); } catch { fail('NODE_INVALID','native request is invalid'); }
     if(value.input.operationId !== value.jobId) fail('NODE_SCOPE_MISMATCH','native operation must match its job');
+  } else if(DEVELOPMENT_CAPABILITIES.includes(value.capability)) {
+    validateDevelopmentInput(value.capability,value.input);
+    if(value.input.operationId!==value.jobId)fail('NODE_SCOPE_MISMATCH','Development request must match job');
   } else if(value.capability===REVIEW_REUSE) {
     validateReviewReuseInput(value.input);
     if(value.input.operationId!==value.jobId)fail('NODE_SCOPE_MISMATCH','Reuse link operation must match job');
@@ -275,11 +279,11 @@ export function validateMastermindCoreStatus(value) {
 export function validateMastermindNodeWorker(value) {
   exactKeys(value, ['protocolVersion', 'capabilities'], 'worker negotiation');
   if (value.protocolVersion !== 2 || !Array.isArray(value.capabilities)
-    || value.capabilities.length < 1 || value.capabilities.length > 6) fail('NODE_UNSUPPORTED_VERSION', 'worker negotiation is unsupported');
+    || value.capabilities.length < 1 || value.capabilities.length > 8) fail('NODE_UNSUPPORTED_VERSION', 'worker negotiation is unsupported');
   const seen = new Set();
   for (const item of value.capabilities) {
     exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![MASTERMIND_NODE_CAPABILITY, MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE].includes(item.id)
+    if (![MASTERMIND_NODE_CAPABILITY, MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(item.id)
       || item.version !== 1 || seen.has(item.id)) fail('NODE_UNSUPPORTED_CAPABILITY', 'worker capability/version is unsupported');
     seen.add(item.id);
   }
@@ -349,6 +353,9 @@ export function validateMastermindNodeReceipt(value, options = {}) {
       validateMastermindCoreStatus(value.result);
     } else if (options.core === true && value.result.kind === NATIVE_CATALOG_CAPABILITY) {
       try {validateNativeCatalogReceipt(value.result);} catch {fail('NODE_INVALID','catalog result is invalid');}
+    } else if(options.core===true&&DEVELOPMENT_CAPABILITIES.includes(value.result.kind)) {
+      validateDevelopmentReceipt(value.result);
+      if(value.result.operationId!==value.jobId)fail('NODE_SCOPE_MISMATCH','Development result must match job');
     } else if(options.core===true&&value.result.kind===REVIEW_REUSE) {
       validateReviewReuseReceipt(value.result);
       if(value.result.operationId!==value.jobId)fail('NODE_SCOPE_MISMATCH','Reuse link result must match job');
@@ -443,7 +450,7 @@ export function validateMastermindNodeExchangeRequest(value, options = {}) {
       && !value.worker?.capabilities.some((item) => item.id === MASTERMIND_CORE_STATUS_CAPABILITY && item.version === 1)) {
       fail('NODE_UNSUPPORTED_CAPABILITY', 'core receipt requires the worker capability declaration');
     }
-    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE].includes(receipt.result?.kind) && !value.worker?.capabilities.some(item=>item.id===receipt.result.kind&&item.version===1)) fail('NODE_UNSUPPORTED_CAPABILITY','native result requires negotiation');
+    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(receipt.result?.kind) && !value.worker?.capabilities.some(item=>item.id===receipt.result.kind&&item.version===1)) fail('NODE_UNSUPPORTED_CAPABILITY','native result requires negotiation');
     if (receiptIds.has(receipt.receiptId)) fail('NODE_INVALID', 'exchange contains a duplicate receiptId');
     receiptIds.add(receipt.receiptId);
     const priorSequence = lastSequenceByJob.get(receipt.jobId);

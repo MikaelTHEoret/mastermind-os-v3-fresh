@@ -97,7 +97,7 @@ jobs:
             "$FIXTURE_POSTGRES_CONTAINER" psql "$@"
           SH
           chmod 700 "$RUNNER_TEMP/mastermind-fixture-psql"
-          python services/mastermind-context-gateway/scripts/verify-coding-permissions-sql.py \
+          python services/mastermind-context-gateway/scripts/verify-coding-cli-0155-sql.py \
             --dsn "postgresql://fixture_operator:${FIXTURE_POSTGRES_PASSWORD}@127.0.0.1:5432/mastermind_fixture_permissions_v2" \
             --psql "$RUNNER_TEMP/mastermind-fixture-psql" \
             | tee "$RUNNER_TEMP/coding-permission-sql-result.json"
