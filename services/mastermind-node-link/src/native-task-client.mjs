@@ -4,7 +4,7 @@ export const REVIEW_REUSE_ENDPOINT='http://127.0.0.1:8770/specification_review_r
 import {createHash} from 'node:crypto';
 import {REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,validateDevelopmentInput,developmentLocalRequest,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 const DEVELOPMENT_ENDPOINTS=Object.freeze({[REVIEW_ARTIFACTS]:'http://127.0.0.1:8770/task_review_artifacts',[REVIEW_BUILD_PLAN]:'http://127.0.0.1:8770/task_build_plan'});
-import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,reviewContentHash} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
+import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,reviewContentHash,nativeReviewContent} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
 export const NATIVE_REVIEW_ENDPOINT='http://127.0.0.1:8770/specification_review';
 import {validateNativeSpecificationRequest,validateNativeSpecificationResult,specificationBindingCanonical} from '../../../protocol/mastermind-node-exchange/native-specification.mjs';
 export const NATIVE_SPECIFICATION_ENDPOINT = 'http://127.0.0.1:8770/task_specification';
@@ -153,12 +153,13 @@ export class NativeTaskClient {
   }
   async review(request,{signal,deadlineMs,recoverOnly=false}={}) {
     const input=validateNativeReviewInput(request);
+    const content=nativeReviewContent(input);
     need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
     const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
     if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
     const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
     const body={schemaVersion:1,action:recoverOnly?'recover':'prepare',specificationId:input.specificationId,
-      operationId:input.operationId,content:input.content};
+      operationId:input.operationId,content};
     try {
       combined.throwIfAborted();
       const response=await abortable(this.fetchImpl(NATIVE_REVIEW_ENDPOINT,{method:'POST',redirect:'error',signal:combined,
@@ -173,8 +174,8 @@ export class NativeTaskClient {
         &&typeof result.replayed==='boolean'&&(!recoverOnly||result.replayed),'TASK_REVIEW_INVALID');
       const r=result.review;
       need(object(r)&&r.accepted===false&&r.executionAuthorized===false&&r.originalRequest===input.originalRequest
-        &&reviewContentHash(r.originalRequest)===input.content.requestSha256
-        &&reviewCanonical(r.content)===reviewCanonical(input.content)&&r.contentSha256===reviewContentHash(input.content),'TASK_REVIEW_INVALID');
+        &&reviewContentHash(r.originalRequest)===content.requestSha256
+        &&reviewCanonical(r.content)===reviewCanonical(content)&&r.contentSha256===reviewContentHash(content),'TASK_REVIEW_INVALID');
       return validateNativeReviewReceipt({kind:NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,
         operationId:input.operationId,specificationId:input.specificationId,contentSha256:r.contentSha256,
         reviewId:r.reviewId,state:r.state,holds:r.holds,replayed:result.replayed,accepted:false,executionAuthorized:false},input);

@@ -164,7 +164,7 @@ function parseWorker(value) {
     || worker.capabilities.length < 1 || worker.capabilities.length > 8) reject('worker advertisement is unsupported');
   const capabilities = worker.capabilities.map((item) => {
     objectOf(item, 'worker capability'); exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(item.id) || item.version !== 1) {
+    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(item.id) || !(item.version===1||item.id===NATIVE_REVIEW_CAPABILITY&&item.version===2)) {
       reject('worker capability is unsupported');
     }
     return { id: item.id, version: item.version };
@@ -260,7 +260,7 @@ function parseJob(value) {
   const createdAt = timestamp(job.createdAt, 'job creation time');
   const expiresAt = timestamp(job.expiresAt, 'job expiry');
   if (Date.parse(expiresAt) <= Date.parse(createdAt)) reject('job lifetime is invalid');
-  if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse','mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(job.capability) || job.capabilityVersion !== 1 || job.policyClass !== 'routine') {
+  if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse','mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(job.capability) || !(job.capabilityVersion===1||job.capability===NATIVE_REVIEW_CAPABILITY&&job.capabilityVersion===2) || job.policyClass !== 'routine') {
     reject('node job capability is unsupported');
   }
   const lease = job.lease === null ? null : parseLease(job.lease);
@@ -298,7 +298,7 @@ function parseJob(value) {
     jobId: uuid(job.jobId, 'job ID'),
     nodeId: uuid(job.nodeId, 'job node ID'),
     capability: job.capability,
-    capabilityVersion: 1,
+    capabilityVersion: job.capabilityVersion,
     policyClass: 'routine',
     state,
     createdAt,

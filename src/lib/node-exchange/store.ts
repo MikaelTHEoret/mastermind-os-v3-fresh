@@ -354,7 +354,7 @@ export type PublicJob = Readonly<{
   jobId: string;
   nodeId: string;
   capability: typeof MASTERMIND_NODE_CAPABILITY | typeof MASTERMIND_CORE_STATUS_CAPABILITY | typeof NATIVE_REUSE_CAPABILITY | typeof NATIVE_CATALOG_CAPABILITY | typeof NATIVE_SPECIFICATION_CAPABILITY | typeof NATIVE_REVIEW_CAPABILITY | typeof REVIEW_REUSE | typeof REVIEW_ARTIFACTS | typeof REVIEW_BUILD_PLAN;
-  capabilityVersion: 1;
+  capabilityVersion: 1 | 2;
   policyClass: typeof MASTERMIND_NODE_POLICY_CLASS;
   state: 'queued' | 'leased' | 'running' | 'succeeded' | 'failed' | 'expired';
   createdAt: string;
@@ -427,7 +427,7 @@ function publicJob(row: DatabaseRow): PublicJob {
     jobId: uuid(row.jobId, 'job ID'),
     nodeId: uuid(row.nodeId, 'node ID'),
     capability: command.capability,
-    capabilityVersion: 1,
+    capabilityVersion: command.capabilityVersion,
     policyClass: MASTERMIND_NODE_POLICY_CLASS,
     state: state as PublicJob['state'],
     createdAt: iso(row.createdAt, 'job creation time'),
@@ -744,7 +744,7 @@ export async function enqueueOwnerNativeReviewJob(
   catch { fail(400, 'NODE_REQUEST_INVALID', 'The native task request is invalid.'); }
   if(input.operationId!==operationId)fail(400,'NODE_REQUEST_INVALID','Wizard operation must match its job.');
   const command = {jobId: operationId, nodeId, capability: NATIVE_REVIEW_CAPABILITY,
-    capabilityVersion: 1, policyClass: MASTERMIND_NODE_POLICY_CLASS, input};
+    capabilityVersion: input.schemaVersion, policyClass: MASTERMIND_NODE_POLICY_CLASS, input};
   const digest = digestMastermindNodeCommand(command, {core:true});
   const expiresAt = new Date(now.getTime() + JOB_LIFETIME_MS).toISOString();
   try {
