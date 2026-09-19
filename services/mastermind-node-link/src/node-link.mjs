@@ -256,7 +256,7 @@ export class MastermindNodeLink {
       includeClientStatus: false,
     }));
     const receipts = await this.journal.listPendingReceipts({ limit: 32,
-      ...(this.requireExistingPairing ? { allowedCapabilities: this.worker.capabilities.map((item) => item.id) } : {}),
+      ...(this.requireExistingPairing ? { allowedCapabilities: this.worker.capabilities.map((item) => item.id),allowedCapabilityVersions:this.worker.capabilities } : {}),
     });
     // A saved successful result is still private task data. Revalidate before
     // sending an outbox receipt, including after a worker restart/lost response.

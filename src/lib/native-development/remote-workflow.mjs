@@ -1,6 +1,6 @@
 import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,developmentLocalRequest,validateDevelopmentInput,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
-import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical} from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
+import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,nativeReviewContent} from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {validateNativeCommandInput} from '../../../protocol/mastermind-node-exchange/native-task.mjs';
 import {validateNativeCatalogReceipt} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {parseNodeJob,parseNodeJobEnqueue} from '../../components/node-control-contract.mjs';
@@ -36,9 +36,10 @@ export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=cry
     const input=validateNativeReviewInput(pending.body.input);
     if(input.operationId!==pending.operationId||pending.body.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId)throw Error('Saved review binding changed.');
     const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,NATIVE_REVIEW_CAPABILITY).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,NATIVE_REVIEW_CAPABILITY).job;
+    if(job.capabilityVersion!==input.schemaVersion)throw Error('Saved review transport version changed.');
     if(job.state==='succeeded'){
       validateNativeReviewReceipt(job.terminal.result,input);
-      const bytes=await subtle.digest('SHA-256',new TextEncoder().encode(reviewCanonical(input.content)));
+      const bytes=await subtle.digest('SHA-256',new TextEncoder().encode(reviewCanonical(nativeReviewContent(input))));
       const hash=Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
       if(hash!==job.terminal.result.contentSha256)throw Error('Saved review content changed.');
     }
@@ -109,7 +110,7 @@ export function developmentRequest(pending,job,kind,action,newId=()=>crypto.rand
   let input;
   if(pending.capability===NATIVE_REVIEW_CAPABILITY){
     validateNativeReviewInput(prior);validateNativeReviewReceipt(result,prior);
-    if(kind!==REVIEW_ARTIFACTS||action!=='prepare'||!['create','extend'].includes(prior.content.mode))throw Error('This review needs a different workflow.');
+    if(kind!==REVIEW_ARTIFACTS||action!=='prepare'||!['create','extend'].includes(nativeReviewContent(prior).mode))throw Error('This review needs a different workflow.');
     input={schemaVersion:1,action,taskRef:prior.taskRef,operationId:newId(),parentOperationId:pending.operationId,
       artifactOperationId:newId(),specificationId:prior.specificationId,reviewId:result.reviewId};
   }else{

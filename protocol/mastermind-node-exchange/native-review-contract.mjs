@@ -3,6 +3,8 @@ import {NativeTaskError} from './native-task.mjs';
 import {validateNativeCatalogInput} from './native-catalog.mjs';
 export const NATIVE_REVIEW_CAPABILITY='mastermind.native.review';
 export const NATIVE_REVIEW_INPUT_BYTES=16384;
+export const NATIVE_REVIEW_V2_INPUT_BYTES=24576;
+export const NATIVE_REVIEW_V2_CONTENT_BYTES=20480;
 const SHA=/^[a-f0-9]{64}$/;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -18,12 +20,14 @@ export function reviewCanonical(v) {
 }
 // Python's canonical review hashes distinguish floats from integers. This first
 // wire profile accepts safe integers only; it never rounds a test's numbers.
-function json(value,depth=0) {
+function json(value,depth=0,path=[],testData=false) {
   need(depth<=20);
+  const nulData=testData&&path[0]==='requirements'&&path[1]==='tests'&&path[2]==='cases'
+    &&Number.isInteger(path[3])&&['input','expected'].includes(path[4]);
   if(typeof value==='number')need(Number.isSafeInteger(value)&&!Object.is(value,-0));
-  else if(typeof value==='string')need(value.isWellFormed()&&!value.includes('\0'));
-  else if(Array.isArray(value))value.forEach(v=>json(v,depth+1));
-  else if(object(value))for(const [k,v] of Object.entries(value)){json(k,depth+1);json(v,depth+1);}
+  else if(typeof value==='string')need(value.isWellFormed()&&(nulData||!value.includes('\0')));
+  else if(Array.isArray(value))value.forEach((v,i)=>json(v,depth+1,[...path,i],testData));
+  else if(object(value))for(const [k,v] of Object.entries(value)){json(k,depth+1);json(v,depth+1,[...path,k],testData);}
   else need(value===null||typeof value==='boolean');
 }
 function schema(s,depth=0) {
@@ -37,15 +41,23 @@ function schema(s,depth=0) {
 }
 export function validateNativeReviewInput(value) {
   need(exact(value,['schemaVersion','action','taskRef','operationId','specificationId','parentOperationId','originalRequest','content'])
-    &&value.schemaVersion===1&&value.action==='prepare'&&UUID.test(value.operationId)
+    &&[1,2].includes(value.schemaVersion)&&value.action==='prepare'&&UUID.test(value.operationId)
     &&UUID.test(value.parentOperationId)&&value.operationId!==value.parentOperationId&&SHA.test(value.specificationId));
   need(typeof value.originalRequest==='string'&&value.originalRequest===value.originalRequest.trim()
     &&Array.from(value.originalRequest).length>0&&Array.from(value.originalRequest).length<=4000);
   // Check the serialized bound before recursive schema work.
-  need(bytes(value)<=NATIVE_REVIEW_INPUT_BYTES&&new TextEncoder().encode(JSON.stringify(value,null,2)).length<=24576);
+  const encoded=value.schemaVersion===2;
+  need(bytes(value)<=(encoded?NATIVE_REVIEW_V2_INPUT_BYTES:NATIVE_REVIEW_INPUT_BYTES)
+    &&new TextEncoder().encode(JSON.stringify(value,null,2)).length<=(encoded?28672:24576));
   json(value);
   validateNativeCatalogInput({schemaVersion:1,taskRef:value.taskRef,snapshotId:null,cursor:null});
-  const c=value.content;
+  let c=value.content;
+  if(encoded){
+    need(typeof c==='string'&&new TextEncoder().encode(c).length<=NATIVE_REVIEW_V2_CONTENT_BYTES);
+    try{c=JSON.parse(c);}catch{need(false);}
+    json(c,0,[],true);
+    need(reviewCanonical(c)===value.content);
+  }
   need(exact(c,['schemaVersion','specificationId','requestSha256','mode','requirements','coverage','expectedActiveRevision','reuseEvidence'])
     &&c.schemaVersion===1&&c.specificationId===value.specificationId&&SHA.test(c.requestSha256)
     &&['create','extend','reuse','assimilate'].includes(c.mode)
@@ -73,6 +85,9 @@ export function validateNativeReviewInput(value) {
     &&s.requirements.every(n=>Number.isSafeInteger(n)&&n>=0&&n<r.requirements.length)));
   return structuredClone(value);
 }
+/** V2 encodes data, not authority. Decoding must follow full validation. */
+export function nativeReviewContent(input){const v=validateNativeReviewInput(input);return v.schemaVersion===2?JSON.parse(v.content):v.content;}
+export function encodeNativeReviewInput(input){json(input.content,0,[],true);return validateNativeReviewInput({...input,schemaVersion:2,content:reviewCanonical(input.content)});}
 export function validateNativeReviewReceipt(value,input) {
   need(exact(value,['kind','ok','schemaVersion','taskRef','operationId','specificationId','contentSha256','reviewId','state','holds','replayed','accepted','executionAuthorized'])
     &&value.kind===NATIVE_REVIEW_CAPABILITY&&value.ok===true&&value.schemaVersion===1

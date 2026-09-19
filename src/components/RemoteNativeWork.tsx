@@ -4,7 +4,7 @@ import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN} from '../..
 import NativeReviewReuseResult,{type ReviewReuseResult} from './NativeReviewReuseResult';
 import {REVIEW_REUSE,validateReviewReuseInput,disposition} from '../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 import NativeReviewEditor,{type ReviewContent} from './NativeReviewEditor';
-import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
+import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput,encodeNativeReviewInput,nativeReviewContent} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import NativeCapabilityInputs,{type NativeJson,type NativeSchema} from './NativeCapabilityInputs';
 import {parseNodeInventory,isLocalNodeControlOrigin} from './node-control-contract.mjs';
@@ -42,7 +42,8 @@ export default function RemoteNativeWork() {
  const supported=node?.worker?.capabilities.some(c=>c.id===CATALOG&&c.version===1);
  const wizardSupported=node?.worker?.capabilities.some(c=>c.id===SPECIFICATION&&c.version===1);
  const linkSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_REUSE&&c.version===1);
- const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&c.version===1);
+ const reviewVersion=node?.worker?.capabilities.find(c=>c.id===REVIEW)?.version??1;
+ const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&[1,2].includes(c.version));
  const artifactsSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_ARTIFACTS&&c.version===1);
  const buildSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_BUILD_PLAN&&c.version===1);
  const blocked=busy||!!pending&&!terminal(job?.state);
@@ -163,7 +164,7 @@ export default function RemoteNativeWork() {
  }
  async function saveReview(content:ReviewContent) {
    if(acting.current||!reviewSupported||!(savedSpecification||savedReview&&reviewEditing)||!pending||!task)return;acting.current=true;setBusy(true);setError('');
-   try {const prior=pending.body.input as {taskRef:unknown;parentOperationId:string;originalRequest:string};const operationId=crypto.randomUUID();const input=validateNativeReviewInput({schemaVersion:1,action:'prepare',taskRef:prior.taskRef,operationId,parentOperationId:savedReview?prior.parentOperationId:pending.operationId,specificationId:content.specificationId,originalRequest:savedReview?prior.originalRequest:savedRequest,content});
+   try {const prior=pending.body.input as {taskRef:unknown;parentOperationId:string;originalRequest:string};const operationId=crypto.randomUUID();const input=(reviewVersion===2?encodeNativeReviewInput:validateNativeReviewInput)({schemaVersion:1,action:'prepare',taskRef:prior.taskRef,operationId,parentOperationId:savedReview?prior.parentOperationId:pending.operationId,specificationId:content.specificationId,originalRequest:savedReview?prior.originalRequest:savedRequest,content});
      await submit({nodeId,operationId,capability:REVIEW,taskId,body:{operationId,input}});
    } finally{acting.current=false;setBusy(false);}
  }
@@ -192,17 +193,17 @@ export default function RemoteNativeWork() {
       {editing&&<button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);setRequestText(savedRequest);setEditing(false);setError('');}catch{setError('The draft could not be cleared.');}}}>Discard unsent edits</button>}</>}
     <button style={button} disabled={blocked||reviewEditing||!ready||!task||!wizardSupported||!requestText.trim()||!!savedSpecification&&(!editing||requestText===savedRequest)}>{savedSpecification?'Save revised request':'Save Wizard request'}</button>
   </form>
-  {savedSpecification&&!editing&&reviewSupported&&<NativeReviewEditor key={pending!.operationId} parentOperationId={pending!.operationId}
+  {savedSpecification&&!editing&&reviewSupported&&<NativeReviewEditor wireVersion={reviewVersion} key={pending!.operationId} parentOperationId={pending!.operationId}
     specificationId={(job!.terminal!.result as {specification:{specificationId:string}}).specification.specificationId}
     taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef} request={savedRequest} disabled={blocked} onSave={saveReview}/>}
   {pending?.capability===REVIEW&&<p>This saved review is a proposal. Its receipt records the worker's review at that time; it does not authorize a build or activation.</p>}
   {savedReview&&!reviewEditing&&linkSupported&&<button type="button" style={button} disabled={blocked} onClick={()=>void reuseReview()}>Check accepted reuse evidence</button>}
-  {savedReview&&!reviewEditing&&['create','extend'].includes((pending!.body.input as {content:ReviewContent}).content.mode)&&artifactsSupported&&<button type="button" style={button} disabled={blocked} onClick={()=>void develop(REVIEW_ARTIFACTS,'prepare')}>Prepare source package</button>}
+  {savedReview&&!reviewEditing&&['create','extend'].includes(nativeReviewContent(pending!.body.input).mode)&&artifactsSupported&&<button type="button" style={button} disabled={blocked} onClick={()=>void develop(REVIEW_ARTIFACTS,'prepare')}>Prepare source package</button>}
   {savedReview&&!reviewEditing&&<button type="button" style={button} disabled={blocked||!reviewSupported} onClick={()=>{try{localStorage.setItem(REVIEW_EDIT_KEY,pending!.operationId);setReviewEditing(true);}catch{setError('The review draft could not be saved in this browser.');}}}>Revise review proposal</button>}
   {savedReview&&reviewEditing&&<><p>Edit a new review. The saved proposal and its result remain in history.</p>
-    <NativeReviewEditor key={'revision-'+pending!.operationId} draftId={pending!.operationId} parentOperationId={(pending!.body.input as {parentOperationId:string}).parentOperationId}
+    <NativeReviewEditor wireVersion={reviewVersion} key={'revision-'+pending!.operationId} draftId={pending!.operationId} parentOperationId={(pending!.body.input as {parentOperationId:string}).parentOperationId}
       specificationId={(pending!.body.input as {specificationId:string}).specificationId}
-      initialContent={(pending!.body.input as {content:ReviewContent}).content}
+      initialContent={nativeReviewContent(pending!.body.input)}
       taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef}
       request={(pending!.body.input as {originalRequest:string}).originalRequest} disabled={blocked||!reviewSupported} onSave={saveReview}/>
     <button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(REVIEW_EDIT_KEY);localStorage.removeItem('mastermind.review-draft.v1.'+pending!.operationId);setReviewEditing(false);}catch{setError('The review draft could not be discarded.');}}}>Discard unsent review edits</button>
@@ -220,7 +221,7 @@ export default function RemoteNativeWork() {
   {job?.state==='succeeded'&&pending?.capability===SPECIFICATION&&<WizardResult value={job.terminal?.result}/>}
   {job?.state==='succeeded'&&pending&&DEVELOPMENT_CAPABILITIES.includes(pending.capability)&&<NativeDevelopmentResult value={job.terminal?.result} disabled={blocked||!artifactsSupported} buildSupported={!!buildSupported} onAction={(kind,action)=>void develop(kind,action)}/>}
   {job?.state==='succeeded'&&pending?.capability===REVIEW_REUSE&&<NativeReviewReuseResult key={pending.operationId} value={job.terminal?.result as ReviewReuseResult} disabled={blocked||!linkSupported} onAccept={()=>void reuseReview(true)}/>}
-  {job?.state==='succeeded'&&pending?.capability===REVIEW&&<ReviewResult input={pending.body.input as {originalRequest:string;content:ReviewContent}} value={job.terminal?.result}/>}
+  {job?.state==='succeeded'&&pending?.capability===REVIEW&&<ReviewResult input={{originalRequest:(pending.body.input as {originalRequest:string}).originalRequest,content:nativeReviewContent(pending.body.input)}} value={job.terminal?.result}/>}
  </section>;
 }
 

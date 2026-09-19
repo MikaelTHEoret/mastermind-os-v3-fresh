@@ -17,7 +17,7 @@ function fixture(saved=new Map(),options={}){
  function ValueField(){return jsx.jsx('span',{children:'Schema-generated example fields'});}
  let digestCalls=0;const crypto={subtle:{async digest(...args){if(++digestCalls===1&&options.restoreWait)await options.restoreWait;return webcrypto.subtle.digest(...args);}}};
  const module={exports:{}};vm.runInNewContext(compiled,{module,exports:module.exports,TextEncoder,crypto,structuredClone,
- localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {ValueField};if(name.includes('native-review-contract'))return {...review,validateNativeReviewInput:v=>review.validateNativeReviewInput(JSON.parse(JSON.stringify(v)))};throw Error(name);}});
+ localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {ValueField};if(name.includes('native-review-contract'))return {...review,nativeReviewContent:v=>review.nativeReviewContent(JSON.parse(JSON.stringify(v))),encodeNativeReviewInput:v=>review.encodeNativeReviewInput(JSON.parse(JSON.stringify(v))),validateNativeReviewInput:v=>review.validateNativeReviewInput(JSON.parse(JSON.stringify(v)))};throw Error(name);}});
  const props={specificationId:input.specificationId,parentOperationId:input.parentOperationId,taskRef:input.taskRef,request:reviewText,disabled:false,
  onSave:async c=>{calls.push(c);await options.wait;}};
  const render=()=>{index=0;tree=module.exports.default(props);};
@@ -65,4 +65,15 @@ test('a revision opens from saved content without upload and has its own recover
  assert.match(resumed.html(),/Corrected text/);
  const other=fixture(f.saved);other.props.initialContent=initial;other.props.draftId='different-review-operation';await other.settle();
  assert.doesNotMatch(other.html(),/Corrected text/);
+});
+
+test('lossless editor loads, saves and restores the full 18-case inventory review unchanged',async()=>{
+ const c=reviewInput().content;
+ c.requirements={...JSON.parse(fs.readFileSync(new URL('../../../protocol/mastermind-node-exchange/review-inventory-fixture.json',import.meta.url),'utf8')),taskRef:c.requirements.taskRef};
+ const f=fixture();f.props.wireVersion=2;await f.settle();await f.load(c);
+ assert.ok(f.save());f.save().props.onClick();await f.settle();assert.deepEqual(JSON.parse(JSON.stringify(f.calls)),[c]);
+ const restored=fixture(f.saved);restored.props.wireVersion=2;await restored.settle();assert.ok(restored.save());
+ restored.save().props.onClick();await restored.settle();assert.deepEqual(JSON.parse(JSON.stringify(restored.calls)),[c]);
+ const legacy=fixture();await legacy.settle();await legacy.load(c);assert.equal(legacy.save(),undefined);
+ assert.match(legacy.html(),/Keep all test cases/);
 });

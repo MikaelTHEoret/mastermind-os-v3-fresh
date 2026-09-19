@@ -10,6 +10,7 @@ import { acquireMastermindNodeWorkerLifetime } from './worker-lifetime.mjs';
 
 const BUNDLE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 export function validateCoreWorkerEnvironment(environment) {
+  if(environment?.MASTERMIND_NODE_LOSSLESS_REVIEW_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_LOSSLESS_REVIEW_ENABLED)||environment?.MASTERMIND_NODE_LOSSLESS_REVIEW_ENABLED==='true'&&environment.MASTERMIND_NODE_DEVELOPMENT_WORK_ENABLED!=='true')throw Object.assign(new Error('Lossless reviews require explicit development activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
   if (!environment || environment.MASTERMIND_NODE_WORKER_PROFILE !== 'core-only'
     || environment.MASTERMIND_LOCAL_CHILD_ROLE !== 'mastermind-node-link-core') {
     throw Object.assign(new Error('Explicit core-only supervisor profile required'), { code: 'NODE_CORE_PROFILE_REQUIRED' });
@@ -51,6 +52,7 @@ export function createMastermindCoreWorkerFromEnvironment(options = {}) {
     journalRoot: path.join(defaultDataRoot(environment), 'state', 'node-exchange', 'v1'),
     credentialStore, exchangeTransport,
     enableNativeTasks: environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED === 'true',
+    enableLosslessReviews:environment.MASTERMIND_NODE_LOSSLESS_REVIEW_ENABLED==='true',
     enableNativeSpecifications: environment.MASTERMIND_NODE_NATIVE_SPECIFICATION_ENABLED === 'true',
     enableDevelopmentWork:environment.MASTERMIND_NODE_DEVELOPMENT_WORK_ENABLED==='true',
     enableReviewReuse:environment.MASTERMIND_NODE_REVIEW_REUSE_ENABLED==='true',

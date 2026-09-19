@@ -30,3 +30,7 @@ export const REVIEW_REUSE_CORE_WORKER=Object.freeze({protocolVersion:2,capabilit
 export const DEVELOPMENT_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([
  ...REVIEW_REUSE_CORE_WORKER.capabilities,...DEVELOPMENT_CAPABILITIES.map(id=>Object.freeze({id,version:1})),
 ])});
+// Review v2 explicitly retains legacy v1 recovery; no other version is implied.
+export const LOSSLESS_DEVELOPMENT_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze(
+ DEVELOPMENT_CORE_WORKER.capabilities.map(c=>Object.freeze({...c,version:c.id==='mastermind.native.review'?2:c.version})),
+)});

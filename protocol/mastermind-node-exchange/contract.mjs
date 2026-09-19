@@ -224,7 +224,7 @@ export function validateMastermindNodeCommand(value, options = {}) {
   uuid(value.jobId, 'jobId');
   uuid(value.nodeId, 'nodeId');
   if ((value.capability !== MASTERMIND_NODE_CAPABILITY
-      && !(options.core === true && [MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(value.capability))) || value.capabilityVersion !== 1
+      && !(options.core === true && [MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(value.capability))) || value.capabilityVersion !== (value.capability===NATIVE_REVIEW_CAPABILITY?value.input?.schemaVersion:1)
     || value.policyClass !== MASTERMIND_NODE_POLICY_CLASS) {
     fail('NODE_UNSUPPORTED_CAPABILITY', 'node command capability is unsupported');
   }
@@ -284,7 +284,7 @@ export function validateMastermindNodeWorker(value) {
   for (const item of value.capabilities) {
     exactKeys(item, ['id', 'version'], 'worker capability');
     if (![MASTERMIND_NODE_CAPABILITY, MASTERMIND_CORE_STATUS_CAPABILITY, NATIVE_REUSE_CAPABILITY, NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(item.id)
-      || item.version !== 1 || seen.has(item.id)) fail('NODE_UNSUPPORTED_CAPABILITY', 'worker capability/version is unsupported');
+      || !(item.version===1||item.id===NATIVE_REVIEW_CAPABILITY&&item.version===2) || seen.has(item.id)) fail('NODE_UNSUPPORTED_CAPABILITY', 'worker capability/version is unsupported');
     seen.add(item.id);
   }
   return { protocolVersion: 2, capabilities: structuredClone(value.capabilities).sort((a, b) => a.id.localeCompare(b.id)) };
@@ -450,7 +450,7 @@ export function validateMastermindNodeExchangeRequest(value, options = {}) {
       && !value.worker?.capabilities.some((item) => item.id === MASTERMIND_CORE_STATUS_CAPABILITY && item.version === 1)) {
       fail('NODE_UNSUPPORTED_CAPABILITY', 'core receipt requires the worker capability declaration');
     }
-    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(receipt.result?.kind) && !value.worker?.capabilities.some(item=>item.id===receipt.result.kind&&item.version===1)) fail('NODE_UNSUPPORTED_CAPABILITY','native result requires negotiation');
+    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,...DEVELOPMENT_CAPABILITIES].includes(receipt.result?.kind) && !value.worker?.capabilities.some(item=>item.id===receipt.result.kind&&(item.version===1||item.id===NATIVE_REVIEW_CAPABILITY&&item.version===2))) fail('NODE_UNSUPPORTED_CAPABILITY','native result requires negotiation');
     if (receiptIds.has(receipt.receiptId)) fail('NODE_INVALID', 'exchange contains a duplicate receiptId');
     receiptIds.add(receipt.receiptId);
     const priorSequence = lastSequenceByJob.get(receipt.jobId);
@@ -507,7 +507,7 @@ export function validateMastermindNodeExchangeResponse(value, options = {}) {
   if (value.lease !== null) {
     validateMastermindNodeLease(value.lease, options);
     if (options.core === true && !value.acceptedWorker.capabilities.some((item) => item.id === value.lease.capability
-      && item.version === value.lease.capabilityVersion)) fail('NODE_UNSUPPORTED_CAPABILITY', 'lease was not negotiated for this worker');
+      && (item.version === value.lease.capabilityVersion||item.id===NATIVE_REVIEW_CAPABILITY&&item.version===2&&value.lease.capabilityVersion===1))) fail('NODE_UNSUPPORTED_CAPABILITY', 'lease was not negotiated for this worker');
     if (options.expectedNodeId !== undefined && value.lease.nodeId !== options.expectedNodeId) {
       fail('NODE_SCOPE_MISMATCH', 'leased job belongs to another node');
     }

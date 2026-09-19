@@ -428,7 +428,9 @@ export class FileMastermindNodeEffectJournal {
             !['family-ecosystem.ensure-running','mastermind.core.status','mastermind.native.reuse','mastermind.native.catalog','mastermind.native.specification','mastermind.native.review','mastermind.native.review-reuse',...DEVELOPMENT_CAPABILITIES].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
         if ([...this.#receipts.values()].some((receipt) => {
           const effect = this.#effects.get(receipt.jobId);
-          return !effect || effect.commandDigest !== receipt.commandDigest || effect.capabilityVersion !== 1
+          return !effect || effect.commandDigest !== receipt.commandDigest || !(effect.capabilityVersion===1
+            ||effect.capability==='mastermind.native.review'&&effect.capabilityVersion===2
+              &&options.allowedCapabilityVersions?.some(c=>c.id===effect.capability&&c.version===2))
             || !options.allowedCapabilities.includes(effect.capability);
         })) {
           throw journalError('NODE_RECEIPT_CAPABILITY_RECONCILIATION_REQUIRED', 'Retained receipts need their original capability reconciliation; no receipt was removed.');
