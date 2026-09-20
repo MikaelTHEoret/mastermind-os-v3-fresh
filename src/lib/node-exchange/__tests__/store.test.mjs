@@ -1,3 +1,4 @@
+import * as coding from '../../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {developmentFixtureReceipt} from '../../../../protocol/mastermind-node-exchange/development-fixture.mjs';
 import * as development from '../../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import assert from 'node:assert/strict';
@@ -40,6 +41,7 @@ function loadStore() {
     module: commonJsModule,
     process: { env: {} },
     require(identifier) {
+      if(identifier.includes("native-build-dispatch"))return coding;
       if(identifier.endsWith('/native-development-work.mjs'))return development;
       if (identifier === 'server-only') return {};
       if (identifier === 'node:crypto') return awaitlessCrypto;
@@ -468,6 +470,24 @@ for(const capability of development.DEVELOPMENT_CAPABILITIES)test(capability+' e
  const store=loadStore(),input={schemaVersion:1,action:'prepare',operationId:JOB_ID,parentOperationId:ACTIVE_JOB_ID,artifactOperationId:BOOT_ID,
  taskRef:{taskId:RECEIPT_ID,project:'mastermind'},specificationId:'a'.repeat(64),reviewId:'b'.repeat(64),...(capability===development.REVIEW_BUILD_PLAN?{buildOperationId:OLD_BOOT_ID}:{})};
  const result=developmentFixtureReceipt(capability,input),row={...jobRow(JOB_ID),capability,commandInput:input,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-08-15T12:01:00.000Z'};
+ const auth=(query,values)=>{assert.match(query,/mastermind_development_authorized_v1/);assert.equal(values[0],capability);assert.deepEqual(JSON.parse(values[3]),input);return [{allowed:true}];};
+ const saved=await store.enqueueOwnerDevelopmentJob(scriptedSql([(query,values)=>{
+  assert.match(query,/enqueue_mastermind_development_job_v1/);assert.equal(values[6],capability);assert.deepEqual(JSON.parse(values[7]),input);return [{status:'duplicate',job_id:JOB_ID}];},()=>[row],auth]),NODE_ID,{operationId:JOB_ID,input},capability);
+ assert.equal(saved.status,'duplicate');assert.deepEqual(saved.job.terminal.result,result);
+ const recovered=await store.getLatestOwnerNativeJob(scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[row],auth]),NODE_ID,RECEIPT_ID);
+ assert.deepEqual(JSON.parse(JSON.stringify(recovered.request.body)),{operationId:JOB_ID,input});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[row],()=>[{allowed:false}]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[{...row,terminalResult:{...result,reviewId:'0'.repeat(64)}}],auth]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+ for(const body of [{operationId:BOOT_ID,input},{operationId:JOB_ID,input:{...input,permit:'private'}},{operationId:JOB_ID,input,capability}]){
+  const sql=scriptedSql([]);await assert.rejects(store.enqueueOwnerDevelopmentJob(sql,NODE_ID,body,capability),{code:'NODE_REQUEST_INVALID'});assert.equal(sql.calls(),0);
+ }
+ for(const status of ['busy','conflict'])await assert.rejects(store.enqueueOwnerDevelopmentJob(scriptedSql([()=>[{status,job_id:JOB_ID}]]),NODE_ID,{operationId:JOB_ID,input},capability),{code:status==='busy'?'NODE_NATIVE_BUSY':'NODE_JOB_CONFLICT'});
+});
+
+for(const capability of [coding.BUILD_DISPATCH])test(capability+' enqueue and fresh history require current review authority and exact saved binding',async()=>{
+ const store=loadStore(),input={schemaVersion:1,action:'preflight',operationId:JOB_ID,parentOperationId:ACTIVE_JOB_ID,artifactOperationId:BOOT_ID,
+ taskRef:{taskId:RECEIPT_ID,project:'mastermind'},specificationId:'a'.repeat(64),reviewId:'b'.repeat(64),buildOperationId:OLD_BOOT_ID,planId:'c'.repeat(64)};
+ const result=coding.buildDispatchReceipt({...coding.buildDispatchLocalRequest(input),ok:false,state:'held',holds:['BUILD_DISTINCT_CODING_AUTHORITY_REQUIRED'],candidateId:null,sourceReady:false,replayed:false,startAccepted:false,historicalSnapshot:true,mayAutomaticallyRerun:false,executionAuthorized:false},input),row={...jobRow(JOB_ID),capability,commandInput:input,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-08-15T12:01:00.000Z'};
  const auth=(query,values)=>{assert.match(query,/mastermind_development_authorized_v1/);assert.equal(values[0],capability);assert.deepEqual(JSON.parse(values[3]),input);return [{allowed:true}];};
  const saved=await store.enqueueOwnerDevelopmentJob(scriptedSql([(query,values)=>{
   assert.match(query,/enqueue_mastermind_development_job_v1/);assert.equal(values[6],capability);assert.deepEqual(JSON.parse(values[7]),input);return [{status:'duplicate',job_id:JOB_ID}];},()=>[row],auth]),NODE_ID,{operationId:JOB_ID,input},capability);

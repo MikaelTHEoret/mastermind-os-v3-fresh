@@ -22,7 +22,7 @@ try:
     cursor = connection.cursor()
     cursor.execute("SET LOCAL statement_timeout='15000'; SET LOCAL lock_timeout='3000'")
     def public_snapshot():
-        cursor.execute("SELECT p.proname, pg_get_function_identity_arguments(p.oid), md5(pg_get_functiondef(p.oid)) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND (p.proname LIKE 'exchange_mastermind_node%%' OR p.proname LIKE 'enqueue_mastermind%%' OR p.proname LIKE 'mastermind_node_worker%%' OR p.proname LIKE 'mastermind_review%%' OR p.proname LIKE 'mastermind_development%%') ORDER BY 1,2")
+        cursor.execute("SELECT p.proname, pg_get_function_identity_arguments(p.oid), md5(pg_get_functiondef(p.oid)) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND (p.proname LIKE 'exchange_mastermind_node%%' OR p.proname LIKE 'enqueue_mastermind%%' OR p.proname LIKE 'mastermind_node_worker%%' OR p.proname LIKE 'mastermind_review%%' OR p.proname LIKE 'mastermind_development%%' OR p.proname LIKE 'mastermind_build_dispatch%%') ORDER BY 1,2")
         return cursor.fetchall()
     original_functions=public_snapshot()
     cursor.execute(f'CREATE SCHEMA {SCHEMA}')

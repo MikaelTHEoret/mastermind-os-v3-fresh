@@ -1,4 +1,5 @@
 import {validateNativeCatalogRequest,validateNativeCatalogResult} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
+import {validateBuildDispatchInput,buildDispatchLocalRequest,buildDispatchReceipt} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 export const REVIEW_REUSE_ENDPOINT='http://127.0.0.1:8770/specification_review_reuse';
 import {createHash} from 'node:crypto';
@@ -54,6 +55,23 @@ export class NativeTaskClient {
     need(typeof fetchImpl === 'function' && typeof now === 'function' && Number.isSafeInteger(timeoutMs)
       && timeoutMs >= 100 && timeoutMs <= 60000);
     this.fetchImpl = fetchImpl; this.now = now; this.timeoutMs = timeoutMs;
+  }
+  async buildDispatch(request,{signal,deadlineMs,recoverOnly=false}={}) {
+    const input=validateBuildDispatchInput(request),body=buildDispatchLocalRequest(input,recoverOnly);
+    need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
+    const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
+    if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
+    const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
+    try {
+      combined.throwIfAborted();
+      const response=await abortable(this.fetchImpl('http://127.0.0.1:8770/task_build_dispatch',{
+        method:'POST',redirect:'error',signal:combined,headers:{'content-type':'application/json',accept:'application/json'},
+        body:JSON.stringify(body)}),combined,response=>response?.body?.cancel().catch(()=>{}));
+      const result=await readResponse(response,combined);combined.throwIfAborted();
+      need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      need(response.status===(result?.ok===true?200:409),'TASK_BUILD_DISPATCH_UNAVAILABLE');
+      return buildDispatchReceipt(result,input,recoverOnly);
+    }catch(error){if(error instanceof NativeTaskError)throw error;throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');}
   }
   async development(kind,request,{signal,deadlineMs,recoverOnly=false}={}) {
     const input=validateDevelopmentInput(kind,request),body=developmentLocalRequest(kind,input,recoverOnly);

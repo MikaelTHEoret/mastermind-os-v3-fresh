@@ -1,0 +1,110 @@
+{
+  "request": {
+    "schemaVersion": 1,
+    "action": "preflight",
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+    "reviewId": "9999999999999999999999999999999999999999999999999999999999999999",
+    "artifactOperationId": "00000000-0000-4000-8000-000000000092",
+    "buildOperationId": "00000000-0000-4000-8000-000000000003",
+    "planId": "a1de9586dee37047692081d5e7f49db5ad0e64a8c2b1a8b4fd01848c8d409978"
+  },
+  "results": {
+    "preflight": {
+      "ok": true,
+      "schemaVersion": 1,
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "action": "preflight",
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "reviewId": "9999999999999999999999999999999999999999999999999999999999999999",
+      "artifactOperationId": "00000000-0000-4000-8000-000000000092",
+      "buildOperationId": "00000000-0000-4000-8000-000000000003",
+      "planId": "a1de9586dee37047692081d5e7f49db5ad0e64a8c2b1a8b4fd01848c8d409978",
+      "state": "ready_for_separate_dispatch",
+      "holds": [],
+      "candidateId": null,
+      "sourceReady": false,
+      "replayed": false,
+      "startAccepted": false,
+      "historicalSnapshot": true,
+      "mayAutomaticallyRerun": false,
+      "executionAuthorized": false
+    },
+    "start": {
+      "ok": true,
+      "schemaVersion": 1,
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "action": "start",
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "reviewId": "9999999999999999999999999999999999999999999999999999999999999999",
+      "artifactOperationId": "00000000-0000-4000-8000-000000000092",
+      "buildOperationId": "00000000-0000-4000-8000-000000000003",
+      "planId": "a1de9586dee37047692081d5e7f49db5ad0e64a8c2b1a8b4fd01848c8d409978",
+      "state": "awaiting_independent_tests",
+      "holds": [],
+      "candidateId": null,
+      "sourceReady": true,
+      "replayed": false,
+      "startAccepted": true,
+      "historicalSnapshot": true,
+      "mayAutomaticallyRerun": false,
+      "executionAuthorized": false
+    },
+    "status": {
+      "ok": true,
+      "schemaVersion": 1,
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "action": "status",
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "reviewId": "9999999999999999999999999999999999999999999999999999999999999999",
+      "artifactOperationId": "00000000-0000-4000-8000-000000000092",
+      "buildOperationId": "00000000-0000-4000-8000-000000000003",
+      "planId": "a1de9586dee37047692081d5e7f49db5ad0e64a8c2b1a8b4fd01848c8d409978",
+      "state": "awaiting_independent_tests",
+      "holds": [],
+      "candidateId": null,
+      "sourceReady": true,
+      "replayed": false,
+      "startAccepted": false,
+      "historicalSnapshot": true,
+      "mayAutomaticallyRerun": false,
+      "executionAuthorized": false
+    },
+    "recover": {
+      "ok": true,
+      "schemaVersion": 1,
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "action": "recover",
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "reviewId": "9999999999999999999999999999999999999999999999999999999999999999",
+      "artifactOperationId": "00000000-0000-4000-8000-000000000092",
+      "buildOperationId": "00000000-0000-4000-8000-000000000003",
+      "planId": "a1de9586dee37047692081d5e7f49db5ad0e64a8c2b1a8b4fd01848c8d409978",
+      "state": "awaiting_independent_tests",
+      "holds": [],
+      "candidateId": null,
+      "sourceReady": true,
+      "replayed": false,
+      "startAccepted": false,
+      "historicalSnapshot": true,
+      "mayAutomaticallyRerun": false,
+      "executionAuthorized": false
+    }
+  },
+  "provenance": "Synthetic Python ModuleCore and dispatcher; no live model, personal data or production DB."
+}
