@@ -1,4 +1,4 @@
-# Task coding transport â€” prepared, not activated
+# Task coding transport — prepared, not activated
 
 The new `mastermind.native.review-build-dispatch` contract carries a saved review, source-package operation and build-plan identity to the existing Windows coding dispatcher. It supports preflight, explicit start, status and recovery. `NativeTaskClient.buildDispatch` calls only `http://127.0.0.1:8770/task_build_dispatch`, accepts bounded typed replies, and never retries a start automatically.
 

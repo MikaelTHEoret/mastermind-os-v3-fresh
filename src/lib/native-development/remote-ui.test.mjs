@@ -153,7 +153,7 @@ test('Wizard blocks unsupported workers and unsaved/oversized requests, while da
  const unsupported=fixture();await unsupported.settle();assert.equal(unsupported.button('Save Wizard request').props.disabled,true);assert.match(unsupported.html(),/has not enabled Wizard requests/);
  for(const options of [{storageDenied:true},{}]){
    const f=fixture(new Map(),undefined,{computer:wizardComputer,...options});await f.settle();
-   f.textarea().props.onChange({target:{value:options.storageDenied?'Save this intent':'ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€¦Ã‚Â¡'.repeat(1000)}});await f.settle();f.form().props.onSubmit({preventDefault(){}});await f.settle();
+   f.textarea().props.onChange({target:{value:options.storageDenied?'Save this intent':'📚'.repeat(1000)}});await f.settle();f.form().props.onSubmit({preventDefault(){}});await f.settle();
    assert.equal(f.calls.filter(c=>c.options.method==='POST').length,0);assert.match(f.html(),/could not be saved/);
  }
  const queued=fixture(new Map(),undefined,{computer:{...wizardComputer,connectivity:'offline'},queued:true});await queued.settle();
@@ -282,7 +282,7 @@ test('owner coding controls preserve a single build through duplicate clicks, lo
  const posts=f.calls.filter(c=>c.url.endsWith('/review-build-dispatch')&&c.options.method==='POST');assert.equal(posts.length,2);
  for(const call of posts){const input=JSON.parse(call.options.body).input;assert.equal(input.buildOperationId,plan.buildOperationId);assert.equal(input.planId,plan.planId);}
  const next=fixture(f.saved,f.saved,options);for(const [id,j] of f.jobs)next.jobs.set(id,j);await next.settle();
- assert.equal(next.calls.filter(c=>c.options.method==='POST').length,0);assert.equal(next.codingResult().props.value.state,'started');
+ assert.equal(next.calls.filter(c=>c.options.method==='POST').length,0);assert.equal(next.codingResult().props.value.state,'started');assert.match(next.html(),/Coding status saved/);
  next.codingResult().props.onAction('recover');await next.settle();
  assert.equal(next.codingResult().props.value.sourceReady,true);assert.equal(next.codingResult().props.value.buildOperationId,plan.buildOperationId);
  const fresh=fixture(new Map(),next.saved,options);for(const [id,j] of next.jobs)fresh.jobs.set(id,j);await fresh.settle();

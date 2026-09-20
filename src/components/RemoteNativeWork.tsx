@@ -189,9 +189,9 @@ export default function RemoteNativeWork() {
   <p>Choose an active task and describe what you want to accomplish, or discover an accepted capability to use.</p>
   {error&&<p role="alert">{error}</p>}
   <label>Task <select style={field} disabled={blocked||editing||reviewEditing} value={taskId} onChange={e=>{if(clearSelection())setTaskId(e.target.value);}}>{tasks.map(t=><option key={t.taskId} value={t.taskId}>{t.title}</option>)}</select></label>{' '}
-  <label>Computer <select style={field} disabled={blocked||editing||reviewEditing} value={nodeId} onChange={e=>{if(clearSelection())setNodeId(e.target.value);}}>{nodes.map(n=><option key={n.nodeId} value={n.nodeId}>{n.displayName} Â· {n.connectivity}</option>)}</select></label>
+  <label>Computer <select style={field} disabled={blocked||editing||reviewEditing} value={nodeId} onChange={e=>{if(clearSelection())setNodeId(e.target.value);}}>{nodes.map(n=><option key={n.nodeId} value={n.nodeId}>{n.displayName} · {n.connectivity}</option>)}</select></label>
   {ready&&!supported&&<p>This computer has not enabled native capability discovery.</p>}
-  {node&&<p>Computer status: {node.connectivity}{node.lastExchangeAt?` Â· last contact ${new Date(node.lastExchangeAt).toLocaleString()}`:' Â· no contact recorded'}.</p>}
+  {node&&<p>Computer status: {node.connectivity}{node.lastExchangeAt?` · last contact ${new Date(node.lastExchangeAt).toLocaleString()}`:' · no contact recorded'}.</p>}
   <form onSubmit={e=>{e.preventDefault();void prepareSpecification();}}>
     <h4>Ask the Wizard</h4>
     <label>What would you like to accomplish?<textarea value={requestText} disabled={blocked||reviewEditing} readOnly={!!savedSpecification&&!editing} rows={6} maxLength={4000} onChange={e=>editRequest(e.target.value)} style={field}/></label>
@@ -224,8 +224,8 @@ export default function RemoteNativeWork() {
     {page?.nextCursor&&<button style={button} disabled={blocked} onClick={()=>void discover(true)}>Next capability</button>}
     {pending&&<button style={button} disabled={busy} onClick={()=>void recover(pending)}>Refresh saved status</button>}
     {pending&&error&&!job&&<button style={button} disabled={busy} onClick={()=>void retrySaved()}>Retry the same saved submission</button>}</div>
-  {job&&<p role="status">{job.state==='queued'?'Queued â€” waiting for the computer':job.state==='running'||job.state==='leased'?'Working':job.state==='succeeded'?(pending?.capability===SPECIFICATION?'Request saved':'Completed'):job.state==='expired'?'Request expired':`Held or failed: ${job.terminal?.code??'review required'}`} Â· submitted {new Date(job.createdAt).toLocaleString()}</p>}
-  {page&&(page.entry?<><h4>{page.entry.title} Â· {page.entry.version}</h4><small>Verified on the computer at {new Date(page.observedAt).toLocaleString()}. Execution checks the current version and permissions again.</small>
+  {job&&<p role="status">{job.state==='queued'?'Queued — waiting for the computer':job.state==='running'||job.state==='leased'?'Working':job.state==='succeeded'?(pending?.capability===SPECIFICATION?'Request saved':pending?.capability===BUILD_DISPATCH?'Coding status saved':'Completed'):job.state==='expired'?'Request expired':`Held or failed: ${job.terminal?.code??'review required'}`} · submitted {new Date(job.createdAt).toLocaleString()}</p>}
+  {page&&(page.entry?<><h4>{page.entry.title} · {page.entry.version}</h4><small>Verified on the computer at {new Date(page.observedAt).toLocaleString()}. Execution checks the current version and permissions again.</small>
     <NativeCapabilityInputs key={page.entry.specificationId+page.entry.capability} contracts={[{name:page.entry.capability,inputSchema:page.entry.inputSchema}]} disabled={blocked} onRun={(cap,args)=>void run(cap,args)}/></>:<p>No accepted reuse capability was found for this task.</p>)}
   {job?.state==='succeeded'&&pending?.capability===REUSE&&<Result value={(job.terminal?.result as {result?:unknown})?.result}/>}
   {job?.state==='succeeded'&&pending?.capability===SPECIFICATION&&<WizardResult value={job.terminal?.result}/>}
