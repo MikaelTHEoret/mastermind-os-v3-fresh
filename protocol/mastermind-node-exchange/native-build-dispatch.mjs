@@ -58,7 +58,7 @@ export function validateBuildDispatchReceipt(v,input){
  const request=validateBuildDispatchInput(Object.fromEntries(base.map(k=>[k,v[k]])));
  if(input)need(reviewCanonical(request)===reviewCanonical(validateBuildDispatchInput(input)));
  const local=buildDispatchLocalRequest(request,v.recoveryOnly);
- need(v.observedAction===local.action&&bytes(v)<=2400&&new TextEncoder().encode(JSON.stringify(v,null,2)).length<=3800);
+ need(v.observedAction===local.action&&bytes(v)<=1450&&new TextEncoder().encode(JSON.stringify(v,null,2)).length<=2900);
  validSummary(v,v.observedAction);
  return structuredClone(v);
 }

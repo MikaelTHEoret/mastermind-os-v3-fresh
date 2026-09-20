@@ -1,3 +1,4 @@
+import {BUILD_DISPATCH,validateBuildDispatchInput,validateBuildDispatchReceipt} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,developmentLocalRequest,validateDevelopmentInput,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 import {NATIVE_REVIEW_CAPABILITY,validateNativeReviewInput,validateNativeReviewReceipt,reviewCanonical,nativeReviewContent} from '../../../protocol/mastermind-node-exchange/native-review-contract.mjs';
@@ -11,6 +12,13 @@ export function specificationRequest(taskRef,request,operationId,revisionOf) {
   return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(pending.capability===BUILD_DISPATCH){
+    const input=validateBuildDispatchInput(pending.body.input);
+    if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved coding binding changed.');
+    const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,BUILD_DISPATCH).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,BUILD_DISPATCH).job;
+    if(job.state==='succeeded')validateBuildDispatchReceipt(job.terminal.result,input);
+    return job;
+  }
   if(DEVELOPMENT_CAPABILITIES.includes(pending.capability)){
     const input=validateDevelopmentInput(pending.capability,pending.body.input);
     if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved development binding changed.');
@@ -128,4 +136,25 @@ export function developmentRequest(pending,job,kind,action,newId=()=>crypto.rand
   input=validateDevelopmentInput(kind,input);
   if(input.taskRef.taskId!==pending.taskId)throw Error('Saved task changed.');
   return {nodeId:pending.nodeId,taskId:pending.taskId,operationId:input.operationId,capability:kind,body:{operationId:input.operationId,input}};
+}
+
+/** Explicit coding transitions. Network IDs change; the saved build ID does not. */
+export function codingRequest(pending,job,action,newId=()=>crypto.randomUUID()) {
+ if(!pending||job?.state!=='succeeded'||job.jobId!==pending.operationId||job.nodeId!==pending.nodeId)throw Error('Recover the saved result first.');
+ const prior=pending.body.input,result=job.terminal?.result;
+ let input;
+ if(pending.capability===REVIEW_BUILD_PLAN){
+  validateDevelopmentInput(REVIEW_BUILD_PLAN,prior);validateDevelopmentReceipt(result,prior);
+  if(action!=='preflight')throw Error('Check coding readiness first.');
+  input={...prior,action,operationId:newId(),planId:result.planId};
+ }else if(pending.capability===BUILD_DISPATCH){
+  validateBuildDispatchInput(prior);validateBuildDispatchReceipt(result,prior);
+  if(!['preflight','start','status','recover'].includes(action))throw Error('Unsupported coding step.');
+  if(action==='start'&&!(result.observedAction==='preflight'&&result.ok&&result.state==='ready_for_separate_dispatch'&&result.holds.length===0))throw Error('A fresh successful readiness check is required.');
+  if(action==='preflight'&&['started','awaiting_independent_tests'].includes(result.state))throw Error('Recover existing source work first.');
+  input={...prior,action,operationId:newId()};
+ }else throw Error('A saved build plan is required.');
+ input=validateBuildDispatchInput(input);
+ if(input.taskRef.taskId!==pending.taskId)throw Error('Saved task changed.');
+ return {nodeId:pending.nodeId,taskId:pending.taskId,operationId:input.operationId,capability:BUILD_DISPATCH,body:{operationId:input.operationId,input}};
 }

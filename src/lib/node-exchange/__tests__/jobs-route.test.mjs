@@ -27,7 +27,7 @@ function load(source, imports, env={}) {
     require(id) { if (!(id in imports)) throw new Error('Unexpected import: ' + id); return imports[id]; } });
   return module.exports;
 }
-function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true,losslessEnabled=false) {
+function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true,losslessEnabled=false,codingEnabled=false) {
   const calls = []; let authCalls = 0;
   class BodyError extends Error {}
   class ServiceError extends Error {}
@@ -48,7 +48,7 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', r
     '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse'),enqueueOwnerDevelopmentJob:async(db,node,body,capability)=>{assert.equal(capability,'mastermind.native.'+routeName);return enqueue('development')(db,node,body);} },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
-  },{MASTERMIND_LOSSLESS_REVIEW_ENABLED:losslessEnabled?'true':'false',MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
+  },{MASTERMIND_BUILD_DISPATCH_ENABLED:codingEnabled?'true':'false',MASTERMIND_LOSSLESS_REVIEW_ENABLED:losslessEnabled?'true':'false',MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
     return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },
@@ -218,4 +218,15 @@ test('lossless review writes require independent opt-in and owner; legacy remain
  }
  const allowed=harness({ok:true},'created','native-review',true,true);assert.equal((await allowed.post(body)).status,201);assert.equal(allowed.calls.length,1);
  const legacy=harness({ok:true},'created','native-review',true,false);assert.equal((await legacy.post({...body,input:{schemaVersion:1}})).status,201);
+});
+
+test('coding route requires both explicit deployment flags, owner and same origin',async()=>{
+ const body={operationId:requestId,input:{fixture:'bounded'}};
+ for(const [owner,development,coding,headers,status] of [
+  [{ok:true},true,false,{},503],[{ok:true},false,true,{},503],
+  [{ok:false,status:403,reason:'Owner required'},true,true,{},403],
+  [{ok:true},true,true,{origin:'https://foreign.invalid'},403]
+ ]){const f=harness(owner,'created','review-build-dispatch',development,false,coding);assert.equal((await f.post(body,{headers})).status,status);assert.equal(f.calls.length,0);}
+ const f=harness({ok:true},'created','review-build-dispatch',true,false,true);
+ assert.equal((await f.post(body)).status,201);assert.equal(f.calls[0].kind,'development');
 });

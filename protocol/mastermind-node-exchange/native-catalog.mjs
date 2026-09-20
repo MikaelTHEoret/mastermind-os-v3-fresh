@@ -77,6 +77,16 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 export function sameNativeDisclosure(current,saved) {
+  if(saved?.kind==='mastermind.native.review-build-dispatch') {
+    if(current?.kind!==saved.kind||current.recoveryOnly!==true||current.startAccepted!==false)return false;
+    const keys=['schemaVersion','kind','action','taskRef','operationId','parentOperationId','artifactOperationId','buildOperationId','specificationId','reviewId','planId'];
+    if(!keys.every(k=>Object.hasOwn(current,k)&&Object.hasOwn(saved,k)&&canonical(current[k])===canonical(saved[k])))return false;
+    // Progress may advance while a durable receipt is waiting for delivery.
+    // Current owner/source checks come from the typed local recovery. An old
+    // scheduling reply remains dated history, never a reusable permission.
+    return (!saved.sourceReady||current.sourceReady===true)
+      &&(saved.candidateId===null||saved.candidateId===current.candidateId);
+  }
   if(['mastermind.native.review-artifacts','mastermind.native.review-build-plan'].includes(saved?.kind)) {
     if(current?.kind!==saved.kind||current.replayed!==true)return false;
     // Recover is read-only history, not a fresh assertion about Git. All source

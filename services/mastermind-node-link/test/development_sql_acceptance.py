@@ -76,3 +76,7 @@ def verify(ctx,parent,parent_result,old_worker,preinstalled=False):
     if not preinstalled and '--lossless-review' in __import__('sys').argv:
         from lossless_review_sql_acceptance import verify as verify_lossless
         verify_lossless(ctx,parent,parent_result,worker)
+
+    if preinstalled and '--coding-dispatch' in __import__('sys').argv:
+        from coding_dispatch_sql_acceptance import verify as verify_coding
+        verify_coding(ctx,planned,plan,worker)
