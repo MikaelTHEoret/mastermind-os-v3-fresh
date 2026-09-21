@@ -171,13 +171,15 @@ export class NativeTaskClient {
   }
   async review(request,{signal,deadlineMs,recoverOnly=false}={}) {
     const input=validateNativeReviewInput(request);
+    const readSaved=recoverOnly||input.schemaVersion===3;
+    const nativeOperation=input.schemaVersion===3?input.savedOperationId:input.operationId;
     const content=nativeReviewContent(input);
     need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
     const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
     if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
     const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
-    const body={schemaVersion:1,action:recoverOnly?'recover':'prepare',specificationId:input.specificationId,
-      operationId:input.operationId,content};
+    const body={schemaVersion:1,action:readSaved?'recover':'prepare',specificationId:input.specificationId,
+      operationId:nativeOperation,content};
     try {
       combined.throwIfAborted();
       const response=await abortable(this.fetchImpl(NATIVE_REVIEW_ENDPOINT,{method:'POST',redirect:'error',signal:combined,
@@ -188,8 +190,8 @@ export class NativeTaskClient {
       need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
       need(response.status===200,'TASK_REVIEW_UNAVAILABLE');
       need(object(result)&&result.ok===true&&result.schemaVersion===1&&result.accepted===false&&result.executionAuthorized===false
-        &&result.operationId===input.operationId&&result.specificationId===input.specificationId
-        &&typeof result.replayed==='boolean'&&(!recoverOnly||result.replayed),'TASK_REVIEW_INVALID');
+        &&result.operationId===nativeOperation&&result.specificationId===input.specificationId
+        &&typeof result.replayed==='boolean'&&(!readSaved||result.replayed),'TASK_REVIEW_INVALID');
       const r=result.review;
       need(object(r)&&r.accepted===false&&r.executionAuthorized===false&&r.originalRequest===input.originalRequest
         &&reviewContentHash(r.originalRequest)===content.requestSha256

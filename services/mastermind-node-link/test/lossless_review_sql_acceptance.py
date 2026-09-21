@@ -81,3 +81,7 @@ def verify(ctx,parent,parent_result,old_worker):
     from development_sql_acceptance import verify as verify_development
     review_worker={**worker,'capabilities':[c for c in worker['capabilities'] if c['id'] not in ['mastermind.native.review-reuse','mastermind.native.review-artifacts','mastermind.native.review-build-plan']]}
     verify_development(ctx,value,result,review_worker,preinstalled=True)
+    if '--review-recovery' in __import__('sys').argv:
+        from review_recovery_sql_acceptance import verify as verify_recovery
+        coding_worker = {**worker, 'capabilities': worker['capabilities']+[{'id':'mastermind.native.review-build-dispatch','version':1}]}
+        verify_recovery(ctx,value,result,coding_worker)

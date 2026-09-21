@@ -355,7 +355,7 @@ export type PublicJob = Readonly<{
   jobId: string;
   nodeId: string;
   capability: typeof MASTERMIND_NODE_CAPABILITY | typeof MASTERMIND_CORE_STATUS_CAPABILITY | typeof NATIVE_REUSE_CAPABILITY | typeof NATIVE_CATALOG_CAPABILITY | typeof NATIVE_SPECIFICATION_CAPABILITY | typeof NATIVE_REVIEW_CAPABILITY | typeof REVIEW_REUSE | typeof REVIEW_ARTIFACTS | typeof REVIEW_BUILD_PLAN | typeof BUILD_DISPATCH;
-  capabilityVersion: 1 | 2;
+  capabilityVersion: 1 | 2 | 3;
   policyClass: typeof MASTERMIND_NODE_POLICY_CLASS;
   state: 'queued' | 'leased' | 'running' | 'succeeded' | 'failed' | 'expired';
   createdAt: string;

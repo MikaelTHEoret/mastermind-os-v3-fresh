@@ -55,7 +55,7 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
    if(name==='./NativeCodingResult')return {default:CodingResult,__esModule:true};if(name.includes('native-build-dispatch'))return coding;
    if(name==='./NativeDevelopmentResult')return {default:DevelopmentResult,__esModule:true};if(name.includes('native-development-work'))return development;
    if(name==='./NativeReviewReuseResult')return {default:ReuseResult,__esModule:true};if(name.includes('native-review-reuse'))return {...reviewReuse,validateReviewReuseInput:v=>reviewReuse.validateReviewReuseInput(plain(v))};
-   if(name==='./NativeReviewEditor')return {default:ReviewEditor,__esModule:true};if(name.includes('native-review-contract'))return {...review,nativeReviewContent:v=>review.nativeReviewContent(JSON.parse(JSON.stringify(v))),encodeNativeReviewInput:v=>review.encodeNativeReviewInput(JSON.parse(JSON.stringify(v))),validateNativeReviewInput:v=>review.validateNativeReviewInput(plain(v))};
+   if(name==='./NativeReviewEditor')return {default:ReviewEditor,__esModule:true};if(name.includes('native-review-contract'))return {...review,nativeReviewContent:v=>review.nativeReviewContent(JSON.parse(JSON.stringify(v))),encodeNativeReviewRecovery:(v,id)=>review.encodeNativeReviewRecovery(plain(v),id),encodeNativeReviewInput:v=>review.encodeNativeReviewInput(JSON.parse(JSON.stringify(v))),validateNativeReviewInput:v=>review.validateNativeReviewInput(plain(v))};
    if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {default:Inputs,__esModule:true};
    if(name==='./node-control-contract.mjs')return controls;if(name.includes('remote-workflow'))return {...workflow,remoteJson:api,codingRequest:(p,j,a)=>workflow.codingRequest(plain(p),plain(j),a),developmentRequest:(p,j,k,a)=>workflow.developmentRequest(plain(p),plain(j),k,a),specificationRequest:(t,r,o,parent)=>workflow.specificationRequest(plain(t),r,o,parent?plain(parent):undefined),checkedRemoteJob:verifyJob};if(name.includes('native-catalog'))return {...catalog,validateNativeCatalogReceipt:(v,r)=>catalog.validateNativeCatalogReceipt(plain(v),r===undefined?r:plain(r))};throw Error(name);
  }});
@@ -66,7 +66,24 @@ export function fixture(saved=new Map(),history=saved,options_={}) {
  return {saved,jobs,calls,settle,render,deny:()=>{denied=true;},loseReply:()=>{lost=true;},html:()=>renderToStaticMarkup(tree),button:text=>all().find(n=>n.type==='button'&&n.props.children===text),inputs:()=>all().find(n=>n.type===Inputs),reviewEditor:()=>all().find(n=>n.type===ReviewEditor),codingResult:()=>all().find(n=>n.type===CodingResult),developmentResult:()=>all().find(n=>n.type===DevelopmentResult),reuseResult:()=>all().find(n=>n.type===ReuseResult),textarea:()=>all().find(n=>n.type==='textarea'),form:()=>all().find(n=>n.type==='form')};
 }
 
-function reviewResult(input){return {kind:review.NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,operationId:input.operationId,specificationId:input.specificationId,contentSha256:crypto.createHash('sha256').update(review.reviewCanonical(review.nativeReviewContent(input))).digest('hex'),reviewId:'f'.repeat(64),state:'held',holds:['ACCEPTED_REUSE_EVIDENCE_REQUIRED'],replayed:false,accepted:false,executionAuthorized:false};}
+function reviewResult(input){return {kind:review.NATIVE_REVIEW_CAPABILITY,ok:true,schemaVersion:1,taskRef:input.taskRef,operationId:input.operationId,specificationId:input.specificationId,contentSha256:crypto.createHash('sha256').update(review.reviewCanonical(review.nativeReviewContent(input))).digest('hex'),reviewId:'f'.repeat(64),state:'held',holds:['ACCEPTED_REUSE_EVIDENCE_REQUIRED'],replayed:input.schemaVersion===3,accepted:false,executionAuthorized:false};}
+
+test('failed review delivery recovers the original saved review once and survives a lost reply and reload',async()=>{
+ const {f:prior,job,input,options}=savedReviewFixture(true);
+ options.computer.worker.capabilities.find(c=>c.id===review.NATIVE_REVIEW_CAPABILITY).version=3;
+ job.state='failed';job.terminal={code:'execution-timeout',finishedAt:AT,result:null};
+ const f=fixture(prior.saved,prior.saved,options);f.jobs.set(job.jobId,job);await f.settle();
+ const recover=f.button('Recover saved review').props.onClick;
+ f.loseReply();recover();recover();await f.settle();
+ const posts=f.calls.filter(c=>c.options.method==='POST');assert.equal(posts.length,1);
+ const request=JSON.parse(posts[0].options.body).input;
+ assert.equal(request.schemaVersion,3);assert.equal(request.action,'recover');assert.equal(request.savedOperationId,input.operationId);
+ assert.notEqual(request.operationId,input.operationId);assert.equal(request.content,input.content);assert.deepEqual(f.jobs.get(job.jobId),job);
+ const resumed=fixture(f.saved,f.saved,options);for(const [id,j] of f.jobs)resumed.jobs.set(id,j);await resumed.settle();
+ assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);assert.match(resumed.html(),/Review saved with unresolved items/);
+ resumed.button('Revise review proposal').props.onClick();await resumed.settle();assert.equal(resumed.reviewEditor().props.wireVersion,2);
+ assert.deepEqual(JSON.parse(JSON.stringify(resumed.reviewEditor().props.initialContent)),review.nativeReviewContent(input));
+});
 
 test('review reuse uses the existing decision ID, survives a lost reply and resumes without resubmission',async()=>{
  const {f:prior,job,options}=savedReviewFixture();
