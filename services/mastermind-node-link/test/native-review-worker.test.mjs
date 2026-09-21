@@ -9,7 +9,7 @@ import {NativeTaskClient,NATIVE_REVIEW_ENDPOINT} from '../src/native-task-client
 import {FileMastermindNodeEffectJournal} from '../src/effect-journal.mjs';
 import * as legacy from '../../../protocol/mastermind-node-exchange/contract.mjs';
 import * as v2 from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
-import {NATIVE_REVIEW_CAPABILITY as CAP,validateNativeReviewReceipt,validateNativeReviewInput,reviewContentHash,reviewCanonical,encodeNativeReviewInput,nativeReviewContent} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
+import {NATIVE_REVIEW_CAPABILITY as CAP,validateNativeReviewReceipt,validateNativeReviewInput,reviewContentHash,reviewCanonical,encodeNativeReviewInput,encodeNativeReviewRecovery,nativeReviewContent} from '../../../protocol/mastermind-node-exchange/native-review.mjs';
 import {reviewInput,reviewReply,reviewText} from '../../../protocol/mastermind-node-exchange/review-fixture.mjs';
 import {NODE_ID,NODE_CREDENTIAL,PAIRING_ID,BOOT_ID,JOB_ID,command,lease} from './fixtures.mjs';
 const AT='2026-08-15T04:00:02.000Z';
@@ -26,12 +26,12 @@ async function setup(t,behavior,input=request()) {
   assert.deepEqual(Object.keys(body).sort(),['schemaVersion','action','operationId','specificationId','content'].sort());
   if(behavior)return behavior(body,calls.length);const reply=reviewReply(body,body.action==='recover');reply.review.originalRequest=input.originalRequest;return Response.json(reply);
  }});
- const make=(enabled=true,lossless=input.schemaVersion===2)=>{const journal=new FileMastermindNodeEffectJournal(root,{now:()=>Date.parse(AT)});return {journal,
-  worker:createMastermindCoreOnlyWorker({journalRoot:root,journal,enableNativeTasks:true,enableNativeSpecifications:true,enableNativeReviews:enabled,enableReviewReuse:input.schemaVersion===2&&enabled,enableDevelopmentWork:input.schemaVersion===2&&enabled,enableLosslessReviews:lossless&&enabled,
+ const make=(enabled=true,lossless=input.schemaVersion>=2,recovery=input.schemaVersion===3)=>{const journal=new FileMastermindNodeEffectJournal(root,{now:()=>Date.parse(AT)});return {journal,
+  worker:createMastermindCoreOnlyWorker({journalRoot:root,journal,enableNativeTasks:true,enableNativeSpecifications:true,enableNativeReviews:enabled,enableReviewReuse:input.schemaVersion>=2&&enabled,enableDevelopmentWork:input.schemaVersion>=2&&enabled,enableLosslessReviews:lossless&&enabled,enableBuildDispatch:recovery&&enabled,enableReviewRecovery:recovery&&enabled,
    nativeTaskClient:native,bootId:BOOT_ID,now:()=>Date.parse(AT),monotonicNow:()=>1,
    credentialStore:{async load(){return {schemaVersion:1,state:'paired',nodeId:NODE_ID,nodeCredential:NODE_CREDENTIAL,pairingId:PAIRING_ID,pairingCredential:null,displayName:'Fixture',createdAt:AT,pairedAt:AT};}},
    exchangeTransport:{async pair(){throw Error('must not pair');},async exchange(req){sent.push(req);return {schemaVersion:2,exchangeId:req.exchangeId,serverTime:AT,nextPollAfterMs:5000,
-    acceptedWorker:enabled?(input.schemaVersion===2?(lossless?v2.LOSSLESS_DEVELOPMENT_CORE_WORKER:v2.DEVELOPMENT_CORE_WORKER):v2.REVIEW_CORE_WORKER):v2.WIZARD_CORE_WORKER,acknowledgedReceiptIds:req.receipts.map(r=>r.receiptId),lease:reviewLease(input)};}}
+    acceptedWorker:enabled?(recovery?v2.REVIEW_RECOVERY_CORE_WORKER:input.schemaVersion>=2?(lossless?v2.LOSSLESS_DEVELOPMENT_CORE_WORKER:v2.DEVELOPMENT_CORE_WORKER):v2.REVIEW_CORE_WORKER):v2.WIZARD_CORE_WORKER,acknowledgedReceiptIds:req.receipts.map(r=>r.receiptId),lease:reviewLease(input)};}}
   })};};return {make,calls,sent};
 }
 test('review is opt-in, task-bound, size-bounded and carries no caller authority',()=>{
@@ -111,6 +111,36 @@ test('lossless review does not treat escaped text as a NUL and verifies native r
 
 test('lossless encoder rejects values that JSON serialization would silently change',()=>{
  for(const n of [-0,NaN,Infinity,-Infinity,undefined]){const v=fullReview();v.content.requirements.tests.cases[0].input={n};assert.throws(()=>encodeNativeReviewInput(v));}
+});
+
+function recoveryInput(){const old=fullReview();old.operationId=BOOT_ID;return encodeNativeReviewRecovery(encodeNativeReviewInput(old),JOB_ID);}
+test('fresh review delivery always recovers the original native operation and survives restart',async t=>{
+ const input=recoveryInput(),operations=[];
+ const f=await setup(t,body=>{operations.push(body.operationId);assert.equal(body.action,'recover');
+  const r=reviewReply(body,true);r.review.originalRequest=input.originalRequest;return Response.json(r);},input);
+ const first=f.make(),result=await first.worker.runOnce();await first.worker.stop();
+ assert.equal(result.execution.receipt.result.operationId,JOB_ID);
+ assert.equal(result.execution.receipt.result.replayed,true);
+ assert.equal(nativeReviewContent(input).requirements.tests.cases.length,18);
+ const next=f.make();assert.equal((await next.worker.runOnce()).execution.replayed,true);await next.worker.stop();
+ assert.deepEqual(operations,[BOOT_ID,BOOT_ID,BOOT_ID]);assert.deepEqual(f.calls,['recover','recover','recover']);
+});
+test('review recovery cannot prepare, select another response ID or claim a fresh effect',async()=>{
+ const input=recoveryInput();
+ for(const change of [{action:'prepare'},{savedOperationId:JOB_ID},{savedOperationId:input.parentOperationId},
+  {savedOperationId:null},{schemaVersion:2},{permissionScope:{}}])assert.throws(()=>validateNativeReviewInput({...input,...change}));
+ assert.throws(()=>encodeNativeReviewRecovery(input,PAIRING_ID));
+ for(const change of [{operationId:JOB_ID},{replayed:false}]){
+  const client=new NativeTaskClient({now:()=>1,fetchImpl:async(_url,init)=>{
+   const body=JSON.parse(init.body);assert.equal(body.operationId,BOOT_ID);assert.equal(body.action,'recover');
+   const r=reviewReply(body,true);r.review.originalRequest=input.originalRequest;return Response.json({...r,...change});}});
+  await assert.rejects(client.review(input,{deadlineMs:1000}),{code:'TASK_REVIEW_INVALID'});
+ }
+});
+test('a downgraded worker preserves v3 outbox until an explicitly enabled reader resumes',async t=>{
+ const input=recoveryInput(),f=await setup(t,undefined,input),first=f.make();await first.worker.runOnce();await first.worker.stop();
+ const old=f.make(true,true,false);await assert.rejects(old.worker.runOnce(),{code:'NODE_RECEIPT_CAPABILITY_RECONCILIATION_REQUIRED'});await old.worker.stop();
+ assert.equal(f.sent.length,1);const next=f.make();await next.worker.runOnce();await next.worker.stop();
 });
 
 test('lossless uncertain preparation recovers after restart without repeating the effect',async t=>{

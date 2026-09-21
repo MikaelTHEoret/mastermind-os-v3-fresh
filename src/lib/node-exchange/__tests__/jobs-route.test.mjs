@@ -27,7 +27,7 @@ function load(source, imports, env={}) {
     require(id) { if (!(id in imports)) throw new Error('Unexpected import: ' + id); return imports[id]; } });
   return module.exports;
 }
-function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true,losslessEnabled=false,codingEnabled=false) {
+function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true,losslessEnabled=false,codingEnabled=false,recoveryEnabled=false) {
   const calls = []; let authCalls = 0;
   class BodyError extends Error {}
   class ServiceError extends Error {}
@@ -48,7 +48,7 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', r
     '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse'),enqueueOwnerDevelopmentJob:async(db,node,body,capability)=>{assert.equal(capability,'mastermind.native.'+routeName);return enqueue('development')(db,node,body);} },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
-  },{MASTERMIND_BUILD_DISPATCH_ENABLED:codingEnabled?'true':'false',MASTERMIND_LOSSLESS_REVIEW_ENABLED:losslessEnabled?'true':'false',MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
+  },{MASTERMIND_REVIEW_RECOVERY_ENABLED:recoveryEnabled?'true':'false',MASTERMIND_BUILD_DISPATCH_ENABLED:codingEnabled?'true':'false',MASTERMIND_LOSSLESS_REVIEW_ENABLED:losslessEnabled?'true':'false',MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
     return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },
@@ -57,6 +57,15 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', r
   } };
 }
 
+test('saved review recovery requires both lossless and explicit recovery gates',async()=>{
+ const body={operationId:requestId,input:{schemaVersion:3}};
+ for(const [lossless,recovery,expected] of [[false,true,'LOSSLESS_REVIEW_UNAVAILABLE'],[true,false,'REVIEW_RECOVERY_UNAVAILABLE']]){
+  const f=harness({ok:true},'created','native-review',true,lossless,false,recovery);
+  const response=await f.post(body);assert.equal(response.status,503);assert.equal((await response.json()).error.code,expected);assert.equal(f.calls.length,0);
+ }
+ const f=harness({ok:true},'created','native-review',true,true,false,true);
+ assert.equal((await f.post(body)).status,201);assert.equal(f.calls.length,1);
+});
 test('authenticated owner dispatcher routes only the selected fixed capability with exact node and replay ID', async () => {
   for (const [capability, kind] of [[contract.MASTERMIND_NODE_CAPABILITY, 'family'], [contract.MASTERMIND_CORE_STATUS_CAPABILITY, 'core']]) {
     const api = harness(); const response = await api.post({ capability, requestId });

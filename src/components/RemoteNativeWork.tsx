@@ -6,7 +6,7 @@ import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN} from '../..
 import NativeReviewReuseResult,{type ReviewReuseResult} from './NativeReviewReuseResult';
 import {REVIEW_REUSE,validateReviewReuseInput,disposition} from '../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
 import NativeReviewEditor,{type ReviewContent} from './NativeReviewEditor';
-import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput,encodeNativeReviewInput,nativeReviewContent} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
+import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput,encodeNativeReviewInput,encodeNativeReviewRecovery,nativeReviewContent} from '../../protocol/mastermind-node-exchange/native-review-contract.mjs';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import NativeCapabilityInputs,{type NativeJson,type NativeSchema} from './NativeCapabilityInputs';
 import {parseNodeInventory,isLocalNodeControlOrigin} from './node-control-contract.mjs';
@@ -44,8 +44,9 @@ export default function RemoteNativeWork() {
  const supported=node?.worker?.capabilities.some(c=>c.id===CATALOG&&c.version===1);
  const wizardSupported=node?.worker?.capabilities.some(c=>c.id===SPECIFICATION&&c.version===1);
  const linkSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_REUSE&&c.version===1);
- const reviewVersion=node?.worker?.capabilities.find(c=>c.id===REVIEW)?.version??1;
- const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&[1,2].includes(c.version));
+ const reviewWorkerVersion=node?.worker?.capabilities.find(c=>c.id===REVIEW)?.version??1;
+ const reviewVersion=Math.min(reviewWorkerVersion,2);
+ const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&[1,2,3].includes(c.version));
  const artifactsSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_ARTIFACTS&&c.version===1);
  const buildSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_BUILD_PLAN&&c.version===1);
  const codingSupported=node?.worker?.capabilities.some(c=>c.id===BUILD_DISPATCH&&c.version===1);
@@ -124,6 +125,15 @@ export default function RemoteNativeWork() {
  async function retrySaved() {
    if(acting.current||!pending)return;acting.current=true;setBusy(true);setError('');
    try{await submit(pending);}catch{setError('The saved request could not be resubmitted.');}
+   finally{acting.current=false;setBusy(false);}
+ }
+ async function recoverSavedReview() {
+   if(acting.current||blocked||!pending||pending.capability!==REVIEW||reviewWorkerVersion!==3||!['failed','expired'].includes(job?.state??''))return;
+   acting.current=true;setBusy(true);setError('');
+   try {
+     const operationId=crypto.randomUUID(),input=encodeNativeReviewRecovery(pending.body.input,operationId);
+     await submit({...pending,operationId,body:{operationId,input}});
+   }catch{setError('The saved review could not be recovered. Refresh its status before trying again.');}
    finally{acting.current=false;setBusy(false);}
  }
  async function discover(next=false) {
@@ -223,6 +233,7 @@ export default function RemoteNativeWork() {
     <button style={button} disabled={blocked||editing||reviewEditing||!task||!supported} onClick={()=>void discover()}>Find capabilities</button>
     {page?.nextCursor&&<button style={button} disabled={blocked} onClick={()=>void discover(true)}>Next capability</button>}
     {pending&&<button style={button} disabled={busy} onClick={()=>void recover(pending)}>Refresh saved status</button>}
+    {pending?.capability===REVIEW&&reviewWorkerVersion===3&&['failed','expired'].includes(job?.state??'')&&(pending.body.input as {schemaVersion:number}).schemaVersion!==3&&<><p>The delivery ended before a result was received. Recovering checks for the original saved review on this computer.</p><button style={button} disabled={blocked} onClick={()=>void recoverSavedReview()}>Recover saved review</button></>}
     {pending&&error&&!job&&<button style={button} disabled={busy} onClick={()=>void retrySaved()}>Retry the same saved submission</button>}</div>
   {job&&<p role="status">{job.state==='queued'?'Queued — waiting for the computer':job.state==='running'||job.state==='leased'?'Working':job.state==='succeeded'?(pending?.capability===SPECIFICATION?'Request saved':pending?.capability===BUILD_DISPATCH?'Coding status saved':'Completed'):job.state==='expired'?'Request expired':`Held or failed: ${job.terminal?.code??'review required'}`} · submitted {new Date(job.createdAt).toLocaleString()}</p>}
   {page&&(page.entry?<><h4>{page.entry.title} · {page.entry.version}</h4><small>Verified on the computer at {new Date(page.observedAt).toLocaleString()}. Execution checks the current version and permissions again.</small>

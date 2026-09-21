@@ -430,8 +430,8 @@ export class FileMastermindNodeEffectJournal {
         if ([...this.#receipts.values()].some((receipt) => {
           const effect = this.#effects.get(receipt.jobId);
           return !effect || effect.commandDigest !== receipt.commandDigest || !(effect.capabilityVersion===1
-            ||effect.capability==='mastermind.native.review'&&effect.capabilityVersion===2
-              &&options.allowedCapabilityVersions?.some(c=>c.id===effect.capability&&c.version===2))
+            ||effect.capability==='mastermind.native.review'&&[2,3].includes(effect.capabilityVersion)
+              &&options.allowedCapabilityVersions?.some(c=>c.id===effect.capability&&[2,3].includes(c.version)&&c.version>=effect.capabilityVersion))
             || !options.allowedCapabilities.includes(effect.capability);
         })) {
           throw journalError('NODE_RECEIPT_CAPABILITY_RECONCILIATION_REQUIRED', 'Retained receipts need their original capability reconciliation; no receipt was removed.');

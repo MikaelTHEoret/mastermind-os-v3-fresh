@@ -40,13 +40,15 @@ function schema(s,depth=0) {
   if(Object.hasOwn(s,'items'))schema(s.items,depth+1);
 }
 export function validateNativeReviewInput(value) {
-  need(exact(value,['schemaVersion','action','taskRef','operationId','specificationId','parentOperationId','originalRequest','content'])
-    &&[1,2].includes(value.schemaVersion)&&value.action==='prepare'&&UUID.test(value.operationId)
+  const recovery=value?.schemaVersion===3;
+  need(exact(value,['schemaVersion','action','taskRef','operationId','specificationId','parentOperationId','originalRequest','content',...(recovery?['savedOperationId']:[])])
+    &&[1,2,3].includes(value.schemaVersion)&&value.action===(recovery?'recover':'prepare')&&UUID.test(value.operationId)
     &&UUID.test(value.parentOperationId)&&value.operationId!==value.parentOperationId&&SHA.test(value.specificationId));
+  if(recovery)need(UUID.test(value.savedOperationId)&&![value.operationId,value.parentOperationId].includes(value.savedOperationId));
   need(typeof value.originalRequest==='string'&&value.originalRequest===value.originalRequest.trim()
     &&Array.from(value.originalRequest).length>0&&Array.from(value.originalRequest).length<=4000);
   // Check the serialized bound before recursive schema work.
-  const encoded=value.schemaVersion===2;
+  const encoded=value.schemaVersion>=2;
   need(bytes(value)<=(encoded?NATIVE_REVIEW_V2_INPUT_BYTES:NATIVE_REVIEW_INPUT_BYTES)
     &&new TextEncoder().encode(JSON.stringify(value,null,2)).length<=(encoded?28672:24576));
   json(value);
@@ -86,8 +88,15 @@ export function validateNativeReviewInput(value) {
   return structuredClone(value);
 }
 /** V2 encodes data, not authority. Decoding must follow full validation. */
-export function nativeReviewContent(input){const v=validateNativeReviewInput(input);return v.schemaVersion===2?JSON.parse(v.content):v.content;}
+export function nativeReviewContent(input){const v=validateNativeReviewInput(input);return v.schemaVersion>=2?JSON.parse(v.content):v.content;}
 export function encodeNativeReviewInput(input){json(input.content,0,[],true);return validateNativeReviewInput({...input,schemaVersion:2,content:reviewCanonical(input.content)});}
+/** New delivery, same saved native operation. Always read-only, never prepare. */
+export function encodeNativeReviewRecovery(original,operationId){
+  const old=validateNativeReviewInput(original);
+  need(old.schemaVersion!==3);
+  return validateNativeReviewInput({...old,schemaVersion:3,action:'recover',operationId,
+    savedOperationId:old.operationId,content:reviewCanonical(nativeReviewContent(old))});
+}
 export function validateNativeReviewReceipt(value,input) {
   need(exact(value,['kind','ok','schemaVersion','taskRef','operationId','specificationId','contentSha256','reviewId','state','holds','replayed','accepted','executionAuthorized'])
     &&value.kind===NATIVE_REVIEW_CAPABILITY&&value.ok===true&&value.schemaVersion===1
@@ -100,6 +109,7 @@ export function validateNativeReviewReceipt(value,input) {
     &&new TextEncoder().encode(JSON.stringify(value,null,2)).length<=2900);
   validateNativeCatalogInput({schemaVersion:1,taskRef:value.taskRef,snapshotId:null,cursor:null});
   if(input){const raw=validateNativeReviewInput(input);need(raw.operationId===value.operationId
-    &&raw.specificationId===value.specificationId&&reviewCanonical(raw.taskRef)===reviewCanonical(value.taskRef));}
+    &&raw.specificationId===value.specificationId&&reviewCanonical(raw.taskRef)===reviewCanonical(value.taskRef)
+    &&(raw.schemaVersion!==3||value.replayed===true));}
   return structuredClone(value);
 }

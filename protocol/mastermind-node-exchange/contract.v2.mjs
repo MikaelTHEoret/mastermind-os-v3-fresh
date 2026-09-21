@@ -40,3 +40,7 @@ export const LOSSLESS_DEVELOPMENT_CORE_WORKER=Object.freeze({protocolVersion:2,c
 export const CODING_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([
  ...LOSSLESS_DEVELOPMENT_CORE_WORKER.capabilities,Object.freeze({id:BUILD_DISPATCH,version:1}),
 ])});
+// Separate opt-in: v3 recovers a saved review through a fresh delivery identity.
+export const REVIEW_RECOVERY_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze(
+ CODING_CORE_WORKER.capabilities.map(c=>Object.freeze({...c,version:c.id==='mastermind.native.review'?3:c.version})),
+)});
