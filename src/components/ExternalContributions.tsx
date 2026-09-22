@@ -41,7 +41,10 @@ export default function ExternalContributions(){
   }catch(e){if(alive.current)setError(e instanceof Error?e.message:'Unable to resume.');}})();
   return ()=>{alive.current=false;generation.current++;};
  },[]);
- function choose(id:string){selected.current=id;setTaskId(id);setAssignmentId('');setReviewId('');setResponse('');setError('');void refresh(id);}
+ function clearResponseDraft(){setModel('');setUrl('');setResponse('');}
+ function chooseReview(id:string){setReviewId(id);setAssessment('');setEvidence('');setDecision('needs-revision');}
+ function chooseAssignment(id:string){setAssignmentId(id);clearResponseDraft();chooseReview('');}
+ function choose(id:string){selected.current=id;setTaskId(id);chooseAssignment('');setError('');void refresh(id);}
  async function submit(record:RecordData){
   if(acting.current)return;acting.current=true;setBusy(true);setError('');setNotice('');
   let retained=false;
@@ -50,7 +53,7 @@ export default function ExternalContributions(){
    const body=await read('/api/contributions/'+record.taskRef.taskId,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(record)});
    await checkedAcknowledgement(body,record);
    localStorage.removeItem(KEY);setPending(null);setNotice('Saved to the shared task. External material remains advisory.');
-   if(selected.current===record.taskRef.taskId){await refresh(record.taskRef.taskId);if(record.kind==='assignment')setAssignmentId(body.artifact.artifactId);}
+   if(selected.current===record.taskRef.taskId){await refresh(record.taskRef.taskId);if(record.kind==='assignment')chooseAssignment(body.artifact.artifactId);}
   }catch(e){setError((e instanceof Error?e.message:'Save unconfirmed.')+(retained?' The same submission is retained for reconciliation; no automatic retry was sent.':' No request was sent.'));}
   finally{acting.current=false;if(alive.current)setBusy(false);}
  }
@@ -77,9 +80,9 @@ export default function ExternalContributions(){
     <button style={button} disabled={blocked||!title.trim()||!request.trim()||!sources.trim()||!criteria.trim()}>Save assignment</button>
    </form>
   </details>
-  <label style={{display:'block',marginTop:16}}>Saved assignment<select style={field} value={assignmentId} disabled={busy} onChange={e=>{setAssignmentId(e.target.value);setReviewId('');setResponse('');}}><option value="">Choose saved work</option>{assignments.map(a=><option key={a.artifactId} value={a.artifactId}>{a.record.title}</option>)}</select></label>
+  <label style={{display:'block',marginTop:16}}>Saved assignment<select style={field} value={assignmentId} disabled={busy||!!pending} onChange={e=>chooseAssignment(e.target.value)}><option value="">Choose saved work</option>{assignments.map(a=><option key={a.artifactId} value={a.artifactId}>{a.record.title}</option>)}</select></label>
   {assignment&&<>
-   <label>Contributor<select style={field} value={chosenProvider} disabled={busy} onChange={e=>setProvider(e.target.value)}>{assignment.record.providers.map((p:string)=><option key={p} value={p}>{labels[p]}</option>)}</select></label>
+   <label>Contributor<select style={field} value={chosenProvider} disabled={busy||!!pending} onChange={e=>{setProvider(e.target.value);clearResponseDraft();}}>{assignment.record.providers.map((p:string)=><option key={p} value={p}>{labels[p]}</option>)}</select></label>
    <button style={button} disabled={blocked} onClick={()=>void copyPrompt()}>Copy assignment</button>
    <details><summary>Assignment text</summary><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{assignmentPrompt(assignment,chosenProvider)}</pre></details>
    <form onSubmit={e=>{e.preventDefault();void submit({...base('response'),parentId:assignmentId,provider:chosenProvider,model:model.trim()||null,conversationUrl:url.trim()||null,captureMode:'manual',text:response});}}>
@@ -93,7 +96,7 @@ export default function ExternalContributions(){
    {responses.length===0?<p>No responses retained yet.</p>:responses.map(r=><details key={r.artifactId}><summary>{labels[r.record.provider]} · {r.record.model||'Model not recorded'} · {new Date(r.recordedAt).toLocaleString()}</summary><p>{r.record.submission?'Submitted through an authenticated connected client.':'Manually imported.'} Model and machine identity are reported, not independently verified.</p><pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{r.record.text}</pre>{rows.filter(x=>x.record.kind==='review'&&x.record.parentId===r.artifactId).map(x=><p key={x.artifactId}>{x.record.decision}: {x.record.assessment}</p>)}</details>)}
    <form onSubmit={e=>{e.preventDefault();void submit({...base('review'),parentId:reviewId,decision,assessment,evidenceRefs:lines(evidence)});}}>
     <h3>Record a review</h3>
-    <label>Response<select style={field} value={reviewId} onChange={e=>setReviewId(e.target.value)}><option value="">Choose a response</option>{responses.map(r=><option key={r.artifactId} value={r.artifactId}>{labels[r.record.provider]} · {r.record.model||'Unspecified model'}</option>)}</select></label>
+    <label>Response<select style={field} value={reviewId} disabled={busy||!!pending} onChange={e=>chooseReview(e.target.value)}><option value="">Choose a response</option>{responses.map(r=><option key={r.artifactId} value={r.artifactId}>{labels[r.record.provider]} · {r.record.model||'Unspecified model'}</option>)}</select></label>
     <label>Outcome<select style={field} value={decision} onChange={e=>setDecision(e.target.value)}><option value="needs-revision">Needs revision</option><option value="accepted-as-advice">Useful advice accepted</option><option value="rejected">Rejected</option></select></label>
     <label>Assessment<textarea style={field} value={assessment} onChange={e=>setAssessment(e.target.value)} rows={3}/></label>
     <label>Evidence or test references, one per line<textarea style={field} value={evidence} onChange={e=>setEvidence(e.target.value)} rows={2}/></label>
