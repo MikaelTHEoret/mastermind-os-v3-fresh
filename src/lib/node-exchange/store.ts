@@ -1,3 +1,4 @@
+import {CONTRIBUTION,validateContributionInput,validateContributionReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import {BUILD_DISPATCH,validateBuildDispatchInput,validateBuildDispatchReceipt} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,validateDevelopmentInput,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
@@ -354,7 +355,7 @@ export async function listOwnerNodes(
 export type PublicJob = Readonly<{
   jobId: string;
   nodeId: string;
-  capability: typeof MASTERMIND_NODE_CAPABILITY | typeof MASTERMIND_CORE_STATUS_CAPABILITY | typeof NATIVE_REUSE_CAPABILITY | typeof NATIVE_CATALOG_CAPABILITY | typeof NATIVE_SPECIFICATION_CAPABILITY | typeof NATIVE_REVIEW_CAPABILITY | typeof REVIEW_REUSE | typeof REVIEW_ARTIFACTS | typeof REVIEW_BUILD_PLAN | typeof BUILD_DISPATCH;
+  capability: typeof MASTERMIND_NODE_CAPABILITY | typeof MASTERMIND_CORE_STATUS_CAPABILITY | typeof NATIVE_REUSE_CAPABILITY | typeof NATIVE_CATALOG_CAPABILITY | typeof NATIVE_SPECIFICATION_CAPABILITY | typeof NATIVE_REVIEW_CAPABILITY | typeof REVIEW_REUSE | typeof REVIEW_ARTIFACTS | typeof REVIEW_BUILD_PLAN | typeof BUILD_DISPATCH | typeof CONTRIBUTION;
   capabilityVersion: 1 | 2 | 3;
   policyClass: typeof MASTERMIND_NODE_POLICY_CLASS;
   state: 'queued' | 'leased' | 'running' | 'succeeded' | 'failed' | 'expired';
@@ -366,7 +367,7 @@ export type PublicJob = Readonly<{
 
 function publicJob(row: DatabaseRow): PublicJob {
   const command = validateMastermindNodeCommand({ jobId: row.jobId, nodeId: row.nodeId,
-    capability: row.capability, capabilityVersion: row.capabilityVersion, policyClass: row.policyClass, input: [NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,...DEVELOPMENT_CAPABILITIES].includes(String(row.capability)) ? objectValue(row.commandInput, 'native input') : {} }, { core: true });
+    capability: row.capability, capabilityVersion: row.capabilityVersion, policyClass: row.policyClass, input: [NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,...DEVELOPMENT_CAPABILITIES].includes(String(row.capability)) ? objectValue(row.commandInput, 'native input') : {} }, { core: true });
   const state = text(row.state, 'job state', 16);
   if (!JOB_STATES.has(state)) fail(503, 'NODE_STORE_INVALID', 'Stored job state is invalid.');
   const leaseId = row.leaseId === null || row.leaseId === undefined ? null : uuid(row.leaseId, 'lease ID');
@@ -394,6 +395,10 @@ function publicJob(row: DatabaseRow): PublicJob {
       try {validateNativeCatalogReceipt(terminalResult,command.input);}
       catch {fail(503,'NODE_STORE_INVALID','Stored catalog does not match its authorized task.');}
     } else if(terminalResult!==null) fail(503,'NODE_STORE_INVALID','Stored catalog failure cannot include metadata.');
+  }
+  if(command.capability===CONTRIBUTION) {
+    if(state==='succeeded') {try{validateContributionReceipt(terminalResult,command.input);}catch{fail(503,'NODE_STORE_INVALID','Stored contribution result binding is invalid.');}}
+    else if(terminalResult!==null)fail(503,'NODE_STORE_INVALID','Unsuccessful contribution transport cannot contain evidence.');
   }
   if(command.capability===BUILD_DISPATCH) {
     if(state==='succeeded') {try{validateBuildDispatchReceipt(terminalResult,command.input);}catch{fail(503,'NODE_STORE_INVALID','Stored coding result binding is invalid.');}}
@@ -462,6 +467,7 @@ async function readOwnerJob(
     WHERE job.job_id = ${jobId}::uuid
       AND job.node_id = ${nodeId}::uuid
       AND job.household_id = ${profile.householdId}::text
+      AND (job.capability <> 'mastermind.native.contribution' OR job.created_by_player_id = ${profile.parentPlayerId}::uuid)
       AND (job.capability NOT IN ('mastermind.native.review','mastermind.native.review-reuse','mastermind.native.review-artifacts','mastermind.native.review-build-plan','mastermind.native.review-build-dispatch') OR (
         job.created_by_player_id = ${profile.parentPlayerId}::uuid
         AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text, ${profile.parentPlayerId}::uuid,
@@ -488,6 +494,10 @@ async function readOwnerJob(
   if (!Array.isArray(rows) || rows.length > 1) fail(503, 'NODE_STORE_UNAVAILABLE', 'Job lookup is unavailable.');
   // Keep the reader deployable before028. Resolve the new SQL function only
   // after seeing an actual review job (which cannot exist before its migration).
+  if(rows[0]?.capability===CONTRIBUTION) {
+    const allowed=await sql`SELECT public.mastermind_contribution_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,${nodeId}::uuid,${JSON.stringify(rows[0].commandInput)}::jsonb,${rows[0].terminalResult===null?null:JSON.stringify(rows[0].terminalResult)}::jsonb) AS allowed`;
+    if(!Array.isArray(allowed)||allowed.length!==1||allowed[0].allowed!==true)return null;
+  }
   if(rows[0]?.capability===BUILD_DISPATCH||DEVELOPMENT_CAPABILITIES.includes(String(rows[0]?.capability))) {
     const allowed=await sql`SELECT public.mastermind_development_authorized_v1(${rows[0].capability}::text,${profile.householdId}::text,${profile.parentPlayerId}::uuid,${JSON.stringify(rows[0].commandInput)}::jsonb,${rows[0].terminalResult===null?null:JSON.stringify(rows[0].terminalResult)}::jsonb) AS allowed`;
     if(!Array.isArray(allowed)||allowed.length!==1||allowed[0].allowed!==true)return null;
@@ -819,7 +829,7 @@ export async function enqueueOwnerDevelopmentJob(
   const {operationId,input:rawInput}=rawRequest as {operationId:unknown;input:unknown};
   if(typeof operationId!=='string'||!UUID.test(operationId))fail(400,'NODE_REQUEST_INVALID','Invalid Wizard operation.');
   let input;
-  try { input = capability===BUILD_DISPATCH?validateBuildDispatchInput(rawInput):validateDevelopmentInput(capability,rawInput); }
+  try { input = capability===CONTRIBUTION?validateContributionInput(rawInput):capability===BUILD_DISPATCH?validateBuildDispatchInput(rawInput):validateDevelopmentInput(capability,rawInput); }
   catch { fail(400, 'NODE_REQUEST_INVALID', 'The native task request is invalid.'); }
   if(input.operationId!==operationId)fail(400,'NODE_REQUEST_INVALID','Wizard operation must match its job.');
   const command = {jobId: operationId, nodeId, capability,
@@ -827,12 +837,18 @@ export async function enqueueOwnerDevelopmentJob(
   const digest = digestMastermindNodeCommand(command, {core:true});
   const expiresAt = new Date(now.getTime() + JOB_LIFETIME_MS).toISOString();
   try {
-    const row = first(await sql`
+    const rows = capability===CONTRIBUTION?await sql`
+      SELECT * FROM public.enqueue_mastermind_contribution_job_v1(
+        ${operationId}::uuid, ${digest}::text, ${nodeId}::uuid,
+        ${profile.householdId}::text, ${profile.parentPlayerId}::uuid,
+        ${expiresAt}::timestamptz, ${JSON.stringify(input)}::jsonb
+      )`:await sql`
       SELECT * FROM public.enqueue_mastermind_development_job_v1(
         ${operationId}::uuid, ${digest}::text, ${nodeId}::uuid,
         ${profile.householdId}::text, ${profile.parentPlayerId}::uuid,
         ${expiresAt}::timestamptz, ${capability}::text, ${JSON.stringify(input)}::jsonb
-      )`, 'Native task enqueue');
+      )`;
+    const row = first(rows, 'Native task enqueue');
     if (row.status === 'busy') fail(409, 'NODE_NATIVE_BUSY', 'This worker already has a native task in progress.');
     if (!['applied','duplicate'].includes(String(row.status)) || row.job_id !== operationId) {
       fail(409, 'NODE_JOB_CONFLICT', 'This operation ID is already bound to another request.');
@@ -869,7 +885,7 @@ export async function getLatestOwnerNativeJob(sql:NodeExchangeSql,nodeId:string,
       AND j.created_by_player_id=${profile.parentPlayerId}::uuid AND j.command_input->'taskRef'->>'taskId'=${taskId}::text
       AND (${reviewOnly}::boolean=false OR j.capability='mastermind.native.review')
       AND ((j.capability='mastermind.native.catalog' AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,j.command_input,j.terminal_result))
-        OR (j.capability IN ('mastermind.native.review','mastermind.native.review-reuse','mastermind.native.review-artifacts','mastermind.native.review-build-plan','mastermind.native.review-build-dispatch') AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,
+        OR (j.capability IN ('mastermind.native.review','mastermind.native.review-reuse','mastermind.native.review-artifacts','mastermind.native.review-build-plan','mastermind.native.review-build-dispatch','mastermind.native.contribution') AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,
           jsonb_build_object('schemaVersion',1,'taskRef',j.command_input->'taskRef','snapshotId',NULL,'cursor',NULL),NULL))
         OR (j.capability='mastermind.native.reuse' AND public.mastermind_native_task_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,j.command_input))
         OR (j.capability='mastermind.native.specification' AND public.mastermind_catalog_authorized_v1(${profile.householdId}::text,${profile.parentPlayerId}::uuid,
@@ -881,7 +897,7 @@ export async function getLatestOwnerNativeJob(sql:NodeExchangeSql,nodeId:string,
     const job=await readOwnerJob(sql,nodeId,jobId,profile);
     if(!job)fail(403,'NODE_OWNER_REQUIRED','Saved task authority changed.');
     if(reviewOnly&&job.capability!==NATIVE_REVIEW_CAPABILITY)fail(503,'NODE_STORE_INVALID','Saved review binding changed.');
-    const input=job.capability===BUILD_DISPATCH?validateBuildDispatchInput(rows[0].input):DEVELOPMENT_CAPABILITIES.includes(job.capability)?validateDevelopmentInput(job.capability,rows[0].input):job.capability===REVIEW_REUSE?validateReviewReuseInput(rows[0].input):job.capability===NATIVE_REVIEW_CAPABILITY?validateNativeReviewInput(rows[0].input):job.capability===NATIVE_CATALOG_CAPABILITY?validateNativeCatalogInput(rows[0].input):job.capability===NATIVE_SPECIFICATION_CAPABILITY?validateNativeSpecificationInput(rows[0].input):validateNativeCommandInput(rows[0].input);
+    const input=job.capability===CONTRIBUTION?validateContributionInput(rows[0].input):job.capability===BUILD_DISPATCH?validateBuildDispatchInput(rows[0].input):DEVELOPMENT_CAPABILITIES.includes(job.capability)?validateDevelopmentInput(job.capability,rows[0].input):job.capability===REVIEW_REUSE?validateReviewReuseInput(rows[0].input):job.capability===NATIVE_REVIEW_CAPABILITY?validateNativeReviewInput(rows[0].input):job.capability===NATIVE_CATALOG_CAPABILITY?validateNativeCatalogInput(rows[0].input):job.capability===NATIVE_SPECIFICATION_CAPABILITY?validateNativeSpecificationInput(rows[0].input):validateNativeCommandInput(rows[0].input);
     if(input.taskRef.taskId!==taskId||(job.capability!==NATIVE_CATALOG_CAPABILITY&&input.operationId!==jobId))fail(503,'NODE_STORE_INVALID','Saved task binding changed.');
     return {job,request:{nodeId,operationId:jobId,capability:job.capability,taskId,
       body:job.capability===NATIVE_REUSE_CAPABILITY?input:{operationId:jobId,input}}};

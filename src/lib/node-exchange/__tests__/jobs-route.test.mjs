@@ -8,6 +8,21 @@ import * as contract from '../../../../protocol/mastermind-node-exchange/contrac
 const nodeId = '11111111-1111-4111-8111-111111111111';
 const requestId = '22222222-2222-4222-8222-222222222222';
 const base = 'https://mastermind-core.com';
+test('contribution route requires separate opt-in and same-origin owner before enqueue',async()=>{
+ const body={operationId:requestId,input:{fixture:'bounded'}};
+ for(const [owner,enabled,headers,status] of [[{ok:true},false,{},503],
+  [{ok:false,status:403,reason:'Owner required'},true,{},403],[{ok:true},true,{origin:'https://foreign.invalid'},403]]){
+  const f=harness(owner,'created','native-contribution',true,false,false,false,enabled);
+  assert.equal((await f.post(body,{headers})).status,status);assert.equal(f.calls.length,0);
+ }
+ const f=harness({ok:true},'created','native-contribution',true,false,false,false,true);
+ const response=await f.post(body);assert.equal(response.status,201);assert.match(response.headers.get('cache-control'),/no-store/);
+ assert.equal(f.calls[0].kind,'development');assert.deepEqual(JSON.parse(JSON.stringify(f.calls[0].id)),body);
+ const duplicate=harness({ok:true},'duplicate','native-contribution',true,false,false,false,true);
+ assert.equal((await duplicate.post(body)).status,200);
+ const wrong=harness({ok:true},'created','native-contribution',true,false,false,false,true);
+ assert.equal((await wrong.post(body,{path:'/api/nodes/wrong/native-contribution'})).status,404);assert.equal(wrong.calls.length,0);
+});
 test('reuse link route is opt-in and enforces same-origin owner access before enqueue',async()=>{
  for(const [owner,enabled,headers,expected] of [[{ok:true},false,{},503],[{ok:false,status:403,reason:'Owner required'},true,{},403],[{ok:true},true,{origin:'https://foreign.invalid'},403]]){
   const f=harness(owner,'created','review-reuse',enabled);assert.equal((await f.post({},{headers})).status,expected);assert.equal(f.calls.length,0);
@@ -27,7 +42,7 @@ function load(source, imports, env={}) {
     require(id) { if (!(id in imports)) throw new Error('Unexpected import: ' + id); return imports[id]; } });
   return module.exports;
 }
-function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true,losslessEnabled=false,codingEnabled=false,recoveryEnabled=false) {
+function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', reviewEnabled=true,losslessEnabled=false,codingEnabled=false,recoveryEnabled=false,contributionEnabled=false) {
   const calls = []; let authCalls = 0;
   class BodyError extends Error {}
   class ServiceError extends Error {}
@@ -45,10 +60,11 @@ function harness(owner = { ok: true }, status = 'created', routeName = 'jobs', r
   };
   const route = load(fs.readFileSync(new URL(`../../../app/api/nodes/[nodeId]/${routeName}/route.ts`, import.meta.url), 'utf8'), {
     '@/lib/db': { getMemoryDb: () => database }, '@/lib/node-exchange/http': http,
-    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse'),enqueueOwnerDevelopmentJob:async(db,node,body,capability)=>{assert.equal(capability,'mastermind.native.'+routeName);return enqueue('development')(db,node,body);} },
+    '@/lib/node-exchange/store': { enqueueCoreStatusJob: enqueue('core'), enqueueEnsureRunningJob: enqueue('family'), enqueueOwnerNativeCatalogJob:enqueue('catalog'),enqueueOwnerNativeSpecificationJob:enqueue('wizard'),enqueueOwnerNativeReviewJob:enqueue('review'),enqueueOwnerReviewReuseJob:enqueue('review-reuse'),enqueueOwnerDevelopmentJob:async(db,node,body,capability)=>{assert.equal(capability,'mastermind.native.'+(routeName==='native-contribution'?'contribution':routeName));return enqueue('development')(db,node,body);} },
     '../../../../../../protocol/mastermind-node-exchange/contract.mjs': contract,
+    '../../../../../../protocol/mastermind-node-exchange/native-contribution.mjs':{CONTRIBUTION:'mastermind.native.contribution'},
     '@/lib/trading/auth': { async requireOwner() { authCalls++; return owner; } },
-  },{MASTERMIND_REVIEW_RECOVERY_ENABLED:recoveryEnabled?'true':'false',MASTERMIND_BUILD_DISPATCH_ENABLED:codingEnabled?'true':'false',MASTERMIND_LOSSLESS_REVIEW_ENABLED:losslessEnabled?'true':'false',MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
+  },{MASTERMIND_NATIVE_CONTRIBUTIONS_ENABLED:contributionEnabled?'true':'false',MASTERMIND_REVIEW_RECOVERY_ENABLED:recoveryEnabled?'true':'false',MASTERMIND_BUILD_DISPATCH_ENABLED:codingEnabled?'true':'false',MASTERMIND_LOSSLESS_REVIEW_ENABLED:losslessEnabled?'true':'false',MASTERMIND_DEVELOPMENT_WORK_ENABLED:reviewEnabled?'true':'false',MASTERMIND_NATIVE_REVIEW_ENABLED:reviewEnabled?'true':'false',MASTERMIND_REVIEW_REUSE_ENABLED:reviewEnabled?'true':'false'});
   return { calls, authCalls: () => authCalls, async post(body, options = {}) {
     return route.POST(new Request(base + (options.path ?? `/api/nodes/${nodeId}/${routeName}`), {
       method: 'POST', headers: { origin: base, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', ...options.headers },
