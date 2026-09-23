@@ -1,0 +1,221 @@
+[
+  {
+    "request": {
+      "schemaVersion": 1,
+      "action": "catalog",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": null,
+      "operationId": "00000000-0000-4000-8000-000000000901",
+      "snapshotId": null,
+      "cursor": null
+    },
+    "result": {
+      "schemaVersion": 1,
+      "action": "catalog",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": null,
+      "kind": "mastermind.native.contribution",
+      "observedAt": "2026-09-23T06:19:13.828Z",
+      "executionAuthorized": false,
+      "mayAutomaticallyRerun": false,
+      "historicalSnapshot": true,
+      "choices": [
+        {
+          "importOperationId": "00000000-0000-4000-8000-000000000876",
+          "packetId": "9a5316469c6236c83d1ad5b56cc8c93520a21d220c7a0c8be17ec89906ba6e44",
+          "recordIds": {
+            "assignmentId": "e885f455e5a59f57077de6d6ff22daa3a67560b363717028bff2f6816b1ef470",
+            "responseId": "ba1fcdbf5e9e370bdd74384603084061f98bb8995a5faaae84bd7037dbbd18b7",
+            "reviewId": "281e70bebb4766e32a9b62ea3ed93a8ed0dd246db71f09be3c9a337a294be26a"
+          },
+          "moduleId": "fixture-calculator",
+          "version": "1.0.0",
+          "packetAvailable": true,
+          "holds": [],
+          "sourceAndAuthorityVerifiedNow": false
+        }
+      ]
+    }
+  },
+  {
+    "request": {
+      "schemaVersion": 1,
+      "action": "prepare",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": "00000000-0000-4000-8000-000000000876",
+      "operationId": "00000000-0000-4000-8000-000000000901",
+      "snapshotId": null,
+      "cursor": null
+    },
+    "result": {
+      "schemaVersion": 1,
+      "action": "prepare",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": "00000000-0000-4000-8000-000000000876",
+      "kind": "mastermind.native.contribution",
+      "observedAt": "2026-09-23T06:19:13.837Z",
+      "executionAuthorized": false,
+      "mayAutomaticallyRerun": false,
+      "historicalSnapshot": true,
+      "result": {
+        "ok": true,
+        "schemaVersion": 1,
+        "operationId": "00000000-0000-4000-8000-000000000876",
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "phase": "preview",
+        "candidateId": "7dc35f76ef7627f9da9d2e0fb6da7229108651a6f8f3b783431a6e52a5afd76a",
+        "moduleId": "fixture-calculator",
+        "version": "1.0.0",
+        "sourceCommit": "ffffffffffffffffffffffffffffffffffffffff",
+        "sourceSha256": "32bb501451f7438fe2fd3bcec737d62d58cd1b2135e2d4009710ee7d7f4cb432",
+        "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+        "testSpecHash": "44938f8531baab310221c4a369772e7d13df3acb773edc4fc14f26338d52f7ca",
+        "recordIds": {
+          "assignmentId": "e885f455e5a59f57077de6d6ff22daa3a67560b363717028bff2f6816b1ef470",
+          "responseId": "ba1fcdbf5e9e370bdd74384603084061f98bb8995a5faaae84bd7037dbbd18b7",
+          "reviewId": "281e70bebb4766e32a9b62ea3ed93a8ed0dd246db71f09be3c9a337a294be26a"
+        },
+        "currentActiveRevision": null,
+        "candidateStaged": false,
+        "replayed": false,
+        "holds": [
+          "CONTRIBUTION_CANDIDATE_NOT_STAGED"
+        ],
+        "behavioralTests": "separate-native-workflow",
+        "executionAuthorized": false,
+        "activationPerformed": false,
+        "currentlyActive": false
+      }
+    }
+  },
+  {
+    "request": {
+      "schemaVersion": 1,
+      "action": "stage",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": "00000000-0000-4000-8000-000000000876",
+      "operationId": "00000000-0000-4000-8000-000000000901",
+      "snapshotId": null,
+      "cursor": null
+    },
+    "result": {
+      "schemaVersion": 1,
+      "action": "stage",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": "00000000-0000-4000-8000-000000000876",
+      "kind": "mastermind.native.contribution",
+      "observedAt": "2026-09-23T06:19:13.853Z",
+      "executionAuthorized": false,
+      "mayAutomaticallyRerun": false,
+      "historicalSnapshot": true,
+      "result": {
+        "ok": true,
+        "schemaVersion": 1,
+        "operationId": "00000000-0000-4000-8000-000000000876",
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "phase": "staged",
+        "candidateId": "7dc35f76ef7627f9da9d2e0fb6da7229108651a6f8f3b783431a6e52a5afd76a",
+        "moduleId": "fixture-calculator",
+        "version": "1.0.0",
+        "sourceCommit": "ffffffffffffffffffffffffffffffffffffffff",
+        "sourceSha256": "32bb501451f7438fe2fd3bcec737d62d58cd1b2135e2d4009710ee7d7f4cb432",
+        "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+        "testSpecHash": "44938f8531baab310221c4a369772e7d13df3acb773edc4fc14f26338d52f7ca",
+        "recordIds": {
+          "assignmentId": "e885f455e5a59f57077de6d6ff22daa3a67560b363717028bff2f6816b1ef470",
+          "responseId": "ba1fcdbf5e9e370bdd74384603084061f98bb8995a5faaae84bd7037dbbd18b7",
+          "reviewId": "281e70bebb4766e32a9b62ea3ed93a8ed0dd246db71f09be3c9a337a294be26a"
+        },
+        "currentActiveRevision": null,
+        "candidateStaged": true,
+        "replayed": false,
+        "holds": [],
+        "behavioralTests": "separate-native-workflow",
+        "executionAuthorized": false,
+        "activationPerformed": false,
+        "currentlyActive": false
+      }
+    }
+  },
+  {
+    "request": {
+      "schemaVersion": 1,
+      "action": "recover",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": "00000000-0000-4000-8000-000000000876",
+      "operationId": "00000000-0000-4000-8000-000000000901",
+      "snapshotId": null,
+      "cursor": null
+    },
+    "result": {
+      "schemaVersion": 1,
+      "action": "recover",
+      "taskRef": {
+        "taskId": "00000000-0000-4000-8000-000000000001",
+        "project": "fixture"
+      },
+      "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+      "importOperationId": "00000000-0000-4000-8000-000000000876",
+      "kind": "mastermind.native.contribution",
+      "observedAt": "2026-09-23T06:19:13.912Z",
+      "executionAuthorized": false,
+      "mayAutomaticallyRerun": false,
+      "historicalSnapshot": true,
+      "result": {
+        "ok": true,
+        "schemaVersion": 1,
+        "operationId": "00000000-0000-4000-8000-000000000876",
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "phase": "staged",
+        "candidateId": "7dc35f76ef7627f9da9d2e0fb6da7229108651a6f8f3b783431a6e52a5afd76a",
+        "moduleId": "fixture-calculator",
+        "version": "1.0.0",
+        "sourceCommit": "ffffffffffffffffffffffffffffffffffffffff",
+        "sourceSha256": "32bb501451f7438fe2fd3bcec737d62d58cd1b2135e2d4009710ee7d7f4cb432",
+        "requirementsHash": "3772a438ac3ab06b4947d951828392ae116439231d57a04784f6b4f28f0ea055",
+        "testSpecHash": "44938f8531baab310221c4a369772e7d13df3acb773edc4fc14f26338d52f7ca",
+        "recordIds": {
+          "assignmentId": "e885f455e5a59f57077de6d6ff22daa3a67560b363717028bff2f6816b1ef470",
+          "responseId": "ba1fcdbf5e9e370bdd74384603084061f98bb8995a5faaae84bd7037dbbd18b7",
+          "reviewId": "281e70bebb4766e32a9b62ea3ed93a8ed0dd246db71f09be3c9a337a294be26a"
+        },
+        "currentActiveRevision": null,
+        "candidateStaged": true,
+        "replayed": true,
+        "holds": [],
+        "behavioralTests": "separate-native-workflow",
+        "executionAuthorized": false,
+        "activationPerformed": false,
+        "currentlyActive": false
+      }
+    }
+  }
+]
