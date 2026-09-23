@@ -1,3 +1,4 @@
+import * as contribution from '../../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import * as coding from '../../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {developmentFixtureReceipt} from '../../../../protocol/mastermind-node-exchange/development-fixture.mjs';
 import * as development from '../../../../protocol/mastermind-node-exchange/native-development-work.mjs';
@@ -16,6 +17,27 @@ import * as specification from '../../../../protocol/mastermind-node-exchange/na
 import * as catalog from '../../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import * as native from '../../../../protocol/mastermind-node-exchange/native-task.mjs';
 import * as contract from '../../../../protocol/mastermind-node-exchange/contract.mjs';
+
+const contributionCases=JSON.parse(fs.readFileSync(new URL('../../../../services/mastermind-node-link/test/contribution-receipts.json',import.meta.url),'utf8'));
+for(const pair of contributionCases)test('contribution '+pair.input.action+' uses node-bound authority and preserves both operation identities',async()=>{
+ const store=loadStore(),input={...pair.input,operationId:JOB_ID},result={...pair.receipt,...input};
+ const row={...jobRow(JOB_ID),capability:contribution.CONTRIBUTION,commandInput:input,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-09-23T12:01:00.000Z'};
+ const auth=(query,values)=>{assert.match(query,/mastermind_contribution_authorized_v1/);assert.equal(values[2],NODE_ID);assert.deepEqual(JSON.parse(values[3]),input);return [{allowed:true}];};
+ const saved=await store.enqueueOwnerDevelopmentJob(scriptedSql([(query,values)=>{
+  assert.match(query,/enqueue_mastermind_contribution_job_v1/);assert.equal(values.length,7);assert.deepEqual(JSON.parse(values[6]),input);return [{status:'duplicate',job_id:JOB_ID}];
+ },(query)=>{assert.match(query,/job\.created_by_player_id/);return [row];},auth]),NODE_ID,{operationId:JOB_ID,input},contribution.CONTRIBUTION);
+ assert.equal(saved.status,'duplicate');assert.deepEqual(saved.job.terminal.result,result);
+ const recovered=await store.getLatestOwnerNativeJob(scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[row],auth]),NODE_ID,input.taskRef.taskId);
+ assert.deepEqual(JSON.parse(JSON.stringify(recovered.request.body)),{operationId:JOB_ID,input});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[row],()=>[{allowed:false}]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+ for(const changed of [{...result,executionAuthorized:true},{...result,importOperationId:BOOT_ID}])
+  await assert.rejects(store.getOwnerJob(scriptedSql([()=>[{...row,terminalResult:changed}],auth]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+ for(const body of [{operationId:BOOT_ID,input},{operationId:JOB_ID,input:{...input,authority:'injected'}},{operationId:JOB_ID,input,extra:true}]){
+  const sql=scriptedSql([]);await assert.rejects(store.enqueueOwnerDevelopmentJob(sql,NODE_ID,body,contribution.CONTRIBUTION),{code:'NODE_REQUEST_INVALID'});assert.equal(sql.calls(),0);
+ }
+ for(const status of ['busy','conflict'])await assert.rejects(store.enqueueOwnerDevelopmentJob(scriptedSql([()=>[{status,job_id:JOB_ID}]]),NODE_ID,{operationId:JOB_ID,input},contribution.CONTRIBUTION),{code:status==='busy'?'NODE_NATIVE_BUSY':'NODE_JOB_CONFLICT'});
+ await assert.rejects(store.enqueueOwnerDevelopmentJob(scriptedSql([()=>[{status:'applied',job_id:JOB_ID}],()=>[]]),NODE_ID,{operationId:JOB_ID,input},contribution.CONTRIBUTION),{code:'NODE_STORE_UNAVAILABLE'});
+});
 
 const source = fs.readFileSync(new URL('../store.ts', import.meta.url), 'utf8');
 const compiled = ts.transpileModule(source, {
@@ -41,6 +63,7 @@ function loadStore() {
     module: commonJsModule,
     process: { env: {} },
     require(identifier) {
+      if(identifier.includes('native-contribution'))return contribution;
       if(identifier.includes("native-build-dispatch"))return coding;
       if(identifier.endsWith('/native-development-work.mjs'))return development;
       if (identifier === 'server-only') return {};

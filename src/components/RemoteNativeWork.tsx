@@ -1,4 +1,6 @@
 'use client';
+import NativeContributionResult from './NativeContributionResult';
+import {CONTRIBUTION} from '../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import NativeCodingResult from './NativeCodingResult';
 import {BUILD_DISPATCH} from '../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import NativeDevelopmentResult from './NativeDevelopmentResult';
@@ -10,7 +12,7 @@ import {NATIVE_REVIEW_CAPABILITY as REVIEW,validateNativeReviewInput,encodeNativ
 import {useCallback,useEffect,useRef,useState} from 'react';
 import NativeCapabilityInputs,{type NativeJson,type NativeSchema} from './NativeCapabilityInputs';
 import {parseNodeInventory,isLocalNodeControlOrigin} from './node-control-contract.mjs';
-import {CATALOG,REUSE,SPECIFICATION,executionRequest,specificationRequest,checkedRemoteJob,remoteJson,developmentRequest,codingRequest} from '../lib/native-development/remote-workflow.mjs';
+import {CATALOG,REUSE,SPECIFICATION,executionRequest,specificationRequest,checkedRemoteJob,remoteJson,developmentRequest,codingRequest,contributionRequest} from '../lib/native-development/remote-workflow.mjs';
 import {validateNativeCatalogReceipt} from '../../protocol/mastermind-node-exchange/native-catalog.mjs';
 
 type Task={taskId:string;project:string;title:string};
@@ -49,6 +51,7 @@ export default function RemoteNativeWork() {
  const reviewSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW&&[1,2,3].includes(c.version));
  const artifactsSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_ARTIFACTS&&c.version===1);
  const buildSupported=node?.worker?.capabilities.some(c=>c.id===REVIEW_BUILD_PLAN&&c.version===1);
+ const contributionSupported=node?.worker?.capabilities.some(c=>c.id===CONTRIBUTION&&c.version===1);
  const codingSupported=node?.worker?.capabilities.some(c=>c.id===BUILD_DISPATCH&&c.version===1);
  const blocked=busy||!!pending&&!terminal(job?.state);
  const savedSpecification=pending?.capability===SPECIFICATION&&job?.state==='succeeded';
@@ -81,7 +84,7 @@ export default function RemoteNativeWork() {
        setTasks(owned.tasks);setNodes(computers);setTaskId(owned.tasks[0]?.taskId??'');setNodeId(computers[0]?.nodeId??'');setReady(true);
        const raw=localStorage.getItem(KEY);if(raw&&raw.length<=32768){const saved=JSON.parse(raw);
          if(saved&&['nodeId','operationId','capability','body','taskId'].every(k=>Object.prototype.hasOwnProperty.call(saved,k))
-           &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION,REVIEW,REVIEW_REUSE,BUILD_DISPATCH,...DEVELOPMENT_CAPABILITIES].includes(saved.capability)
+           &&/^[a-f0-9-]{36}$/.test(saved.operationId)&&[CATALOG,REUSE,SPECIFICATION,REVIEW,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,...DEVELOPMENT_CAPABILITIES].includes(saved.capability)
            &&computers.some((n:Computer)=>n.nodeId===saved.nodeId)&&owned.tasks.some((t:Task)=>t.taskId===saved.taskId)){
            currentOperation.current=saved.operationId;setPending(saved);setNodeId(saved.nodeId);setTaskId(saved.taskId);if(saved.capability===SPECIFICATION){setRequestText(saved.body?.input?.request??'');restoreDraft(saved);}await recover(saved,control.signal);
          }
@@ -104,7 +107,7 @@ export default function RemoteNativeWork() {
  }
  async function submit(saved:Pending) {
    localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setJob(null);setEditing(false);setReviewEditing(false);
-   try{const suffix=saved.capability===BUILD_DISPATCH?'review-build-dispatch':saved.capability===REVIEW_ARTIFACTS?'review-artifacts':saved.capability===REVIEW_BUILD_PLAN?'review-build-plan':saved.capability===REVIEW_REUSE?'review-reuse':saved.capability===REVIEW?'native-review':saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
+   try{const suffix=saved.capability===CONTRIBUTION?'native-contribution':saved.capability===BUILD_DISPATCH?'review-build-dispatch':saved.capability===REVIEW_ARTIFACTS?'review-artifacts':saved.capability===REVIEW_BUILD_PLAN?'review-build-plan':saved.capability===REVIEW_REUSE?'review-reuse':saved.capability===REVIEW?'native-review':saved.capability===CATALOG?'native-catalog':saved.capability===SPECIFICATION?'native-specification':'native-tasks';
      await receive(await remoteJson(`/api/nodes/${saved.nodeId}/${suffix}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(saved.body)}),saved,true);
    }catch{setError('Submission could not be confirmed. Refresh this saved request before starting another.');}
  }
@@ -114,7 +117,7 @@ export default function RemoteNativeWork() {
      const data=await remoteJson(`/api/nodes/${nodeId}/native-history/${taskId}${reviewOnly?'/review':''}`);
      if(data.saved===null){setError('No saved native work was found for this task and computer.');return;}
      const saved=data.saved?.request;
-     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||reviewOnly&&saved.capability!==REVIEW||![CATALOG,REUSE,SPECIFICATION,REVIEW,REVIEW_REUSE,BUILD_DISPATCH,...DEVELOPMENT_CAPABILITIES].includes(saved.capability))throw Error();
+     if(!saved||saved.nodeId!==nodeId||saved.taskId!==taskId||reviewOnly&&saved.capability!==REVIEW||![CATALOG,REUSE,SPECIFICATION,REVIEW,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,...DEVELOPMENT_CAPABILITIES].includes(saved.capability))throw Error();
      const checked=await checkedRemoteJob({ok:true,job:data.saved.job},saved);
      localStorage.setItem(KEY,JSON.stringify(saved));currentOperation.current=saved.operationId;setPending(saved);setPage(null);setJob(checked);
      setEditing(false);setReviewEditing(saved.capability===REVIEW&&checked.state==='succeeded'&&localStorage.getItem(REVIEW_EDIT_KEY)===saved.operationId);if(saved.capability===SPECIFICATION){setRequestText(saved.body.input.request);restoreDraft(saved);}
@@ -175,6 +178,16 @@ export default function RemoteNativeWork() {
    catch {setError('This development step could not be saved. Refresh the current result before continuing.');}
    finally{acting.current=false;setBusy(false);}
  }
+ async function contribute(action:string) {
+   if(acting.current||blocked||editing||reviewEditing||!contributionSupported||!pending||!job)return;
+   acting.current=true;setBusy(true);setError('');
+   try {const saved=await contributionRequest(pending,job,action);
+     if(!alive.current||currentOperation.current!==pending.operationId)return;
+     await submit(saved);
+   }
+   catch {setError('This contribution step could not be saved. Refresh the original request before continuing.');}
+   finally{acting.current=false;setBusy(false);}
+ }
  async function code(action:string) {
    if(acting.current||blocked||editing||reviewEditing||!codingSupported||!pending||!job)return;
    acting.current=true;setBusy(true);setError('');
@@ -213,6 +226,7 @@ export default function RemoteNativeWork() {
       {editing&&<button type="button" style={button} disabled={blocked} onClick={()=>{try{localStorage.removeItem(DRAFT_KEY);setRequestText(savedRequest);setEditing(false);setError('');}catch{setError('The draft could not be cleared.');}}}>Discard unsent edits</button>}</>}
     <button style={button} disabled={blocked||reviewEditing||!ready||!task||!wizardSupported||!requestText.trim()||!!savedSpecification&&(!editing||requestText===savedRequest)}>{savedSpecification?'Save revised request':'Save Wizard request'}</button>
   </form>
+  {savedSpecification&&!editing&&contributionSupported&&<button type="button" style={button} disabled={blocked} onClick={()=>void contribute('catalog')}>Find reviewed contributions</button>}
   {savedSpecification&&!editing&&reviewSupported&&<NativeReviewEditor wireVersion={reviewVersion} key={pending!.operationId} parentOperationId={pending!.operationId}
     specificationId={(job!.terminal!.result as {specification:{specificationId:string}}).specification.specificationId}
     taskRef={(pending!.body.input as {taskRef:{taskId:string;project:string}}).taskRef} request={savedRequest} disabled={blocked} onSave={saveReview}/>}
@@ -241,6 +255,8 @@ export default function RemoteNativeWork() {
   {job?.state==='succeeded'&&pending?.capability===REUSE&&<Result value={(job.terminal?.result as {result?:unknown})?.result}/>}
   {job?.state==='succeeded'&&pending?.capability===SPECIFICATION&&<WizardResult value={job.terminal?.result}/>}
   {job?.state==='succeeded'&&pending&&DEVELOPMENT_CAPABILITIES.includes(pending.capability)&&<NativeDevelopmentResult value={job.terminal?.result} disabled={blocked||!artifactsSupported} buildSupported={!!buildSupported} codingSupported={!!codingSupported} onCoding={()=>void code('preflight')} onAction={(kind,action)=>void develop(kind,action)}/>}
+  {job?.state==='succeeded'&&pending?.capability===CONTRIBUTION&&<NativeContributionResult value={job.terminal?.result} disabled={blocked||!contributionSupported} onAction={action=>void contribute(action)}/>}
+  {pending?.capability===CONTRIBUTION&&['failed','expired'].includes(job?.state??'')&&['stage','recover'].includes((pending.body.input as {action:string}).action)&&<button type="button" style={button} disabled={blocked||!contributionSupported} onClick={()=>void contribute('recover')}>Recover saved import</button>}
   {job?.state==='succeeded'&&pending?.capability===BUILD_DISPATCH&&<NativeCodingResult value={job.terminal?.result} disabled={blocked||!codingSupported} onAction={action=>void code(action)}/>}
   {job?.state==='succeeded'&&pending?.capability===REVIEW_REUSE&&<NativeReviewReuseResult key={pending.operationId} value={job.terminal?.result as ReviewReuseResult} disabled={blocked||!linkSupported} onAccept={()=>void reuseReview(true)}/>}
   {job?.state==='succeeded'&&pending?.capability===REVIEW&&<ReviewResult input={{originalRequest:(pending.body.input as {originalRequest:string}).originalRequest,content:nativeReviewContent(pending.body.input)}} value={job.terminal?.result}/>}

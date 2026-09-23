@@ -5,7 +5,8 @@ const TASK='4196249c-dcbd-41cc-9e6f-8b87b7b2cdda',KEY='mastermind-contribution-p
 const compiled=ts.transpileModule(fs.readFileSync(new URL('../../components/ExternalContributions.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
 const plain=v=>JSON.parse(JSON.stringify(v));
 function fixture(saved=new Map(),rows=[]){
- const slots=[],effects=[],calls=[];let index=0,tree,lost=false,denied=false;
+ const slots=[],effects=[],calls=[],pendingChecks=new Set();let index=0,tree,lost=false,denied=false;
+ function checked(promise){const tracked=promise.finally(()=>pendingChecks.delete(tracked));pendingChecks.add(tracked);return tracked;}
  const hooks={...React,useState(init){const i=index++;if(!(i in slots))slots[i]=init;return [slots[i],v=>slots[i]=typeof v==='function'?v(slots[i]):v];},useRef(init){const i=index++;return slots[i]??(slots[i]={current:init});},useEffect(fn){const i=index++;if(!slots[i]){slots[i]=true;effects.push(fn);}}};
  async function api(url,opt={}){
   calls.push({url,opt});if(denied)throw Error('Access revoked');
@@ -21,11 +22,11 @@ function fixture(saved=new Map(),rows=[]){
  const module={exports:{}};vm.runInNewContext(compiled,{module,exports:module.exports,console,Error,crypto:webcrypto,localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},require(name){
   if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;
   if(name.includes('contract.mjs'))return {...contract,validateRecord:v=>contract.validateRecord(plain(v)),assignmentPrompt:(v,p)=>contract.assignmentPrompt(plain(v),p)};
-  if(name.includes('browser-workflow'))return {...workflow,contributionJson:api,checkedArtifact:(v,r)=>workflow.checkedArtifact(plain(v),plain(r)),checkedAcknowledgement:(v,r)=>workflow.checkedAcknowledgement(plain(v),plain(r))};
+  if(name.includes('browser-workflow'))return {...workflow,contributionJson:api,checkedArtifact:(v,r)=>checked(workflow.checkedArtifact(plain(v),plain(r))),checkedAcknowledgement:(v,r)=>checked(workflow.checkedAcknowledgement(plain(v),plain(r)))};
   throw Error(name);
  }});
  const render=()=>{index=0;tree=module.exports.default();};
- async function settle(){for(let i=0;i<8;i++){render();while(effects.length)effects.shift()();await new Promise(r=>setImmediate(r));}render();}
+ async function settle(){for(let i=0;i<8;i++){render();while(effects.length)effects.shift()();await Promise.allSettled([...pendingChecks]);await new Promise(r=>setImmediate(r));}render();}
  function all(n=tree){if(!n||typeof n!=='object')return [];return [n,...React.Children.toArray(n.props?.children).flatMap(all)];}
  const field=label=>all().find(n=>n.type==='label'&&React.Children.toArray(n.props.children)[0]===label)?.props.children[1];
  return {saved,rows,calls,settle,field,loseReply:()=>lost=true,deny:()=>denied=true,html:()=>renderToStaticMarkup(tree),button:t=>all().find(n=>n.type==='button'&&n.props.children===t),form:(index=0)=>all().filter(n=>n.type==='form')[index]};

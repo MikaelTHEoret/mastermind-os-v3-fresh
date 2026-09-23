@@ -15,13 +15,16 @@ function fixture(saved=new Map(),options={}){
  const same=(a,b)=>a&&b&&a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
  const hooks={...React,useCallback(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps))slots[i]={deps,fn};return slots[i].fn;},useState(initial){const i=index++;if(!(i in slots))slots[i]=initial;return [slots[i],v=>{slots[i]=typeof v==='function'?v(slots[i]):v;}];},useRef(v){const i=index++;return slots[i]??(slots[i]={current:v});},useEffect(fn,deps){const i=index++;if(!slots[i]||!same(slots[i].deps,deps)){slots[i]?.cleanup?.();slots[i]={deps};effects.push(()=>slots[i].cleanup=fn());}}};
  function ValueField(){return jsx.jsx('span',{children:'Schema-generated example fields'});}
- let digestCalls=0;const crypto={subtle:{async digest(...args){if(++digestCalls===1&&options.restoreWait)await options.restoreWait;return webcrypto.subtle.digest(...args);}}};
+ // Await real digest completion; event-loop ticks alone do not drain the crypto worker pool.
+ // Deliberately paused restore/save operations remain controlled by their individual tests.
+ const pendingDigests=new Set();
+ let digestCalls=0;const crypto={subtle:{async digest(...args){if(++digestCalls===1&&options.restoreWait)await options.restoreWait;const pending=webcrypto.subtle.digest(...args);pendingDigests.add(pending);try{return await pending;}finally{pendingDigests.delete(pending);}}}};
  const module={exports:{}};vm.runInNewContext(compiled,{module,exports:module.exports,TextEncoder,crypto,structuredClone,
  localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name==='./NativeCapabilityInputs')return {ValueField};if(name.includes('native-review-contract'))return {...review,nativeReviewContent:v=>review.nativeReviewContent(JSON.parse(JSON.stringify(v))),encodeNativeReviewInput:v=>review.encodeNativeReviewInput(JSON.parse(JSON.stringify(v))),validateNativeReviewInput:v=>review.validateNativeReviewInput(JSON.parse(JSON.stringify(v)))};throw Error(name);}});
  const props={specificationId:input.specificationId,parentOperationId:input.parentOperationId,taskRef:input.taskRef,request:reviewText,disabled:false,
  onSave:async c=>{calls.push(c);await options.wait;}};
  const render=()=>{index=0;tree=module.exports.default(props);};
- const settle=async()=>{for(let n=0;n<6;n++){render();while(effects.length)effects.shift()();await new Promise(r=>setImmediate(r));}render();};
+ const settle=async()=>{for(let n=0;n<6;n++){render();while(effects.length)effects.shift()();await Promise.allSettled([...pendingDigests]);await new Promise(r=>setImmediate(r));}render();};
  const all=(n=tree)=>!n||typeof n!=='object'?[]:[n,...React.Children.toArray(n.props?.children).flatMap(all)];
  const file=()=>all().find(n=>n.type==='input'&&n.props.type==='file');
  return {calls,saved,props,settle,all,html:()=>renderToStaticMarkup(tree),load:async c=>{file().props.onChange({currentTarget:{files:[{size:JSON.stringify(c).length,text:async()=>JSON.stringify(c)}]}});await settle();},save:()=>all().find(n=>n.type==='button'&&n.props.children==='Save review proposal')};

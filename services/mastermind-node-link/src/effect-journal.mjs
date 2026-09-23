@@ -1,3 +1,4 @@
+import {CONTRIBUTION} from '../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import {BUILD_DISPATCH} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -425,8 +426,8 @@ export class FileMastermindNodeEffectJournal {
       this.#assertSelectedNode();
       if (options.allowedCapabilities !== undefined) {
         if (!Array.isArray(options.allowedCapabilities) || options.allowedCapabilities.length < 1
-          || options.allowedCapabilities.length > 9 || options.allowedCapabilities.some((item) =>
-            !['family-ecosystem.ensure-running','mastermind.core.status','mastermind.native.reuse','mastermind.native.catalog','mastermind.native.specification','mastermind.native.review','mastermind.native.review-reuse',BUILD_DISPATCH,...DEVELOPMENT_CAPABILITIES].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
+          || options.allowedCapabilities.length > 10 || options.allowedCapabilities.some((item) =>
+            !['family-ecosystem.ensure-running','mastermind.core.status','mastermind.native.reuse','mastermind.native.catalog','mastermind.native.specification','mastermind.native.review','mastermind.native.review-reuse',BUILD_DISPATCH,CONTRIBUTION,...DEVELOPMENT_CAPABILITIES].includes(item))) throw new TypeError('Explicit known receipt capabilities required');
         if ([...this.#receipts.values()].some((receipt) => {
           const effect = this.#effects.get(receipt.jobId);
           return !effect || effect.commandDigest !== receipt.commandDigest || !(effect.capabilityVersion===1

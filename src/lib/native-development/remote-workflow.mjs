@@ -1,3 +1,4 @@
+import {CONTRIBUTION,validateContributionInput,validateContributionReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import {BUILD_DISPATCH,validateBuildDispatchInput,validateBuildDispatchReceipt} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,developmentLocalRequest,validateDevelopmentInput,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
 import {REVIEW_REUSE,validateReviewReuseInput,validateReviewReuseReceipt} from '../../../protocol/mastermind-node-exchange/native-review-reuse.mjs';
@@ -12,6 +13,13 @@ export function specificationRequest(taskRef,request,operationId,revisionOf) {
   return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(pending.capability===CONTRIBUTION){
+    const input=validateContributionInput(pending.body.input);
+    if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved contribution binding changed.');
+    const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,CONTRIBUTION).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,CONTRIBUTION).job;
+    if(job.state==='succeeded')validateContributionReceipt(job.terminal.result,input);
+    return job;
+  }
   if(pending.capability===BUILD_DISPATCH){
     const input=validateBuildDispatchInput(pending.body.input);
     if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved coding binding changed.');
@@ -70,6 +78,42 @@ export function canonical(value) {
   if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
   if(value!==null&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonical(value[k])).join(',')+'}';
   return JSON.stringify(value);
+}
+
+/** Explicit owner transitions; select host-bound choices, never invent import authority. */
+export async function contributionRequest(pending,job,action,newId=()=>crypto.randomUUID()) {
+ if(!pending||job?.jobId!==pending.operationId||job.nodeId!==pending.nodeId||job.capability!==pending.capability)throw Error('Recover the saved result first.');
+ await checkedRemoteJob({ok:true,job},pending);
+ const prior=pending.body.input,result=job.terminal?.result;
+ let taskRef,specificationId,importOperationId=null,snapshotId=null,cursor=null;
+ if(pending.capability===SPECIFICATION){
+  validateNativeSpecificationInput(prior);
+  if(job.state!=='succeeded'||action!=='catalog')throw Error('Choose a saved Wizard request first.');
+  validateNativeSpecificationReceiptFields(result);
+  taskRef=prior.taskRef;specificationId=result.specification.specificationId;
+ }else if(pending.capability===CONTRIBUTION){
+  validateContributionInput(prior);taskRef=prior.taskRef;specificationId=prior.specificationId;
+  if(job.state==='succeeded'){
+   validateContributionReceipt(result,prior);
+   if(action==='catalog-start'){
+    action='catalog';
+   }else if(action==='catalog'){
+    if(prior.action!=='catalog'||!result.data.nextCursor)throw Error('There are no further contributions in this selection.');
+    snapshotId=result.data.snapshotId;cursor=result.data.nextCursor;
+   }else if(action==='prepare'){
+    if(prior.action!=='catalog'||!result.data.choice?.packetAvailable)throw Error('Choose a prepared contribution first.');
+    importOperationId=result.data.choice.importOperationId;
+   }else if(action==='stage'){
+    if(!(prior.action==='prepare'&&result.data.phase==='preview'||prior.action==='recover'&&result.data.phase==='prepared'))throw Error('Preview or recover this contribution before staging.');
+    importOperationId=prior.importOperationId;
+   }else if(action==='recover'&&prior.action!=='catalog')importOperationId=prior.importOperationId;
+   else throw Error('Unsupported contribution transition.');
+  }else if(['failed','expired'].includes(job.state)&&action==='recover'&&['stage','recover'].includes(prior.action))importOperationId=prior.importOperationId;
+  else throw Error('Refresh the original delivery before starting another.');
+ }else throw Error('Choose a saved Wizard request first.');
+ if(prior.operationId!==pending.operationId||pending.body.operationId!==pending.operationId||taskRef.taskId!==pending.taskId)throw Error('Saved task changed.');
+ const input=validateContributionInput({schemaVersion:1,action,taskRef,specificationId,importOperationId,snapshotId,cursor,operationId:newId()});
+ return {nodeId:pending.nodeId,taskId:pending.taskId,operationId:input.operationId,capability:CONTRIBUTION,body:{operationId:input.operationId,input}};
 }
 export async function executionRequest(page,arguments_,operationId,subtle=crypto.subtle) {
   validateNativeCatalogReceipt(page);

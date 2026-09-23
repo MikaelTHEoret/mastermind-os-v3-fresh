@@ -78,3 +78,6 @@ def verify(ctx, saved, saved_result, old_worker):
     cur.execute('ROLLBACK TO SAVEPOINT original_success'); cur.execute('RELEASE SAVEPOINT original_success')
     cur.execute(f'SELECT command_input,terminal_result FROM {schema}.mastermind_node_jobs_v1 WHERE job_id=%s',(saved['operationId'],)); assert cur.fetchone() == (saved,saved_result)
     ctx['receipt']['checks'].append('034: exact saved review recovery; failed delivery/history preserved; new delivery ID; v3 negotiation and old-worker exclusion; forced replay, duplicate, foreign and revoked denial; no recovery chains; artifact recovery parent; idempotent migration and guarded exact rollback; no execution grant')
+    if '--contribution' in __import__('sys').argv:
+        from contribution_sql_acceptance import verify as verify_contribution
+        verify_contribution(ctx,saved,worker)

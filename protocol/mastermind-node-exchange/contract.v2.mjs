@@ -1,3 +1,4 @@
+import {CONTRIBUTION} from './native-contribution.mjs';
 import {BUILD_DISPATCH} from './native-build-dispatch.mjs';
 /** Explicit v2 views. The default v1 validators and frozen registry remain strict. */
 import * as base from './contract.mjs';
@@ -44,3 +45,8 @@ export const CODING_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Ob
 export const REVIEW_RECOVERY_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze(
  CODING_CORE_WORKER.capabilities.map(c=>Object.freeze({...c,version:c.id==='mastermind.native.review'?3:c.version})),
 )});
+
+// Off by default; requires coupled local host, ledger and owner routes.
+export const CONTRIBUTION_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([
+ ...REVIEW_RECOVERY_CORE_WORKER.capabilities,Object.freeze({id:CONTRIBUTION,version:1}),
+])});
