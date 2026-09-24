@@ -1,3 +1,4 @@
+import {validateLifecycleInput,lifecycleLocalRequest,lifecycleReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution-lifecycle.mjs';
 import {validateNativeCatalogRequest,validateNativeCatalogResult} from '../../../protocol/mastermind-node-exchange/native-catalog.mjs';
 import {validateContributionInput,contributionLocalRequest,contributionReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 export const CONTRIBUTION_ENDPOINT='http://127.0.0.1:8770/task_contribution_candidate';
@@ -57,6 +58,25 @@ export class NativeTaskClient {
     need(typeof fetchImpl === 'function' && typeof now === 'function' && Number.isSafeInteger(timeoutMs)
       && timeoutMs >= 100 && timeoutMs <= 60000);
     this.fetchImpl = fetchImpl; this.now = now; this.timeoutMs = timeoutMs;
+  }
+  async lifecycle(request,{signal,deadlineMs,recoverOnly=false}={}) {
+    const input=validateLifecycleInput(request),body=lifecycleLocalRequest(input,recoverOnly);
+    need(Number.isFinite(deadlineMs),'TASK_DEADLINE_REQUIRED');
+    const remaining=Math.floor(Math.min(this.timeoutMs,deadlineMs-this.now()));
+    if(signal?.aborted||remaining<=0)throw new NativeTaskError('TASK_NOT_STARTED');
+    const combined=signal?AbortSignal.any([signal,AbortSignal.timeout(remaining)]):AbortSignal.timeout(remaining);
+    try {
+      combined.throwIfAborted();
+      const response=await abortable(this.fetchImpl('http://127.0.0.1:8770/task_contribution_lifecycle',{
+        method:'POST',redirect:'error',signal:combined,headers:{'content-type':'application/json',accept:'application/json'},
+        body:JSON.stringify(body)}),combined,response=>response?.body?.cancel().catch(()=>{}));
+      const result=await readResponse(response,combined);combined.throwIfAborted();
+      need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      need(response.status===200,'TASK_LIFECYCLE_UNAVAILABLE');
+      const receipt=await lifecycleReceipt(result,input,recoverOnly);
+      combined.throwIfAborted();need(this.now()<deadlineMs,'TASK_LOCAL_UNCERTAIN');
+      return receipt;
+    }catch(error){if(error instanceof NativeTaskError)throw error;throw new NativeTaskError('TASK_LOCAL_UNCERTAIN');}
   }
   async contribution(request,{signal,deadlineMs,recoverOnly=false}={}) {
     const input=validateContributionInput(request),body=contributionLocalRequest(input,recoverOnly);

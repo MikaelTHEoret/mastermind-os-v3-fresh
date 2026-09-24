@@ -1,3 +1,4 @@
+import {LIFECYCLE,validateLifecycleInput,validateLifecycleReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution-lifecycle.mjs';
 import {CONTRIBUTION,validateContributionInput,validateContributionReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import {BUILD_DISPATCH,validateBuildDispatchInput,validateBuildDispatchReceipt} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {DEVELOPMENT_CAPABILITIES,REVIEW_ARTIFACTS,REVIEW_BUILD_PLAN,developmentLocalRequest,validateDevelopmentInput,validateDevelopmentReceipt} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
@@ -13,6 +14,12 @@ export function specificationRequest(taskRef,request,operationId,revisionOf) {
   return {operationId,input:validateNativeSpecificationInput({schemaVersion:1,action:'prepare',taskRef,operationId,request,recipeId:null,...(revisionOf?{revisionOf}: {})})};
 }
 export async function checkedRemoteJob(envelope,pending,enqueue=false,subtle=crypto.subtle) {
+  if(pending.capability===LIFECYCLE){
+    const input=validateLifecycleInput(pending.body.input);
+    if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved lifecycle binding changed.');
+    const job=enqueue?parseNodeJobEnqueue(envelope,pending.nodeId,pending.operationId,LIFECYCLE).job:parseNodeJob(envelope,pending.nodeId,pending.operationId,LIFECYCLE).job;
+    if(job.state==='succeeded')validateLifecycleReceipt(job.terminal.result,input);return job;
+  }
   if(pending.capability===CONTRIBUTION){
     const input=validateContributionInput(pending.body.input);
     if(input.operationId!==pending.operationId||input.taskRef.taskId!==pending.taskId||pending.body.operationId!==pending.operationId)throw Error('Saved contribution binding changed.');
@@ -201,4 +208,35 @@ export function codingRequest(pending,job,action,newId=()=>crypto.randomUUID()) 
  input=validateBuildDispatchInput(input);
  if(input.taskRef.taskId!==pending.taskId)throw Error('Saved task changed.');
  return {nodeId:pending.nodeId,taskId:pending.taskId,operationId:input.operationId,capability:BUILD_DISPATCH,body:{operationId:input.operationId,input}};
+}
+
+/** New delivery IDs; recovery preserves the original lifecycle operation. */
+export async function lifecycleRequest(pending,job,action,newId=()=>crypto.randomUUID()) {
+ if(!pending||job?.jobId!==pending.operationId||job.nodeId!==pending.nodeId||job.capability!==pending.capability)throw Error('Recover the saved result first.');
+ await checkedRemoteJob({ok:true,job},pending);
+ const prior=pending.body.input,result=job.terminal?.result;
+ let base;
+ if(pending.capability===CONTRIBUTION){
+  if(job.state!=='succeeded'||action!=='inspect')throw Error('Recover the staged contribution first.');
+  validateContributionReceipt(result,prior);if(result.data.phase!=='staged')throw Error('Stage the candidate first.');
+  base={taskRef:prior.taskRef,specificationId:prior.specificationId,importOperationId:prior.importOperationId,candidateId:result.data.candidateId};
+ }else if(pending.capability===LIFECYCLE){
+  validateLifecycleInput(prior);base=Object.fromEntries(['taskRef','specificationId','importOperationId','candidateId'].map(k=>[k,prior[k]]));
+  if(action==='recover'){
+   if(prior.lifecycleOperationId===null)throw Error('No effect to recover.');
+   const input=validateLifecycleInput({...prior,action:'recover',operationId:newId()});
+   return {...pending,operationId:input.operationId,body:{operationId:input.operationId,input}};
+  }
+  if(job.state!=='succeeded')throw Error('Recover the original operation first.');
+  validateLifecycleReceipt(result,prior);
+  const d=result.data;
+  if(['running','uncertain','held','interrupted'].includes(d.operationState)||['running','held','interrupted'].includes(d.test?.status))throw Error('Recover unfinished work before continuing.');
+  if(action==='test'&&(d.test!==null||d.recordedOutcome!==null||d.currentlyActive))throw Error('An existing test must be recovered.');
+  if(action==='promote'&&(d.recordedOutcome!=='passed'||d.currentlyActive))throw Error('Passing tests are required.');
+  if(action==='rollback'&&(!d.currentlyActive||!d.rollbackAccepted))throw Error('No accepted predecessor is available.');
+ }else throw Error('Choose a staged contribution first.');
+ if(!['inspect','test','promote','rollback'].includes(action))throw Error('Unsupported lifecycle action.');
+ const input=validateLifecycleInput({schemaVersion:1,...base,action:action==='inspect'?'inspect':'execute',operationId:newId(),
+  operation:action==='inspect'?null:action,lifecycleOperationId:action==='inspect'?null:newId(),expectedActiveRevision:action==='inspect'?null:result.data.activeRevision});
+ return {nodeId:pending.nodeId,taskId:pending.taskId,operationId:input.operationId,capability:LIFECYCLE,body:{operationId:input.operationId,input}};
 }

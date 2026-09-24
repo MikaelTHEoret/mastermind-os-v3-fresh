@@ -1,3 +1,4 @@
+import {LIFECYCLE,validateLifecycleInput,validateLifecycleReceipt} from '../../../protocol/mastermind-node-exchange/native-contribution-lifecycle.mjs';
 import {CONTRIBUTION} from '../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import {BUILD_DISPATCH} from '../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {DEVELOPMENT_CAPABILITIES} from '../../../protocol/mastermind-node-exchange/native-development-work.mjs';
@@ -16,6 +17,7 @@ export class NativeTaskExecutor extends CoreStatusExecutor {
   async nativeResult(rawCommand,options,action) {
     const lease=validateMastermindNodeCommand(Object.fromEntries(
       ['jobId','nodeId','capability','capabilityVersion','policyClass','input'].map(key=>[key,rawCommand[key]])));
+    if(lease.capability===LIFECYCLE)return this.native.lifecycle(lease.input,{...options,recoverOnly:action==='recover'});
     if(lease.capability===CONTRIBUTION)return this.native.contribution(lease.input,{...options,recoverOnly:action==='recover'});
     if(lease.capability===BUILD_DISPATCH)return this.native.buildDispatch(lease.input,{...options,recoverOnly:action==='recover'});
     if(DEVELOPMENT_CAPABILITIES.includes(lease.capability))return this.native.development(lease.capability,lease.input,{...options,recoverOnly:action==='recover'});
@@ -35,7 +37,7 @@ export class NativeTaskExecutor extends CoreStatusExecutor {
   }
   async execute(rawLease,options) {
     const lease=validateMastermindNodeLease(rawLease);
-    if(![NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,...DEVELOPMENT_CAPABILITIES].includes(lease.capability))return super.execute(lease,options);
+    if(![NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,LIFECYCLE,...DEVELOPMENT_CAPABILITIES].includes(lease.capability))return super.execute(lease,options);
     if(options.signal?.aborted)throw options.signal.reason;
     if(!Number.isFinite(options.deadlineMs)||this.now()>=options.deadlineMs)throw new MastermindNodeExecutionError('lease-lost','Native task deadline expired.',{retryable:false});
     await options.emit('checking-local-state');
@@ -45,6 +47,6 @@ export class NativeTaskExecutor extends CoreStatusExecutor {
     return this.nativeResult(command,options,'recover');
   }
   async authorizeReplay(lease,options) {
-    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,...DEVELOPMENT_CAPABILITIES].includes(lease.capability))return this.nativeResult(lease,options,'recover');
+    if([NATIVE_REUSE_CAPABILITY,NATIVE_CATALOG_CAPABILITY,NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,LIFECYCLE,...DEVELOPMENT_CAPABILITIES].includes(lease.capability))return this.nativeResult(lease,options,'recover');
   }
 }

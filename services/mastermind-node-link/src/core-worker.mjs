@@ -1,5 +1,5 @@
 import {NativeTaskExecutor} from './native-task-executor.mjs';
-import {NATIVE_CORE_WORKER,WIZARD_CORE_WORKER,REVIEW_CORE_WORKER,REVIEW_REUSE_CORE_WORKER,DEVELOPMENT_CORE_WORKER,LOSSLESS_DEVELOPMENT_CORE_WORKER,CODING_CORE_WORKER,REVIEW_RECOVERY_CORE_WORKER,CONTRIBUTION_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
+import {NATIVE_CORE_WORKER,WIZARD_CORE_WORKER,REVIEW_CORE_WORKER,REVIEW_REUSE_CORE_WORKER,DEVELOPMENT_CORE_WORKER,LOSSLESS_DEVELOPMENT_CORE_WORKER,CODING_CORE_WORKER,REVIEW_RECOVERY_CORE_WORKER,CONTRIBUTION_CORE_WORKER,LIFECYCLE_CORE_WORKER} from '../../../protocol/mastermind-node-exchange/contract.v2.mjs';
 import path from 'node:path';
 import { FileMastermindNodeEffectJournal } from './effect-journal.mjs';
 import { MastermindNodeLink } from './node-link.mjs';
@@ -20,6 +20,7 @@ export function coreWorkerEnvelope(now = Date.now) {
 }
 
 export function createMastermindCoreOnlyWorker(options = {}) {
+  if(options.enableLifecycle!==undefined&&typeof options.enableLifecycle!=='boolean'||options.enableLifecycle===true&&options.enableContributions!==true)throw new TypeError('Lifecycle requires explicit contribution activation');
   if(options.enableContributions!==undefined&&typeof options.enableContributions!=='boolean'||options.enableContributions===true&&options.enableReviewRecovery!==true)throw new TypeError('Contributions require explicit review recovery activation');
   if(options.enableReviewRecovery!==undefined&&typeof options.enableReviewRecovery!=='boolean'||options.enableReviewRecovery===true&&options.enableBuildDispatch!==true)throw new TypeError('Review recovery requires explicit coding profile activation');
   if(options.enableBuildDispatch!==undefined&&typeof options.enableBuildDispatch!=='boolean'||options.enableBuildDispatch===true&&options.enableLosslessReviews!==true)throw new TypeError('Coding dispatch requires explicit lossless development activation');
@@ -38,8 +39,8 @@ export function createMastermindCoreOnlyWorker(options = {}) {
     exchangeTransport: options.exchangeTransport, journal,
     executor: options.enableNativeTasks === true ? new NativeTaskExecutor({core,now:monotonicNow,native:options.nativeTaskClient}) : new CoreStatusExecutor({ core, now: monotonicNow }),
     statusProvider: { observeStatus: async () => coreWorkerEnvelope(options.now) },
-    agentVersion: options.enableContributions===true?'0.12.0-contribution':options.enableReviewRecovery===true?'0.11.0-review-recovery':options.enableBuildDispatch===true?'0.10.0-coding-handoff':options.enableLosslessReviews===true?'0.9.0-lossless-review':options.enableDevelopmentWork===true?'0.8.0-development-work':options.enableReviewReuse===true?'0.7.0-review-reuse':options.enableNativeReviews === true ? '0.6.0-native-review' : options.enableNativeSpecifications === true ? '0.5.0-native-wizard' : options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
-    now: options.now, monotonicNow, worker: options.enableContributions===true?CONTRIBUTION_CORE_WORKER:options.enableReviewRecovery===true?REVIEW_RECOVERY_CORE_WORKER:options.enableBuildDispatch===true?CODING_CORE_WORKER:options.enableLosslessReviews===true?LOSSLESS_DEVELOPMENT_CORE_WORKER:options.enableDevelopmentWork===true?DEVELOPMENT_CORE_WORKER:options.enableReviewReuse===true?REVIEW_REUSE_CORE_WORKER:options.enableNativeReviews === true ? REVIEW_CORE_WORKER : options.enableNativeSpecifications === true ? WIZARD_CORE_WORKER : options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
+    agentVersion: options.enableLifecycle===true?'0.13.0-native-lifecycle':options.enableContributions===true?'0.12.0-contribution':options.enableReviewRecovery===true?'0.11.0-review-recovery':options.enableBuildDispatch===true?'0.10.0-coding-handoff':options.enableLosslessReviews===true?'0.9.0-lossless-review':options.enableDevelopmentWork===true?'0.8.0-development-work':options.enableReviewReuse===true?'0.7.0-review-reuse':options.enableNativeReviews === true ? '0.6.0-native-review' : options.enableNativeSpecifications === true ? '0.5.0-native-wizard' : options.enableNativeTasks === true ? '0.4.0-native-catalog' : '0.2.0-core-status', bootId: options.bootId,
+    now: options.now, monotonicNow, worker: options.enableLifecycle===true?LIFECYCLE_CORE_WORKER:options.enableContributions===true?CONTRIBUTION_CORE_WORKER:options.enableReviewRecovery===true?REVIEW_RECOVERY_CORE_WORKER:options.enableBuildDispatch===true?CODING_CORE_WORKER:options.enableLosslessReviews===true?LOSSLESS_DEVELOPMENT_CORE_WORKER:options.enableDevelopmentWork===true?DEVELOPMENT_CORE_WORKER:options.enableReviewReuse===true?REVIEW_REUSE_CORE_WORKER:options.enableNativeReviews === true ? REVIEW_CORE_WORKER : options.enableNativeSpecifications === true ? WIZARD_CORE_WORKER : options.enableNativeTasks === true ? NATIVE_CORE_WORKER : CORE_ONLY_WORKER,
     // Preserve incompatible pending receipts. They require source/ledger
     // reconciliation, never silent deletion or a family-capability fallback.
     requireExistingPairing: true,
