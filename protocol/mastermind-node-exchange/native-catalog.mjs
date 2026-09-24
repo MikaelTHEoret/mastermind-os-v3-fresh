@@ -1,3 +1,4 @@
+import {LIFECYCLE,sameLifecycleDisclosure} from './native-contribution-lifecycle.mjs';
 import {sameContributionDisclosure} from './native-contribution.mjs';
 // A read-only discovery view. Entries never authorize later execution.
 import {NativeTaskError} from './native-task.mjs';
@@ -78,6 +79,7 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 export function sameNativeDisclosure(current,saved) {
+  if(saved?.kind===LIFECYCLE)return sameLifecycleDisclosure(current,saved);
   if(saved?.kind==='mastermind.native.contribution')return sameContributionDisclosure(current,saved);
   if(saved?.kind==='mastermind.native.review-build-dispatch') {
     if(current?.kind!==saved.kind||current.recoveryOnly!==true||current.startAccepted!==false)return false;

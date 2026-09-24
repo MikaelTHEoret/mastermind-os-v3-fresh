@@ -110,3 +110,5 @@ def verify(ctx, saved_review, old_worker):
     received=ctx['make_receipt'](last,result=recovered_out);assert received['receiptId'] in submit(received,worker=worker)[3]
     cur.execute(f'SELECT terminal_result FROM {schema}.mastermind_node_jobs_v1 WHERE job_id=%s',(req['operationId'],));assert cur.fetchone()[0]==out
     ctx['receipt']['checks'].append('035: existing ledger, same owner/task/specification/node proof; ten-capability negotiation preserving review-v3; eight-family busy exclusion; duplicate delivery and revoked reads/receipts; recovered stage and fresh delivery preserve import/source identity; exact guarded rollback; original terminal history preserved')
+    from lifecycle_sql_acceptance import verify as lifecycle_verify
+    lifecycle_verify(ctx,worker)

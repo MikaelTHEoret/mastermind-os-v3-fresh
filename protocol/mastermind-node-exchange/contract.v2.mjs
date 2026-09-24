@@ -1,3 +1,4 @@
+import {LIFECYCLE} from './native-contribution-lifecycle.mjs';
 import {CONTRIBUTION} from './native-contribution.mjs';
 import {BUILD_DISPATCH} from './native-build-dispatch.mjs';
 /** Explicit v2 views. The default v1 validators and frozen registry remain strict. */
@@ -50,3 +51,5 @@ export const REVIEW_RECOVERY_CORE_WORKER=Object.freeze({protocolVersion:2,capabi
 export const CONTRIBUTION_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([
  ...REVIEW_RECOVERY_CORE_WORKER.capabilities,Object.freeze({id:CONTRIBUTION,version:1}),
 ])});
+
+export const LIFECYCLE_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([...CONTRIBUTION_CORE_WORKER.capabilities,Object.freeze({id:LIFECYCLE,version:1})])});

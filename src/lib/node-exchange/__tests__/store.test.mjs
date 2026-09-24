@@ -1,3 +1,4 @@
+import * as lifecycle from '../../../../protocol/mastermind-node-exchange/native-contribution-lifecycle.mjs';
 import * as contribution from '../../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import * as coding from '../../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
 import {developmentFixtureReceipt} from '../../../../protocol/mastermind-node-exchange/development-fixture.mjs';
@@ -63,6 +64,7 @@ function loadStore() {
     module: commonJsModule,
     process: { env: {} },
     require(identifier) {
+      if(identifier.includes('native-contribution-lifecycle'))return lifecycle;
       if(identifier.includes('native-contribution'))return contribution;
       if(identifier.includes("native-build-dispatch"))return coding;
       if(identifier.endsWith('/native-development-work.mjs'))return development;
@@ -523,4 +525,20 @@ for(const capability of [coding.BUILD_DISPATCH])test(capability+' enqueue and fr
   const sql=scriptedSql([]);await assert.rejects(store.enqueueOwnerDevelopmentJob(sql,NODE_ID,body,capability),{code:'NODE_REQUEST_INVALID'});assert.equal(sql.calls(),0);
  }
  for(const status of ['busy','conflict'])await assert.rejects(store.enqueueOwnerDevelopmentJob(scriptedSql([()=>[{status,job_id:JOB_ID}]]),NODE_ID,{operationId:JOB_ID,input},capability),{code:status==='busy'?'NODE_NATIVE_BUSY':'NODE_JOB_CONFLICT'});
+});
+
+import {input as lifecycleInput,local as lifecycleLocal} from '../../../../services/mastermind-node-link/test/lifecycle-fixture.mjs';
+test('lifecycle history requires current node authority and recovers exact saved effect identifiers',async()=>{
+ const store=loadStore(),input={...lifecycleInput,operationId:JOB_ID};
+ const result=lifecycle.lifecycleReceipt(lifecycleLocal(input),input);
+ const row={...jobRow(JOB_ID),capability:lifecycle.LIFECYCLE,commandInput:input,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:'2026-09-24T18:01:00.000Z'};
+ const auth=(query,values)=>{assert.match(query,/mastermind_lifecycle_authorized_v1/);assert.equal(values[2],NODE_ID);assert.deepEqual(JSON.parse(values[3]),input);return [{allowed:true}];};
+ const saved=await store.enqueueOwnerDevelopmentJob(scriptedSql([(query,values)=>{
+  assert.match(query,/enqueue_mastermind_lifecycle_job_v1/);assert.deepEqual(JSON.parse(values[6]),input);return [{status:'duplicate',job_id:JOB_ID}];
+ },()=>[row],auth]),NODE_ID,{operationId:JOB_ID,input},lifecycle.LIFECYCLE);
+ assert.equal(saved.status,'duplicate');assert.deepEqual(saved.job.terminal.result,result);
+ const recovered=await store.getLatestOwnerNativeJob(scriptedSql([()=>[{jobId:JOB_ID,input}],()=>[row],auth]),NODE_ID,input.taskRef.taskId);
+ assert.deepEqual(JSON.parse(JSON.stringify(recovered.request.body)),{operationId:JOB_ID,input});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[row],()=>[{allowed:false}]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[{...row,terminalResult:{...result,candidateId:'e'.repeat(64)}}],auth]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
 });
