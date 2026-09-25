@@ -1,6 +1,7 @@
 // Advisory review transport. Source pins and execution authority remain host-owned.
 import {NativeTaskError} from './native-task.mjs';
 import {validateNativeCatalogInput} from './native-catalog.mjs';
+export const MAX_NATIVE_TEST_CASES=64;
 export const NATIVE_REVIEW_CAPABILITY='mastermind.native.review';
 export const NATIVE_REVIEW_INPUT_BYTES=16384;
 export const NATIVE_REVIEW_V2_INPUT_BYTES=24576;
@@ -71,7 +72,7 @@ export function validateNativeReviewInput(value) {
     &&r.requirements.every(x=>typeof x==='string'&&x.trim().length>0&&[...x].length<=4000)
     &&Array.isArray(r.contracts)&&r.contracts.length>=1&&r.contracts.length<=8
     &&exact(r.tests,['schemaVersion','cases'])&&r.tests.schemaVersion===1
-    &&Array.isArray(r.tests.cases)&&r.tests.cases.length>=1&&r.tests.cases.length<=25
+    &&Array.isArray(r.tests.cases)&&r.tests.cases.length>=1&&r.tests.cases.length<=MAX_NATIVE_TEST_CASES
     &&Array.isArray(c.coverage)&&c.coverage.length<=128);
   need(r.contracts.every(x=>object(x)&&identifier(x.name)&&typeof x.effectClass==='string'&&object(x.inputSchema)&&object(x.outputSchema))
     &&new Set(r.contracts.map(x=>x.name)).size===r.contracts.length);

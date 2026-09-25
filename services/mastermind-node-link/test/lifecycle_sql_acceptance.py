@@ -48,3 +48,5 @@ def verify(ctx,old_worker):
  assert not auth({**recover,'expectedActiveRevision':'0'*64})
  ctx['expected_error']('P0001',lambda:cur.execute(undo))
  ctx['receipt']['checks'].append('036: strict lifecycle input/result, original node/owner/task/import binding, lost-reply ID binding, eleven-capability negotiation, busy exclusion, duplicate enqueue/receipts, exact prehistory rollback and history-preserving rollback refusal')
+ from test_capacity_sql_acceptance import verify as verify_capacity
+ verify_capacity(ctx)

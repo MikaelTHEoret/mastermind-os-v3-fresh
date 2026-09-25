@@ -1,6 +1,6 @@
 import {NativeTaskError} from './native-task.mjs';
 import {validateNativeCatalogInput} from './native-catalog.mjs';
-import {reviewCanonical} from './native-review-contract.mjs';
+import {reviewCanonical,MAX_NATIVE_TEST_CASES} from './native-review-contract.mjs';
 export const REVIEW_REUSE='mastermind.native.review-reuse';
 const SHA=/^[a-f0-9]{64}$/,UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
 const obj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -32,7 +32,7 @@ export function validateReviewReuseReceipt(v,input){
  if(v.action==='assess'){
   need(Array.isArray(v.differences)&&v.differences.length<=8&&v.differences.every(x=>typeof x==='string'&&/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(x))&&new Set(v.differences).size===v.differences.length);
   need(Array.isArray(v.holds)&&v.holds.length<=4&&v.holds.every(x=>typeof x==='string'&&/^[A-Z][A-Z0-9_]{1,95}$/.test(x)));
-  need([v.exampleCount,v.coveredCount,v.suiteCaseCount].every(count)&&v.exampleCount>=1&&v.coveredCount<=v.exampleCount
+  need([v.exampleCount,v.coveredCount].every(count)&&Number.isSafeInteger(v.suiteCaseCount)&&v.suiteCaseCount>=0&&v.suiteCaseCount<=MAX_NATIVE_TEST_CASES&&v.exampleCount>=1&&v.coveredCount<=v.exampleCount
    &&(v.holds.length!==0||v.coveredCount===v.exampleCount&&v.differences.every(f=>disposition(f)!==null)));
   need(v.existingOperationId===null&&v.existingLinkId===null||typeof v.existingOperationId==='string'&&UUID.test(v.existingOperationId)&&typeof v.existingLinkId==='string'&&SHA.test(v.existingLinkId));
  } else need(v.reuseLinkAccepted===true&&v.reviewAccepted===false&&typeof v.linkId==='string'&&SHA.test(v.linkId));

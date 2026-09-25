@@ -1,6 +1,6 @@
 import {NativeTaskError} from './native-task.mjs';
 import {validateNativeCatalogInput} from './native-catalog.mjs';
-import {reviewCanonical} from './native-review-contract.mjs';
+import {reviewCanonical,MAX_NATIVE_TEST_CASES} from './native-review-contract.mjs';
 export const LIFECYCLE='mastermind.native.contribution-lifecycle';
 const fields=['schemaVersion','action','taskRef','specificationId','importOperationId','candidateId','operation','lifecycleOperationId','expectedActiveRevision'];
 const dataFields=['operationState','moduleId','version','activeRevision','currentlyActive','activeProxyAvailable','recordedOutcome','test','rollbackRevision','rollbackAccepted','holds'];
@@ -37,7 +37,7 @@ function validateData(d,input){
  need(Array.isArray(d.holds)&&d.holds.length<=4&&new Set(d.holds).size===d.holds.length&&d.holds.every(x=>[
   'NATIVE_ACTIVE_PROXY_UNAVAILABLE','NATIVE_TEST_RECONCILIATION_REQUIRED','NATIVE_TEST_FAILED','NATIVE_TEST_OPERATION_NOT_RECORDED','NATIVE_TESTS_NOT_STARTED'].includes(x)));
  if(d.test!==null){const t=d.test;need(exact(t,['operationId','status','caseCount','completedCases','failedCaseId'])&&uuid(t.operationId)
-  &&['running','passed','failed','held','interrupted'].includes(t.status)&&Number.isSafeInteger(t.caseCount)&&t.caseCount>=1&&t.caseCount<=25
+  &&['running','passed','failed','held','interrupted'].includes(t.status)&&Number.isSafeInteger(t.caseCount)&&t.caseCount>=1&&t.caseCount<=MAX_NATIVE_TEST_CASES
   &&Number.isSafeInteger(t.completedCases)&&t.completedCases>=0&&t.completedCases<=t.caseCount
   &&(t.failedCaseId===null||typeof t.failedCaseId==='string'&&t.failedCaseId.length<=120)
   &&(t.status!=='passed'||t.completedCases===t.caseCount&&d.recordedOutcome==='passed'));
