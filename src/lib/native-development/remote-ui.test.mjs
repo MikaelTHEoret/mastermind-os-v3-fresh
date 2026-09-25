@@ -348,6 +348,7 @@ test('Wizard lifecycle preserves effect ID through duplicate clicks, lost reply 
  f.textarea().props.onChange({target:{value:'Import reviewed module'}});await f.settle();f.form().props.onSubmit({preventDefault(){}});await f.settle();
  f.button('Find reviewed contributions').props.onClick();await f.settle();f.contributionResult().props.onAction('prepare');await f.settle();f.contributionResult().props.onAction('stage');await f.settle();
  f.button('Tests and versions').props.onClick();await f.settle();assert.equal(f.lifecycleResult().props.value.action,'inspect');
+ assert.match(f.html(),/Progress saved/);assert.doesNotMatch(f.html(),/>Completed/);
  const run=f.lifecycleResult().props.onAction;f.loseReply();run('test');run('test');await f.settle();
  const posts=f.calls.filter(c=>c.url.endsWith('/native-lifecycle')&&c.options.method==='POST');assert.equal(posts.length,2);
  const sent=JSON.parse(posts[1].options.body).input;assert.equal(sent.operation,'test');assert.notEqual(sent.lifecycleOperationId,sent.operationId);
@@ -355,6 +356,7 @@ test('Wizard lifecycle preserves effect ID through duplicate clicks, lost reply 
  assert.equal(resumed.calls.filter(c=>c.options.method==='POST').length,0);assert.equal(resumed.lifecycleResult().props.value.lifecycleOperationId,sent.lifecycleOperationId);
  resumed.lifecycleResult().props.onAction('recover');await resumed.settle();
  const recovered=resumed.lifecycleResult().props.value;assert.equal(recovered.action,'recover');assert.equal(recovered.lifecycleOperationId,sent.lifecycleOperationId);assert.notEqual(recovered.operationId,sent.operationId);
+ assert.match(resumed.html(),/Progress saved/);
  const fresh=fixture(new Map(),resumed.saved,options);for(const [id,j] of resumed.jobs)fresh.jobs.set(id,j);await fresh.settle();fresh.button('Resume saved work').props.onClick();await fresh.settle();
  assert.equal(fresh.lifecycleResult().props.value.lifecycleOperationId,sent.lifecycleOperationId);assert.equal(fresh.calls.filter(c=>c.options.method==='POST').length,0);
 });
