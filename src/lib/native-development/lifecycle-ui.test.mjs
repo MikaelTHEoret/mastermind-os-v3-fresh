@@ -37,6 +37,34 @@ test('interrupted progress offers recovery and blocks new effects',async()=>{
  await assert.rejects(lifecycleRequest(f.pending,f.job,'test'));
  const recovered=await lifecycleRequest(f.pending,f.job,'recover',()=>id(9));assert.equal(recovered.body.input.lifecycleOperationId,id(8));assert.equal(recovered.operationId,id(9));
 });
+test('background start reports pending case progress without implying recovery or permitting replay',async()=>{
+ const i={...input,action:'execute',operation:'test',lifecycleOperationId:id(8)};
+ const d={...data,operationState:'running',holds:['NATIVE_TEST_OPERATION_NOT_RECORDED']};
+ const f=fixture(i,d),r=render(f.receipt);
+ assert.match(r.html,/Tests are starting/);assert.match(r.html,/at this observation/);
+ assert.doesNotMatch(r.html,/needs recovery|No test run is recorded|Details to resolve/);
+ assert(r.buttons.filter(b=>!String(b.props.children).startsWith('Refresh')).every(b=>b.props.disabled));
+ r.buttons.find(b=>b.props.children==='Refresh saved progress').props.onClick();assert.deepEqual(r.calls,['recover']);
+ await assert.rejects(lifecycleRequest(f.pending,f.job,'test'));
+ const recovered=await lifecycleRequest(f.pending,f.job,'recover',()=>id(9));
+ assert.equal(recovered.body.input.lifecycleOperationId,id(8));assert.equal(recovered.body.input.action,'recover');
+});
+test('running case counts remain a dated observation and preserve unrelated holds',()=>{
+ const i={...input,action:'recover',operation:'test',lifecycleOperationId:id(8)};
+ const d={...data,operationState:'running',test:{operationId:id(8),status:'running',caseCount:37,completedCases:17,failedCaseId:null},holds:[]};
+ const r=render(fixture(i,d).receipt);assert.match(r.html,/17 of 37 completed/);assert.match(r.html,/was running at this observation/);assert.doesNotMatch(r.html,/needs recovery/);
+ const extra=render(fixture(i,{...d,test:null,holds:['NATIVE_TEST_OPERATION_NOT_RECORDED','NATIVE_ACTIVE_PROXY_UNAVAILABLE']}).receipt);
+ assert.match(extra.html,/native active proxy unavailable/);assert.doesNotMatch(extra.html,/native test operation not recorded/);
+});
+test('missing or interrupted evidence never becomes a running claim',()=>{
+ const i={...input,action:'recover',operation:'test',lifecycleOperationId:id(8)};
+ for(const status of ['uncertain','interrupted','held']){
+  const testRun=status==='uncertain'?null:{operationId:id(8),status,caseCount:37,completedCases:3,failedCaseId:null};
+  const r=render(fixture(i,{...data,operationState:status,test:testRun,holds:['NATIVE_TEST_OPERATION_NOT_RECORDED']}).receipt);
+  assert.match(r.html,/needs recovery/);assert.match(r.html,/native test operation not recorded/);assert.doesNotMatch(r.html,/Tests are starting|was running/);
+  assert(r.buttons.filter(b=>!String(b.props.children).startsWith('Refresh')).every(b=>b.props.disabled));
+ }
+});
 test('reload restores original IDs; new effects get separate delivery and operation IDs',async()=>{
  const f=fixture();assert.equal((await checkedRemoteJob({ok:true,job:f.job},JSON.parse(JSON.stringify(f.pending)))).jobId,input.operationId);
  let n=20;const next=await lifecycleRequest(f.pending,f.job,'test',()=>id(n++));assert.equal(next.body.input.action,'execute');assert.notEqual(next.operationId,next.body.input.lifecycleOperationId);
