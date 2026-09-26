@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {checkedObservation,requestObservation} from './observation-client.mjs';
+const ref={taskId:'task-01',session:'room-01'},turn='turn-01',code='a'.repeat(32);
+const value={ok:true,version:1,ref,turnId:turn,state:'observing',checkedAt:'2026-09-26T12:00:00Z',answer:null};
+test('browser request exposes only fixed action and exact room/turn',async()=>{let sent;const runtime={sendMessage:(id,message,reply)=>{sent={id,message};reply(value);}};assert.equal((await requestObservation(runtime,code,ref,turn,'check')).state,'observing');assert.deepEqual(sent,{id:code,message:{version:1,ref,turnId:turn,action:'check'}});});
+test('different room or turn reply is rejected',()=>{assert.throws(()=>checkedObservation({...value,turnId:'other'},ref,turn));assert.throws(()=>checkedObservation({...value,ref:{...ref,session:'other'}},ref,turn));});
+test('unsupported action never reaches browser',async()=>{await assert.rejects(requestObservation({sendMessage:()=>assert.fail('sent')},code,ref,turn,'send'));});
+test('missing extension and Chrome errors have actionable messages',async()=>{await assert.rejects(requestObservation(null,code,ref,turn),/connection code/);const runtime={lastError:{message:'private browser detail'},sendMessage:(_id,_msg,cb)=>cb()};await assert.rejects(requestObservation(runtime,code,ref,turn,'status'),/updated extension/);});
+test('reply cannot be accepted in waiting state or with malformed hash',()=>{const answer={text:'reply',observedAt:value.checkedAt,sha256:'a'.repeat(64)};assert.throws(()=>checkedObservation({...value,answer},ref,turn));assert.throws(()=>checkedObservation({...value,state:'captured',answer:{...answer,sha256:'bad'}},ref,turn));assert.equal(checkedObservation({...value,state:'captured',answer},ref,turn).answer.text,'reply');});
+test('unknown diagnostic payload never becomes an error message',()=>{assert.throws(()=>checkedObservation({ok:false,code:'secret raw text'},ref,turn),e=>!e.message.includes('secret'));});

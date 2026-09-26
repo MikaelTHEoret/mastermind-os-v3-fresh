@@ -4,6 +4,7 @@ import {checkedTasks} from '../lib/delegation/browser-workflow.mjs';
 import {RoomBrowserClient,roomJson,roomErrorMessage,roomText} from '../lib/chat-room/browser-workflow.mjs';
 import {roomPrompt} from '../lib/chat-room/prompt.mjs';
 import styles from './SharedRoomConsole.module.css';
+import BrowserObservation from './BrowserObservation';
 
 type Task={taskId:string;project:string;title:string};
 type Ref={taskId:string;session:string};
@@ -177,6 +178,7 @@ export default function SharedRoomConsole(){
       </article>)}
      </div>
      {view.taskState!=='active'&&<p className={styles.recovery}>This task is read-only. Its saved conversation remains available.</p>}
+     {active&&<BrowserObservation key={`${view.taskId}/${view.session}/${view.room.activeTurn}`} room={{taskId:view.taskId,session:view.session}} turnId={view.room.activeTurn}/>}
      {active?<details open className={styles.turn}><summary>{labelFor(view,active.participantId)} · {turnLabels[active.status]}</summary>
       {active.steeringPending&&<p className={styles.notice}>{active.status==='prepared'?'New steering arrived before transfer. Discard this prepared turn, resume the room, and prepare it again.':'Your steering is saved for the next turn. The earlier prompt stays unchanged.'}</p>}
       <details><summary>Review the exact prompt</summary><pre className={styles.prompt}>{active.prompt}</pre></details>
