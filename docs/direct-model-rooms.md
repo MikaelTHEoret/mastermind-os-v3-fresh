@@ -1,4 +1,4 @@
-# Direct model rooms (prepared, not activated)
+# Direct model rooms
 
 This transport lets the existing owner-authenticated shared room request a text reply through an official provider API. It needs no browser extension. It shares the existing task ownership, session document, command receipts and browser recovery journal. Manual participants and existing browser records remain unchanged. No separate task system or transcript store is introduced.
 
@@ -6,19 +6,23 @@ The first increment is **one explicitly approved turn at a time**, followed by r
 
 ## Models and cost controls
 
-The reviewed catalog (`2026-09-30-v1`) includes:
+The reviewed catalog (`2026-10-01-v1`) includes:
 
 | Connection | Intended use | Activation requirement |
 |---|---|---|
 | `zai/glm-4.7-flash` | Free API text generation | Dedicated enrolled Z.ai credential |
-| `gemini/gemini-2.5-flash-lite` | Free-tier API text generation | Dedicated enrolled Gemini credential with its free tier confirmed |
+| `gemini/gemini-3.5-flash-lite` | Free-tier API text generation | Dedicated enrolled Gemini credential with its free tier confirmed |
 | `zai/glm-5.2` | Optional stronger paid model | Server `allowPaid: true` plus separate approval for each reply |
 
 The default form shows only free-tier options. It never changes providers/models automatically when a provider is unavailable or rate limited. Existing chat subscriptions do not supply these API credentials. The Gemini free tier permits provider product improvement use; its notice is displayed before sharing. Account tier changes must invalidate enrollment. A model being listed as free does not prove the credential is on a free-tier account.
 
 Paid estimates use the reviewed Z.ai input/output rates ($1.40/$4.40 per million tokens), approximate input tokens from bytes, and the full 1,024 output-token allowance. They are **estimates, not hard provider billing caps**. No tool calls are enabled. A provider-side spending cap is a separate account control. Nothing in this source change authorizes paid use, purchases or adding a billing account.
 
-Official references reviewed on 2026-09-30: [Z.ai pricing](https://docs.z.ai/guides/overview/pricing), [Z.ai completion contract](https://docs.z.ai/api-reference/llm/chat-completion), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Gemini generation contract](https://ai.google.dev/api/generate-content), [Gemini key handling](https://ai.google.dev/gemini-api/docs/api-key).
+Official references reviewed on 2026-10-01: [Z.ai pricing](https://docs.z.ai/guides/overview/pricing), [Z.ai completion contract](https://docs.z.ai/api-reference/llm/chat-completion), [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [Gemini generation contract](https://ai.google.dev/api/generate-content), [Gemini key handling](https://ai.google.dev/gemini-api/docs/api-key).
+
+The October catalog selects Gemini 3.5 Flash-Lite for new participants. Google's [availability guidance](https://ai.google.dev/gemini-api/docs/deprecations) restricts Gemini 2.5 to prior active users and recommends newer models for new projects. The [3.5 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) has free-tier standard input/output pricing; the same account-tier and privacy checks still apply. Requests use MINIMAL thinking with thought output disabled. An opaque text-part thought signature is discarded; thought content and tool output are not accepted as replies.
+
+Existing 2.5 participants, prompts and receipts remain readable with their original model identity. They are never rewritten or automatically sent to 3.5. The new catalog version invalidates prior enrollment and quotes: prepare and explicitly install a fresh owner binding, then select the new model in a separately approved turn. Public documentation and mocked tests do not prove an account's actual entitlement. A 404 or 429 receipt remains an unresolved original attempt; it is never retried by recovery.
 
 ## Enrollment before any live acceptance
 
@@ -37,7 +41,7 @@ Policy shape (placeholders, not usable authorization):
   "householdId": "canonical-household",
   "actorPlayerId": "canonical-operator-uuid",
   "subject": "user_production_subject",
-  "catalogVersion": "2026-09-30-v1",
+  "catalogVersion": "2026-10-01-v1",
   "reviewedAt": "review-time-ISO8601",
   "expiresAt": "expiry-time-ISO8601",
   "allowPaid": false,

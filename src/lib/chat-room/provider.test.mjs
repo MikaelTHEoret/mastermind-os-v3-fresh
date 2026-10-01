@@ -139,7 +139,7 @@ test('paid model requires BOTH installation enrollment and exact per-turn paid a
 });
 test('Gemini free entitlement is credential-bound and requires explicit confirmation',async()=>{
  const env=environment();env.MASTERMIND_ROOM_API_POLICY=JSON.stringify({...policy,providers:{...policy.providers,gemini:{enabled:true,credentialSha256:fingerprint}}});
- const f=await fixture({model:'gemini/gemini-2.5-flash-lite',env});await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);assert.equal(f.state.calls.length,0);
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',env});await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);assert.equal(f.state.calls.length,0);
 });
 test('configuration fails closed and public metadata contains neither key nor fingerprint',()=>{
  for(const env of [{}, {...environment(),MASTERMIND_ROOM_API_POLICY:'invalid'}, {...environment(),MASTERMIND_ROOM_API_ENABLED:'false'}])assert.equal(providerConfiguration(env,owner,clock).entries.some(m=>m.ready),false);
@@ -153,11 +153,51 @@ test('official request shape has no tool, redirect, paid fallback or unselected 
  assert.equal(body.model,'glm-4.7-flash');assert.equal(body.request_id,f.send.operationId);
 });
 test('Gemini uses only visible text from the exact selected model family',async()=>{
- const f=await fixture({model:'gemini/gemini-2.5-flash-lite',request:async()=>Response.json({responseId:'google-request-1',modelVersion:'gemini-2.5-flash-lite',
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',request:async()=>Response.json({responseId:'google-request-1',modelVersion:'gemini-3.5-flash-lite',
  candidates:[{content:{role:'model',parts:[{text:'Visible'}]},finishReason:'STOP'}]})});
  const view=await f.store().command(ref,f.send);assert.equal(view.room.turns[f.binding.turnId].provider.text,'Visible');
- assert.match(f.state.calls[0][0],/^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-2.5-flash-lite:generateContent$/);
+ assert.match(f.state.calls[0][0],/^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-3.5-flash-lite:generateContent$/);
  assert.equal(f.state.calls[0][1].headers['x-goog-api-key'],secret);
+ const body=JSON.parse(f.state.calls[0][1].body);
+ assert.deepEqual(body.generationConfig,{candidateCount:1,maxOutputTokens:1024,thinkingConfig:{thinkingLevel:'MINIMAL',includeThoughts:false}});
+ assert.equal(body.tools,undefined);
+});
+
+test('old Gemini participants remain readable but never silently switch to the new model',async()=>{
+ const f=await fixture({model:'gemini/gemini-2.5-flash-lite'});
+ const before=await f.store().read(ref);
+ assert.equal(before.room.participants[0].model,'gemini/gemini-2.5-flash-lite');
+ assert.equal(before.providerQuote,null);
+ await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);
+ assert.equal(f.state.calls.length,0);
+ assert.deepEqual((await f.store().read(ref)).room,before.room);
+});
+
+test('prior catalog enrollment cannot authorize the new model',async()=>{
+ const env=environment();env.MASTERMIND_ROOM_API_POLICY=JSON.stringify({...policy,catalogVersion:'2026-09-30-v1'});
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',env});
+ await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);
+ assert.equal(f.state.calls.length,0);
+});
+
+test('Gemini text signatures are discarded, while thought output and malformed metadata are rejected',async()=>{
+ for(const [part,accepted] of [[{text:'Visible',thoughtSignature:'opaque-signature'},true],[{text:'Private',thought:true},false],[{text:'Visible',thoughtSignature:{}},false]]){
+  const f=await fixture({model:'gemini/gemini-3.5-flash-lite',request:async()=>Response.json({modelVersion:'gemini-3.5-flash-lite',candidates:[{content:{role:'model',parts:[part]},finishReason:'STOP'}]})});
+  const result=await f.store().command(ref,f.send),receipt=result.room.turns[f.binding.turnId].provider;
+  assert.equal(receipt.state,accepted?'draft':'unknown');
+  assert.equal(receipt.text,accepted?'Visible':undefined);
+  assert.ok(!JSON.stringify(result).includes('opaque-signature'));
+ }
+});
+
+test('Gemini 404 is preserved through recovery without another provider attempt',async()=>{
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',request:async()=>new Response('',{status:404})});
+ const first=await f.store().command(ref,f.send);
+ const recovered=await f.store().command(ref,f.send);
+ assert.equal(recovered.room.turns[f.binding.turnId].provider.httpStatus,404);
+ assert.equal(recovered.room.turns[f.binding.turnId].provider.code,'PROVIDER_REJECTED');
+ assert.equal(f.state.calls.length,1);
+ assert.deepEqual(recovered.room,first.room);
 });
 test('altered model, tool calls, excessive output and invalid responses never become a reviewable draft',async()=>{
  const bad=[()=>output('text','stop','other-model'),()=>output('x'.repeat(48001)),()=>new Response('not-json'),()=>new Response('x'.repeat(131073)),

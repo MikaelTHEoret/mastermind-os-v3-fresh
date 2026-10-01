@@ -3,10 +3,10 @@ import {RoomError,digest} from './contract.mjs';
 
 // Reviewed official price snapshot. Refresh the snapshot AND enrollment before activation.
 // A free model never falls back to a paid model or another provider.
-export const CATALOG_VERSION='2026-09-30-v1';
+export const CATALOG_VERSION='2026-10-01-v1';
 export const MODELS=Object.freeze([
  {id:'zai/glm-4.7-flash',provider:'zai',model:'glm-4.7-flash',label:'Z.ai GLM 4.7 Flash',paid:false},
- {id:'gemini/gemini-2.5-flash-lite',provider:'gemini',model:'gemini-2.5-flash-lite',label:'Gemini 2.5 Flash-Lite',paid:false},
+ {id:'gemini/gemini-3.5-flash-lite',provider:'gemini',model:'gemini-3.5-flash-lite',label:'Gemini 3.5 Flash-Lite',paid:false},
  {id:'zai/glm-5.2',provider:'zai',model:'glm-5.2',label:'Z.ai GLM 5.2',paid:true},
 ]);
 const fail=(code,status=409)=>{throw new RoomError(code,status);};
@@ -69,9 +69,9 @@ export async function callProvider(model,prompt,operationId,{request=fetch,timeo
  try{
   const zai=model.provider==='zai';
   const url=zai?'https://api.z.ai/api/paas/v4/chat/completions'
-   :'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent';
+   :'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent';
   const body=zai?{model:model.model,messages:[{role:'user',content:prompt}],stream:false,max_tokens:MAX_OUTPUT,thinking:{type:'disabled'},request_id:operationId}
-   :{contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{candidateCount:1,maxOutputTokens:MAX_OUTPUT,thinkingConfig:{thinkingBudget:0}}};
+   :{contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{candidateCount:1,maxOutputTokens:MAX_OUTPUT,thinkingConfig:{thinkingLevel:'MINIMAL',includeThoughts:false}}};
   const response=await request(url,{method:'POST',redirect:'error',cache:'no-store',signal:controller.signal,
    headers:{'Content-Type':'application/json',...(zai?{Authorization:'Bearer '+model.key}:{'x-goog-api-key':model.key})},body:JSON.stringify(body)});
   if(!response.ok){await response.body?.cancel().catch(()=>{});return {state:'unknown',code:response.status===429?'RATE_LIMITED':'PROVIDER_REJECTED',httpStatus:response.status};}
@@ -84,7 +84,7 @@ export async function callProvider(model,prompt,operationId,{request=fetch,timeo
   }else{
    const candidate=data.candidates?.[0],parts=candidate?.content?.parts;
    if(data.candidates?.length!==1||candidate?.content?.role!=='model'||!Array.isArray(parts)||!parts.length
-    ||parts.some(p=>typeof p.text!=='string'||p.thought===true||Object.keys(p).some(k=>!['text','thought'].includes(k))))fail('ROOM_PROVIDER_RESPONSE_INVALID');
+    ||parts.some(p=>typeof p.text!=='string'||p.thought===true||(p.thoughtSignature!==undefined&&typeof p.thoughtSignature!=='string')||Object.keys(p).some(k=>!['text','thought','thoughtSignature'].includes(k))))fail('ROOM_PROVIDER_RESPONSE_INVALID');
    // Version suffixes are reported separately; participant identity remains the requested model.
    reportedModel=safeId(data.modelVersion);
    if(!reportedModel||!(reportedModel===model.model||reportedModel.startsWith(model.model+'-')))fail('ROOM_PROVIDER_MODEL_MISMATCH');

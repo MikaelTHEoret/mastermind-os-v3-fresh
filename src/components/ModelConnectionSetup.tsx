@@ -13,7 +13,7 @@ export default function ModelConnectionSetup(){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
   try{
    const response=await fetch('/api/chat/connections/prepare',{method:'POST',credentials:'same-origin',redirect:'error',cache:'no-store',signal:controller.signal,
-    headers:{'Content-Type':'application/json'},body:JSON.stringify({catalogVersion:'2026-09-30-v1',providers:[...(zai?['zai']:[]),...(gemini?['gemini']:[])],geminiFreeTierConfirmed:gemini&&free})});
+    headers:{'Content-Type':'application/json'},body:JSON.stringify({catalogVersion:'2026-10-01-v1',providers:[...(zai?['zai']:[]),...(gemini?['gemini']:[])],geminiFreeTierConfirmed:gemini&&free})});
    if(!response.ok){setError(response.status===401||response.status===403?'Sign in as the Mastermind owner to prepare setup.':'Setup could not be prepared. Check that the selected keys are saved in Production and included in this deployment.');return;}
    const result=await response.json();
    if(result.status!=='prepared'||result.activated!==false||result.providerRequests!==0||result.policy?.allowPaid!==false)throw Error('Invalid proposal');

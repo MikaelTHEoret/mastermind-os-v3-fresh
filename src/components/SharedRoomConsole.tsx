@@ -32,7 +32,7 @@ export default function SharedRoomConsole(){
  const [tasks,setTasks]=useState<Task[]>([]),[taskId,setTaskId]=useState(''),[rooms,setRooms]=useState<Summary[]>([]);
  const [view,setView]=useState<View|null>(null),[available,setAvailable]=useState(false),[busy,setBusy]=useState(false);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[pending,setPending]=useState<Pending[]>([]);
- const [creating,setCreating]=useState(false),[names,setNames]=useState([{label:'Proposer',model:'zai/glm-4.7-flash',transport:'api'},{label:'Reviewer',model:'gemini/gemini-2.5-flash-lite',transport:'api'}]),[limit,setLimit]=useState(12);
+ const [creating,setCreating]=useState(false),[names,setNames]=useState([{label:'Proposer',model:'zai/glm-4.7-flash',transport:'api'},{label:'Reviewer',model:'gemini/gemini-3.5-flash-lite',transport:'api'}]),[limit,setLimit]=useState(12);
  const [models,setModels]=useState<ModelOption[]>([]),[showPaid,setShowPaid]=useState(false);
  const [input,setInput]=useState(''),[disposition,setDisposition]=useState('queue'),[recipient,setRecipient]=useState(''),[context,setContext]=useState<string[]>([]);
  const [reply,setReply]=useState(''),[evidence,setEvidence]=useState(''),[complete,setComplete]=useState(true),[truncated,setTruncated]=useState(false);
