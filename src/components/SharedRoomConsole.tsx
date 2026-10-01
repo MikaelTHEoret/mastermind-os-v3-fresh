@@ -6,6 +6,7 @@ import {roomPrompt} from '../lib/chat-room/prompt.mjs';
 import styles from './SharedRoomConsole.module.css';
 import BrowserObservation from './BrowserObservation';
 import DirectModelTurn,{type ModelOption} from './DirectModelTurn';
+import ModelConnectionSetup from './ModelConnectionSetup';
 
 type Task={taskId:string;project:string;title:string};
 type Ref={taskId:string;session:string};
@@ -161,6 +162,7 @@ export default function SharedRoomConsole(){
     {truncated&&<p className={styles.muted}>Showing the 50 most recently updated rooms. Older rooms remain saved.</p>}
    </aside>
    <div className={styles.main}>
+    {available&&<ModelConnectionSetup/>}
     {creating&&available?<form className={styles.setup} onSubmit={e=>{e.preventDefault();void create();}}>
      <h3>Bring participants into a room</h3><p>Free-tier connections are the default. Unavailable connections can be saved, but cannot send until setup is complete.</p>
      <label className={styles.check}><input type="checkbox" checked={showPaid} onChange={e=>{setShowPaid(e.target.checked);if(!e.target.checked)setNames(items=>items.map(n=>models.find(m=>m.id===n.model)?.paid?{...n,model:'zai/glm-4.7-flash'}:n));}}/>Show optional paid models (each reply needs separate approval)</label>

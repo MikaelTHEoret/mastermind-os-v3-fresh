@@ -48,7 +48,9 @@ Policy shape (placeholders, not usable authorization):
 }
 ```
 
-The initial acceptance enrollment lasts at most 24 hours. Review current provider availability/pricing and the account tier before renewing it; do not automatically renew old assertions. A longer-lived, owner-facing enrollment flow remains follow-up work after live acceptance. Only enabled providers need keys. No keys or their fingerprints appear in room responses.
+The initial acceptance enrollment lasts at most 24 hours. Review current provider availability/pricing and the account tier before renewing it; do not automatically renew old assertions. Only enabled providers need keys. No keys or their fingerprints appear in room responses.
+
+For saved, unreadable Vercel secrets, the owner can use **Set up direct model connections → Prepare connection setup**. The dedicated same-origin POST route `/api/chat/connections/prepare` requires the existing owner session and canonical parent identity. It derives fingerprints inside the server and returns only a free-only policy proposal, bound to that identity and expiring after 24 hours. Gemini selection requires explicit free-tier confirmation. Raw keys never enter this form or its response. This preparation makes no provider request, configuration write, grant or activation. Technical details expose the nonsecret policy only to the authenticated owner so it can be installed through reviewed project configuration. Preparing again replaces only the visible proposal; it does not renew installed enrollment. Newly saved secrets must first be included in a compatible deployment. A longer-lived, owner-facing activation flow remains follow-up work after live acceptance.
 
 ## Send, recovery and review
 
