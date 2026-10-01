@@ -5,12 +5,13 @@ import {RoomBrowserClient,roomJson,roomErrorMessage,roomText} from '../lib/chat-
 import {roomPrompt} from '../lib/chat-room/prompt.mjs';
 import styles from './SharedRoomConsole.module.css';
 import BrowserObservation from './BrowserObservation';
+import DirectModelTurn,{type ModelOption} from './DirectModelTurn';
 
 type Task={taskId:string;project:string;title:string};
 type Ref={taskId:string;session:string};
 type Participant={id:string;label:string;model:string;transport:string};
 type Message={messageId:string;who:string;participantId:string;text:string;at:string;capture?:string;evidence?:string};
-type View={session:string;taskId:string;project:string;taskState:string;transcript:Message[];room:any};
+type View={session:string;taskId:string;project:string;taskState:string;transcript:Message[];room:any;providers?:ModelOption[];providerQuote?:any};
 type Summary={session:string;preview:string;updatedAt:string;participants:Participant[];paused:boolean};
 type Pending={version:number;ref:Ref;command:any};
 const SELECTION='mastermind.room.selection.v1';
@@ -30,7 +31,8 @@ export default function SharedRoomConsole(){
  const [tasks,setTasks]=useState<Task[]>([]),[taskId,setTaskId]=useState(''),[rooms,setRooms]=useState<Summary[]>([]);
  const [view,setView]=useState<View|null>(null),[available,setAvailable]=useState(false),[busy,setBusy]=useState(false);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[pending,setPending]=useState<Pending[]>([]);
- const [creating,setCreating]=useState(false),[names,setNames]=useState([{label:'ChatGPT',model:''},{label:'Grok',model:''}]),[limit,setLimit]=useState(12);
+ const [creating,setCreating]=useState(false),[names,setNames]=useState([{label:'Proposer',model:'zai/glm-4.7-flash',transport:'api'},{label:'Reviewer',model:'gemini/gemini-2.5-flash-lite',transport:'api'}]),[limit,setLimit]=useState(12);
+ const [models,setModels]=useState<ModelOption[]>([]),[showPaid,setShowPaid]=useState(false);
  const [input,setInput]=useState(''),[disposition,setDisposition]=useState('queue'),[recipient,setRecipient]=useState(''),[context,setContext]=useState<string[]>([]);
  const [reply,setReply]=useState(''),[evidence,setEvidence]=useState(''),[complete,setComplete]=useState(true),[truncated,setTruncated]=useState(false);
  const client=useRef<RoomBrowserClient|null>(null),selected=useRef<Ref|null>(null),acting=useRef(false),generation=useRef(0),listGeneration=useRef(0),alive=useRef(false);
@@ -44,7 +46,7 @@ export default function SharedRoomConsole(){
  },[]);
  async function list(id:string){
   const ticket=++listGeneration.current;const result=await client.current!.list(id);
-  if(ticket===listGeneration.current&&alive.current&&selected.current?.taskId===id){setRooms(result.rooms);setTruncated(result.truncated);setAvailable(true);}
+  if(ticket===listGeneration.current&&alive.current&&selected.current?.taskId===id){setRooms(result.rooms);setTruncated(result.truncated);setAvailable(true);setModels(result.providers??[]);}
   return result;
  }
  async function open(ref:Ref){
@@ -101,19 +103,19 @@ export default function SharedRoomConsole(){
     roomText(roomPrompt(ref.session,command.operationId,p,rows),48000);
    }
    const value=await client.current.submit(ref,command);
-   if(alive.current){selected.current=ref;setTaskId(ref.taskId);remember(ref);adopt(value);setCreating(false);setNotice('Saved to this room.');void list(ref.taskId).catch(()=>{if(alive.current)setNotice('Saved. The room list could not refresh yet.');});}
+   if(alive.current){selected.current=ref;setTaskId(ref.taskId);remember(ref);adopt(value);setCreating(false);setNotice(action==='provider-send'?'The send operation is recorded. Check its result below.':'Saved to this room.');void list(ref.taskId).catch(()=>{if(alive.current)setNotice('Saved. The room list could not refresh yet.');});}
    return value as View;
   }catch(e){if(alive.current)setError(roomErrorMessage(e));return null;}
   finally{acting.current=false;if(alive.current){setBusy(false);syncPending();}}
  }
  async function create(){
-  try{const participants=names.map(n=>({id:crypto.randomUUID(),label:roomText(n.label.trim(),120),model:roomText(n.model.trim()||'Not recorded',160),transport:'manual'}));
+  try{const participants=names.map(n=>({id:crypto.randomUUID(),label:roomText(n.label.trim(),120),model:roomText(n.model.trim()||'Not recorded',160),transport:n.transport}));
    setContext([]);await act('create',{participants,maxTurns:limit},{taskId,session:crypto.randomUUID()});
   }catch(e){setError(roomErrorMessage(e));}
  }
- async function recover(item:Pending){
+ async function recover(item:Pending,stop=false){
   if(acting.current)return;acting.current=true;setBusy(true);setError('');
-  try{const result=await client.current!.recover(item);
+  try{const result=stop?await client.current!.stopPendingSend(item):await client.current!.recover(item);
    if(alive.current){selected.current=item.ref;setTaskId(item.ref.taskId);remember(item.ref);adopt(result.view);void list(item.ref.taskId).catch(()=>{if(alive.current)setNotice('Recovered. The room list could not refresh yet.');});
     if(result.state==='saved'&&item.command.action==='message')setInput(current=>current===item.command.text?'':current);
     if(result.state==='saved'&&item.command.action==='reply')setReply(current=>current===item.command.text?'':current);
@@ -124,6 +126,7 @@ export default function SharedRoomConsole(){
   finally{acting.current=false;if(alive.current){setBusy(false);syncPending();}}
  }
  const active=view?.room.activeTurn?view.room.turns[view.room.activeTurn]:null;
+ const activeParticipant=view?.room.participants.find((p:Participant)=>p.id===active?.participantId);
  const binding=active?{turnId:view!.room.activeTurn,promptSha256:active.promptSha256}:{};
  const ownPending=pending.filter(p=>tasks.some(t=>t.taskId===p.ref.taskId));
  const roomPending=ownPending.some(p=>p.ref.session===view?.session);
@@ -138,11 +141,12 @@ export default function SharedRoomConsole(){
   }else await copy(active.prompt);
  }
  return <section className={styles.root} aria-label="Shared model room">
-  <header className={styles.header}><div><h2>Shared conversation</h2><p>You and your models, with one saved history.</p></div><span className={styles.badge}>Manual transfer</span></header>
-  <p className={styles.intro}>Review what each participant receives, paste its reply here, then choose who responds next. Automatic browser connections are not enabled yet.</p>
+  <header className={styles.header}><div><h2>Shared conversation</h2><p>You and your models, with one saved history.</p></div><span className={styles.badge}>Reviewed turns</span></header>
+  <p className={styles.intro}>Review what each participant receives, ask a connected model or paste a reply, then choose who responds next. Direct model connections use official APIs and need no browser extension.</p>
   {error&&<p role="alert" className={styles.error}>{error}</p>}{notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {ownPending.length>0&&<aside className={styles.recovery}><strong>A save needs recovery</strong><p>Your original change is retained in this browser. Recovery checks the saved room and keeps the same operation if a retry is needed.</p>
    {ownPending.map(p=><div key={p.command.operationId}><button disabled={busy} onClick={()=>void recover(p)}>Recover save</button> <span>{tasks.find(t=>t.taskId===p.ref.taskId)?.title}</span>
+    {p.command.action==='provider-send'&&<><button disabled={busy} onClick={()=>void recover(p,true)}>Stop pending send</button><span>Pauses an unsent request. A prompt already sent cannot be undone.</span></>}
     {typeof p.command.text==='string'&&<details><summary>Text in this pending save</summary><div className={styles.messageText}>{p.command.text}</div></details>}</div>)}
   </aside>}
   <div className={styles.layout}>
@@ -158,11 +162,13 @@ export default function SharedRoomConsole(){
    </aside>
    <div className={styles.main}>
     {creating&&available?<form className={styles.setup} onSubmit={e=>{e.preventDefault();void create();}}>
-     <h3>Bring participants into a room</h3><p>Use the name you want shown beside each reply. Model versions can be recorded when known.</p>
+     <h3>Bring participants into a room</h3><p>Free-tier connections are the default. Unavailable connections can be saved, but cannot send until setup is complete.</p>
+     <label className={styles.check}><input type="checkbox" checked={showPaid} onChange={e=>{setShowPaid(e.target.checked);if(!e.target.checked)setNames(items=>items.map(n=>models.find(m=>m.id===n.model)?.paid?{...n,model:'zai/glm-4.7-flash'}:n));}}/>Show optional paid models (each reply needs separate approval)</label>
      {names.map((n,i)=><div className={styles.participantFields} key={i}><label>Participant {i+1}<input required value={n.label} maxLength={120} onChange={e=>setNames(items=>items.map((v,k)=>k===i?{...v,label:e.target.value}:v))}/></label>
-      <label>Model version (optional)<input value={n.model} maxLength={160} onChange={e=>setNames(items=>items.map((v,k)=>k===i?{...v,model:e.target.value}:v))}/></label>
+      <label>Connection<select value={n.transport} onChange={e=>setNames(items=>items.map((v,k)=>k===i?{...v,transport:e.target.value,model:e.target.value==='api'?'zai/glm-4.7-flash':''}:v))}><option value="api">Direct model API</option><option value="manual">Paste from another chat</option></select></label>
+      {n.transport==='api'?<label>Model<select value={n.model} onChange={e=>setNames(items=>items.map((v,k)=>k===i?{...v,model:e.target.value}:v))}>{models.filter(m=>showPaid||!m.paid).map(m=><option key={m.id} value={m.id}>{m.label} · {m.paid?'paid option':'free tier'}{m.ready?'':' · setup needed'}</option>)}</select><small>{models.find(m=>m.id===n.model)?.reason??'Load connection availability before sending.'}</small></label>:<label>Model version (optional)<input value={n.model} maxLength={160} onChange={e=>setNames(items=>items.map((v,k)=>k===i?{...v,model:e.target.value}:v))}/></label>}
       <button type="button" aria-label={`Remove participant ${i+1}`} disabled={names.length===1||busy} onClick={()=>setNames(items=>items.filter((_,k)=>k!==i))}>Remove</button></div>)}
-     <div className={styles.actions}><button type="button" disabled={names.length>=6||busy} onClick={()=>setNames(items=>[...items,{label:'',model:''}])}>Add participant</button>
+     <div className={styles.actions}><button type="button" disabled={names.length>=6||busy} onClick={()=>setNames(items=>[...items,{label:'',model:'zai/glm-4.7-flash',transport:'api'}])}>Add participant</button>
       <label>Turn limit<select value={limit} onChange={e=>setLimit(Number(e.target.value))}>{[6,12,24].map(n=><option key={n} value={n}>{n} turns</option>)}</select></label>
       <button className={styles.primary} disabled={busy||!taskId}>Create room</button>{view&&<button type="button" onClick={()=>setCreating(false)}>Back to conversation</button>}</div>
     </form>:view?<>
@@ -174,15 +180,15 @@ export default function SharedRoomConsole(){
       {!view.transcript.length&&<div className={styles.empty}><h3>Start the conversation</h3><p>Write the question or task below. You can decide which participant responds first.</p></div>}
       {view.transcript.map(m=><article key={m.messageId} className={m.who==='you'?styles.ownerMessage:styles.peerMessage}>
        <header><strong>{labelFor(view,m.participantId)}</strong><time dateTime={m.at}>{new Date(m.at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</time><button aria-label={`Copy message from ${labelFor(view,m.participantId)}`} onClick={()=>void copy(m.text)}>Copy</button></header>
-       <MessageText text={m.text}/>{m.who==='assistant'&&<details className={styles.provenance}><summary>Pasted response · {m.capture==='incomplete'?'partial capture':'complete capture'}</summary><p>{m.evidence}</p><p>Participant and completeness were recorded by the person importing this response.</p></details>}
+       <MessageText text={m.text}/>{m.who==='assistant'&&<details className={styles.provenance}><summary>Reviewed response · {m.capture==='incomplete'?'partial capture':'complete capture'}</summary><p>{m.evidence}</p></details>}
       </article>)}
      </div>
      {view.taskState!=='active'&&<p className={styles.recovery}>This task is read-only. Its saved conversation remains available.</p>}
-     {active&&<BrowserObservation key={`${view.taskId}/${view.session}/${view.room.activeTurn}`} room={{taskId:view.taskId,session:view.session}} turnId={view.room.activeTurn}/>}
-     {active?<details open className={styles.turn}><summary>{labelFor(view,active.participantId)} · {turnLabels[active.status]}</summary>
+     {active&&activeParticipant?.transport!=='api'&&<BrowserObservation key={`${view.taskId}/${view.session}/${view.room.activeTurn}`} room={{taskId:view.taskId,session:view.session}} turnId={view.room.activeTurn}/>}
+     {active?<details open className={styles.turn}><summary>{labelFor(view,active.participantId)} · {activeParticipant?.transport==='api'?'Direct model turn':turnLabels[active.status]}</summary>
       {active.steeringPending&&<p className={styles.notice}>{active.status==='prepared'?'New steering arrived before transfer. Discard this prepared turn, resume the room, and prepare it again.':'Your steering is saved for the next turn. The earlier prompt stays unchanged.'}</p>}
       <details><summary>Review the exact prompt</summary><pre className={styles.prompt}>{active.prompt}</pre></details>
-      <div className={styles.actions}><button disabled={locked||(active.status==='prepared'&&(view.room.paused||active.steeringPending))} onClick={()=>void handoff()}>{active.status==='prepared'?'Copy prompt for '+labelFor(view,active.participantId):'Copy prepared prompt again'}</button>
+      {activeParticipant?.transport==='api'?<DirectModelTurn key={`${view.session}/${view.room.activeTurn}/${active.provider?.textSha256??''}/${view.providerQuote?.policyDigest??''}`} turn={active} quote={view.providerQuote} model={view.providers?.find(m=>m.id===activeParticipant.model)} locked={locked} paused={view.room.paused} refresh={refresh} act={(action,fields)=>act(action,action==='cancel'?{}:{...binding,...fields})}/>:<><div className={styles.actions}><button disabled={locked||(active.status==='prepared'&&(view.room.paused||active.steeringPending))} onClick={()=>void handoff()}>{active.status==='prepared'?'Copy prompt for '+labelFor(view,active.participantId):'Copy prepared prompt again'}</button>
        {active.status==='prepared'?<button disabled={locked} onClick={()=>void act('cancel')}>Discard prepared turn</button>:<>
         {active.status==='dispatching'&&<button disabled={locked} onClick={()=>void act('acknowledge',binding)}>I sent this prompt</button>}
         {['dispatching','awaiting-reply'].includes(active.status)&&<button disabled={locked} onClick={()=>void act('uncertain',binding)}>I am unsure if it was sent</button>}
@@ -193,7 +199,7 @@ export default function SharedRoomConsole(){
        <label>Response source (chat link or a note)<input value={evidence} onChange={e=>setEvidence(e.target.value)} required maxLength={2000}/></label>
        <label className={styles.check}><input type="checkbox" checked={complete} onChange={e=>setComplete(e.target.checked)}/>The response was captured completely</label>
        <button className={styles.primary} disabled={locked||!reply.trim()||!evidence.trim()}>Save participant reply</button>
-      </form>}
+      </form>}</>}
      </details>:<div className={styles.nextTurn}><label>Who responds next?<select value={recipient} onChange={e=>setRecipient(e.target.value)} disabled={locked}>{view.room.participants.map((p:Participant)=><option value={p.id} key={p.id}>{p.label}</option>)}</select></label>
       <details><summary>Context to share · {selectedIds.length} messages</summary><div className={styles.contextList}>{view.transcript.map(m=><label className={styles.check} key={m.messageId}><input type="checkbox" checked={selectedIds.includes(m.messageId)} disabled={view.room.pendingMessages.includes(m.messageId)} onChange={e=>setContext(ids=>e.target.checked?[...ids,m.messageId]:ids.filter(id=>id!==m.messageId))}/><span><strong>{labelFor(view,m.participantId)}</strong>: {m.text.slice(0,160)}{view.room.pendingMessages.includes(m.messageId)?' (pending user message)':''}</span></label>)}</div></details>
       <button disabled={locked||view.room.paused||!selectedIds.length||selectedIds.length>64||!recipient} onClick={()=>void act('prepare',{participantId:recipient,contextIds:selectedIds})}>Prepare next turn</button>

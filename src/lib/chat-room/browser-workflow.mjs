@@ -16,7 +16,7 @@ function participants(values){
  if(!Array.isArray(values)||!values.length||values.length>6)throw Error('Invalid participant list.');
  const ids=new Set();
  for(const p of values){if(!p||typeof p.id!=='string'||!ID.test(p.id)||p.id==='user_owner'||ids.has(p.id))throw Error('Invalid participant identity.');
-  ids.add(p.id);roomText(p.label,120);roomText(p.model,160);if(!['manual','browser','subscription-cli','local'].includes(p.transport))throw Error('Invalid participant connection.');}
+  ids.add(p.id);roomText(p.label,120);roomText(p.model,160);if(!['manual','browser','subscription-cli','local','api'].includes(p.transport))throw Error('Invalid participant connection.');}
  return values;
 }
 export function checkedRoom(value,ref){
@@ -60,11 +60,15 @@ export const roomErrorMessage=error=>{
   OWNER_GATE_NOT_CONFIGURED:'Owner sign-in is not configured on this installation.',ROOM_TASK_ACCESS_DENIED:'This account no longer has access to the selected task.',
   ROOM_REVISION_CONFLICT:'This room changed in another session. Recover the pending save and review the latest messages.',
   ROOM_TASK_READ_ONLY:'This task is read-only. Its conversation is still saved.',ROOM_TURN_LIMIT:'This room has reached its turn limit. Start a new room to continue.',
-  ROOM_PENDING_CONTEXT_REQUIRED:'Include the pending user messages in the next turn.',ROOM_AUTOMATIC_TRANSPORT_UNAVAILABLE:'This connection is not available for automatic transfers yet.'};
+  ROOM_PENDING_CONTEXT_REQUIRED:'Include the pending user messages in the next turn.',ROOM_AUTOMATIC_TRANSPORT_UNAVAILABLE:'This connection is not available for automatic transfers yet.',
+  ROOM_PROVIDER_UNAVAILABLE:'This model connection is not ready. Refresh to see its setup status.',
+  ROOM_PROVIDER_APPROVAL_REQUIRED:'The connection or estimate changed. Recover the pending operation, refresh, and review the current prompt and cost before sending.',
+  ROOM_PROVIDER_REVIEW_REQUIRED:'Review the current saved response before accepting it.',
+  ROOM_PROVIDER_RESULT_SAVE_UNCERTAIN:'The provider may have replied, but its saved result is uncertain. Recover or refresh this turn; do not send it again.'};
  return known[code]??code;
 };
-export async function roomJson(url,init,request=fetch){
- const response=await request(url,{...init,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});
+export async function roomJson(url,init,request=fetch,timeoutMs=15000){
+ const response=await request(url,{...init,cache:'no-store',redirect:'error',signal:AbortSignal.timeout(timeoutMs)});
  if(!response.body)throw Error('The room service returned no response.');
  const reader=response.body.getReader(),parts=[];let size=0;
  try{for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>4400000)throw Error('The room response is too large.');parts.push(value);}}
@@ -96,7 +100,7 @@ export class RoomBrowserClient {
   if(previous&&previous!==serialized)throw Error('A saved operation cannot be replaced.');
   if(!previous&&this.pending().length>=32)throw Error('Too many pending room saves. Recover them before starting more.');
   this.storage.setItem(key,serialized); // Must succeed before network access.
-  const value=await checkedIntegrity(await roomJson(this.endpoint(ref),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command)},this.request),ref);
+  const value=await checkedIntegrity(await roomJson(this.endpoint(ref),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(command)},this.request,command.action==='provider-send'?45000:15000),ref);
   if(value.room.operations[command.operationId]?.digest!==await digest(command))throw Error('The server did not confirm this exact change.');
   this.storage.removeItem(key);return value;
  }
@@ -109,5 +113,20 @@ export class RoomBrowserClient {
   // A newer revision fences this old command even if the original request is still arriving.
   if(view&&view.room.revision>command.expectedRevision){this.storage.removeItem(PREFIX+command.operationId);return {view,state:'superseded'};}
   return {view:await this.submit(ref,command),state:'saved'};
+ }
+ async stopPendingSend(record){
+  const {ref,command}=record;
+  if(command.action!=='provider-send')throw Error('Only a pending direct send can be stopped here.');
+  let view=await this.load(ref);
+  if(view.room.operations[command.operationId])return this.recover(record);
+  if(view.room.revision<=command.expectedRevision){
+   // A new, journaled pause fences the old revision. If the old send won first,
+   // its receipt is recovered below; stopping cannot undo an already sent prompt.
+   view=await this.submit(ref,{operationId:crypto.randomUUID(),expectedRevision:view.room.revision,action:'pause'});
+  }
+  if(view.room.operations[command.operationId])return this.recover(record);
+  if(view.room.revision<=command.expectedRevision)throw Error('The pending request could not be fenced. Recover the saved room.');
+  this.storage.removeItem(PREFIX+command.operationId);
+  return {view,state:'superseded'};
  }
 }
