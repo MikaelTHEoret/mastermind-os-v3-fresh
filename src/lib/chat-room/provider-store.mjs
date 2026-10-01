@@ -1,6 +1,7 @@
 import {RoomStore,ROOM_UPDATE_SQL} from './store.mjs';
-import {RoomError,digest,exact,roomCommand} from './contract.mjs';
+import {RoomError,digest,exact,identifier,roomCommand} from './contract.mjs';
 import {providerConfiguration,publicModels,quoteFor,validateApproval,callProvider} from './providers.mjs';
+import {roomEnvironment,renewalOffer,prepareRoomRenewal} from './renewal.mjs';
 
 const fail=(code,status=409)=>{throw new RoomError(code,status);};
 const common=['operationId','expectedRevision','action','turnId','promptSha256'];
@@ -8,20 +9,48 @@ export class ProviderRoomStore extends RoomStore {
  constructor(query,owner,{environment=()=>process.env,request=fetch,now=()=>Date.now()}={}){
   super(query,owner);this.environment=environment;this.request=request;this.now=now;
  }
- configuration(){return providerConfiguration(this.environment(),this.owner,this.now());}
+ configuration(doc){
+  const env=this.environment(),now=this.now();
+  return providerConfiguration(doc?roomEnvironment(env,this.owner,doc.room.participants,doc.room.connectionRenewal,now):env,this.owner,now);
+ }
  async list(ref){return {...await super.list(ref),providers:publicModels(this.configuration())};}
  view(doc,state){
-  const view=super.view(doc,state),config=this.configuration();
+  const view=super.view(doc,state),config=this.configuration(doc);
   view.providers=publicModels(config);
+  view.connection={expiresAt:config.expiresAt,source:doc.room.connectionRenewal?'room':'server',checkedAt:new Date(this.now()).toISOString(),
+   renewal:renewalOffer(this.environment(),this.owner,doc.room.participants,this.now())};
   const active=doc.room.activeTurn&&doc.room.turns[doc.room.activeTurn];
   const participant=doc.room.participants.find(p=>p.id===active?.participantId);
   view.providerQuote=participant?.transport==='api'&&active?.status==='prepared'?quoteFor(config,participant.model,active.prompt):null;
   return view;
  }
  async command(ref,command){
+  if(command?.action==='renew-connection')return this.renew(ref,command);
   if(command?.action==='provider-send')return this.send(ref,command);
   if(command?.action==='provider-review')return this.review(ref,command);
   return super.command(ref,command);
+ }
+ async renew(ref,command){
+  exact(command,['operationId','expectedRevision','action','scopeDigest','reviewConfirmed','geminiFreeTierConfirmed']);
+  identifier(command.operationId);
+  const before=await this.load(ref);
+  if(!before.document)fail('ROOM_NOT_FOUND',404);
+  if(this.replay(before.document,command))return this.view(before.document,before.state);
+  if(before.state!=='active')fail('ROOM_TASK_READ_ONLY');
+  if(['closed','running','awaiting_approval'].includes(before.document.status))fail('ROOM_CONVERSATION_BUSY');
+  const room=before.document.room;
+  if(!Number.isSafeInteger(command.expectedRevision)||command.expectedRevision!==room.revision)fail('ROOM_REVISION_CONFLICT');
+  if(Object.keys(room.operations).length>=240)fail('ROOM_COMMAND_LIMIT');
+  if(room.activeTurn&&room.turns[room.activeTurn]?.status!=='prepared')fail('ROOM_RENEWAL_TURN_PENDING');
+  const doc=structuredClone(before.document);
+  doc.room.connectionRenewal=prepareRoomRenewal(this.environment(),this.owner,room.participants,command,this.now());
+  doc.room.revision++;doc.updatedAt=new Date(this.now()).toISOString();
+  Object.defineProperty(doc.room.operations,command.operationId,{value:{digest:digest(command),result:{ok:true,revision:doc.room.revision,
+   activeTurn:doc.room.activeTurn,executionAuthorized:false,replayed:false,connectionRenewal:structuredClone(doc.room.connectionRenewal)}},enumerable:true});
+  await this.replace(ref,before.document,doc);
+  const after=await this.load(ref);
+  if(!this.replay(after.document,command))fail('ROOM_SAVE_CONFLICT');
+  return this.view(after.document,after.state);
  }
  replay(doc,command){
   const prior=doc?.room?.operations?.[command.operationId];
@@ -50,7 +79,7 @@ export class ProviderRoomStore extends RoomStore {
   if(this.replay(before.document,command))return this.view(before.document,before.state);
   if(before.state!=='active')fail('ROOM_TASK_READ_ONLY');
   const {turn,participant}=this.turn(before.document,command);
-  const {quote}=validateApproval(this.configuration(),participant.model,turn.prompt,command.approval);
+  const {quote}=validateApproval(this.configuration(before.document),participant.model,turn.prompt,command.approval);
   const doc=structuredClone(before.document);
   roomCommand(doc,{operationId:command.operationId,expectedRevision:command.expectedRevision,action:'dispatch',turnId:command.turnId,promptSha256:command.promptSha256});
   doc.room.operations[command.operationId].digest=digest(command);
@@ -70,7 +99,7 @@ export class ProviderRoomStore extends RoomStore {
   }
   // Re-check the credential/owner/policy after reservation and before the send fence.
   let model;
-  try{({model}=validateApproval(this.configuration(),participant.model,turn.prompt,command.approval));}
+  try{({model}=validateApproval(this.configuration(current.document),participant.model,turn.prompt,command.approval));}
   catch{await this.settle(ref,command,{state:'unknown',code:'CONNECTION_CHANGED_BEFORE_REQUEST'});return this.read(ref);}
   const sending=structuredClone(current.document);
   sending.room.turns[command.turnId].status='awaiting-reply';

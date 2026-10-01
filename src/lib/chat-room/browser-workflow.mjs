@@ -64,6 +64,9 @@ export const roomErrorMessage=error=>{
   ROOM_PROVIDER_UNAVAILABLE:'This model connection is not ready. Refresh to see its setup status.',
   ROOM_PROVIDER_APPROVAL_REQUIRED:'The connection or estimate changed. Recover the pending operation, refresh, and review the current prompt and cost before sending.',
   ROOM_PROVIDER_REVIEW_REQUIRED:'Review the current saved response before accepting it.',
+  ROOM_RENEWAL_UNAVAILABLE:'The server connection changed or its catalog review expired. Refresh and check connection setup; no provider was contacted.',
+  ROOM_RENEWAL_REVIEW_REQUIRED:'Confirm the connection review and the current Gemini Free tier before renewing.',
+  ROOM_RENEWAL_TURN_PENDING:'Resolve the existing turn before renewing. Renewal cannot retry an uncertain request.',
   ROOM_PROVIDER_RESULT_SAVE_UNCERTAIN:'The provider may have replied, but its saved result is uncertain. Recover or refresh this turn; do not send it again.'};
  return known[code]??code;
 };
@@ -115,8 +118,12 @@ export class RoomBrowserClient {
   return {view:await this.submit(ref,command),state:'saved'};
  }
  async stopPendingSend(record){
+  if(record.command.action!=='provider-send')throw Error('Only a pending direct send can be stopped here.');
+  return this.stopPendingConnection(record);
+ }
+ async stopPendingConnection(record){
   const {ref,command}=record;
-  if(command.action!=='provider-send')throw Error('Only a pending direct send can be stopped here.');
+  if(!['provider-send','renew-connection'].includes(command.action))throw Error('Only a pending connection change can be stopped here.');
   let view=await this.load(ref);
   if(view.room.operations[command.operationId])return this.recover(record);
   if(view.room.revision<=command.expectedRevision){

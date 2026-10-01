@@ -6,12 +6,14 @@ import {roomPrompt} from '../lib/chat-room/prompt.mjs';
 import styles from './SharedRoomConsole.module.css';
 import BrowserObservation from './BrowserObservation';
 import DirectModelTurn,{type ModelOption} from './DirectModelTurn';
+import ModelConnectionSetup from './ModelConnectionSetup';
+import RoomConnectionRenewal from './RoomConnectionRenewal';
 
 type Task={taskId:string;project:string;title:string};
 type Ref={taskId:string;session:string};
 type Participant={id:string;label:string;model:string;transport:string};
 type Message={messageId:string;who:string;participantId:string;text:string;at:string;capture?:string;evidence?:string};
-type View={session:string;taskId:string;project:string;taskState:string;transcript:Message[];room:any;providers?:ModelOption[];providerQuote?:any};
+type View={session:string;taskId:string;project:string;taskState:string;transcript:Message[];room:any;providers?:ModelOption[];providerQuote?:any;connection?:any};
 type Summary={session:string;preview:string;updatedAt:string;participants:Participant[];paused:boolean};
 type Pending={version:number;ref:Ref;command:any};
 const SELECTION='mastermind.room.selection.v1';
@@ -31,7 +33,7 @@ export default function SharedRoomConsole(){
  const [tasks,setTasks]=useState<Task[]>([]),[taskId,setTaskId]=useState(''),[rooms,setRooms]=useState<Summary[]>([]);
  const [view,setView]=useState<View|null>(null),[available,setAvailable]=useState(false),[busy,setBusy]=useState(false);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[pending,setPending]=useState<Pending[]>([]);
- const [creating,setCreating]=useState(false),[names,setNames]=useState([{label:'Proposer',model:'zai/glm-4.7-flash',transport:'api'},{label:'Reviewer',model:'gemini/gemini-2.5-flash-lite',transport:'api'}]),[limit,setLimit]=useState(12);
+ const [creating,setCreating]=useState(false),[names,setNames]=useState([{label:'Proposer',model:'zai/glm-4.7-flash',transport:'api'},{label:'Reviewer',model:'gemini/gemini-3.5-flash-lite',transport:'api'}]),[limit,setLimit]=useState(12);
  const [models,setModels]=useState<ModelOption[]>([]),[showPaid,setShowPaid]=useState(false);
  const [input,setInput]=useState(''),[disposition,setDisposition]=useState('queue'),[recipient,setRecipient]=useState(''),[context,setContext]=useState<string[]>([]);
  const [reply,setReply]=useState(''),[evidence,setEvidence]=useState(''),[complete,setComplete]=useState(true),[truncated,setTruncated]=useState(false);
@@ -115,7 +117,7 @@ export default function SharedRoomConsole(){
  }
  async function recover(item:Pending,stop=false){
   if(acting.current)return;acting.current=true;setBusy(true);setError('');
-  try{const result=stop?await client.current!.stopPendingSend(item):await client.current!.recover(item);
+  try{const result=stop?await client.current!.stopPendingConnection(item):await client.current!.recover(item);
    if(alive.current){selected.current=item.ref;setTaskId(item.ref.taskId);remember(item.ref);adopt(result.view);void list(item.ref.taskId).catch(()=>{if(alive.current)setNotice('Recovered. The room list could not refresh yet.');});
     if(result.state==='saved'&&item.command.action==='message')setInput(current=>current===item.command.text?'':current);
     if(result.state==='saved'&&item.command.action==='reply')setReply(current=>current===item.command.text?'':current);
@@ -147,6 +149,7 @@ export default function SharedRoomConsole(){
   {ownPending.length>0&&<aside className={styles.recovery}><strong>A save needs recovery</strong><p>Your original change is retained in this browser. Recovery checks the saved room and keeps the same operation if a retry is needed.</p>
    {ownPending.map(p=><div key={p.command.operationId}><button disabled={busy} onClick={()=>void recover(p)}>Recover save</button> <span>{tasks.find(t=>t.taskId===p.ref.taskId)?.title}</span>
     {p.command.action==='provider-send'&&<><button disabled={busy} onClick={()=>void recover(p,true)}>Stop pending send</button><span>Pauses an unsent request. A prompt already sent cannot be undone.</span></>}
+    {p.command.action==='renew-connection'&&<><button disabled={busy} onClick={()=>void recover(p,true)}>Stop pending renewal</button><span>Pauses the room and prevents a late unsaved renewal. An already saved renewal is recovered.</span></>}
     {typeof p.command.text==='string'&&<details><summary>Text in this pending save</summary><div className={styles.messageText}>{p.command.text}</div></details>}</div>)}
   </aside>}
   <div className={styles.layout}>
@@ -161,6 +164,10 @@ export default function SharedRoomConsole(){
     {truncated&&<p className={styles.muted}>Showing the 50 most recently updated rooms. Older rooms remain saved.</p>}
    </aside>
    <div className={styles.main}>
+    {available&&<ModelConnectionSetup/>}
+    {view&&!creating&&view.room.participants.some((p:Participant)=>p.transport==='api')&&<RoomConnectionRenewal
+     key={`${view.session}/${view.connection?.renewal?.scopeDigest??''}/${view.connection?.expiresAt??''}`}
+     connection={view.connection} locked={locked||!!(active&&active.status!=='prepared')} act={act} refresh={refresh}/>}
     {creating&&available?<form className={styles.setup} onSubmit={e=>{e.preventDefault();void create();}}>
      <h3>Bring participants into a room</h3><p>Free-tier connections are the default. Unavailable connections can be saved, but cannot send until setup is complete.</p>
      <label className={styles.check}><input type="checkbox" checked={showPaid} onChange={e=>{setShowPaid(e.target.checked);if(!e.target.checked)setNames(items=>items.map(n=>models.find(m=>m.id===n.model)?.paid?{...n,model:'zai/glm-4.7-flash'}:n));}}/>Show optional paid models (each reply needs separate approval)</label>

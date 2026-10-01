@@ -17,7 +17,7 @@ const environment=()=>({MASTERMIND_ROOM_API_ENABLED:'true',MASTERMIND_ROOM_API_P
  MASTERMIND_ROOM_ZAI_API_KEY:secret,MASTERMIND_ROOM_GEMINI_API_KEY:secret});
 const output=(text='A visible answer',finish='stop',model='glm-4.7-flash')=>Response.json({id:'provider-request-1',model,
  choices:[{finish_reason:finish,message:{role:'assistant',content:text,reasoning_content:'PRIVATE_REASONING_NOT_RETAINED'}}],usage:{prompt_tokens:123,completion_tokens:8,total_tokens:131}});
-async function fixture({model='zai/glm-4.7-flash',request,env=environment()}={}){
+async function fixture({model='zai/glm-4.7-flash',request,env=environment(),now=()=>clock}={}){
  const state={document:null,allowed:true,taskState:'active',writes:0,calls:[],hook:null,loseAt:0};
  const query=async(sql,params)=>{
   if(state.hook)await state.hook(sql,params);
@@ -32,7 +32,7 @@ async function fixture({model='zai/glm-4.7-flash',request,env=environment()}={})
   if(state.loseAt===state.writes)throw Error('Lost acknowledgement after commit');
   return [{id:params[0]}];
  };
- const store=()=>new ProviderRoomStore(query,owner,{now:()=>clock,environment:()=>env,request:async(...args)=>{state.calls.push(args);return request?request(...args):output();}});
+ const store=()=>new ProviderRoomStore(query,owner,{now,environment:()=>env,request:async(...args)=>{state.calls.push(args);return request?request(...args):output();}});
  const command=(action,fields={})=>({operationId:randomUUID(),expectedRevision:state.document?.room.revision??0,action,...fields});
  const execute=(action,fields)=>store().command(ref,command(action,fields));
  await execute('create',{participants:[{id:'proposer_api',label:'Proposer',model,transport:'api'},{id:'manual_peer',label:'Manual',model:'Unspecified',transport:'manual'}],maxTurns:6});
@@ -43,6 +43,96 @@ async function fixture({model='zai/glm-4.7-flash',request,env=environment()}={})
  const review=()=>command('provider-review',{...binding,responseSha256:state.document.room.turns[turnId].provider?.textSha256,reviewed:true});
  return {state,store,command,execute,binding,send,review,env};
 }
+
+async function renewableFixture(options={}){
+ let time=clock+86400000;
+ const env={...environment(),MASTERMIND_ROOM_RENEWAL_ENABLED:'true'};
+ const f=await fixture({...options,env,now:()=>time});
+ const renewal=async()=>{const view=await f.store().read(ref);return f.command('renew-connection',{
+  scopeDigest:view.connection.renewal.scopeDigest,reviewConfirmed:true,geminiFreeTierConfirmed:view.connection.renewal.geminiFreeTierRequired});};
+ return {...f,renewal,setTime:t=>time=t};
+}
+test('expired server review renews in its own room; reload and replay preserve exact expiry without provider calls',async()=>{
+ const f=await renewableFixture();let v=await f.store().read(ref);assert.equal(v.providerQuote,null);
+ const command=await f.renewal();v=await f.store().command(ref,command);
+ assert.ok(v.providerQuote);assert.equal(f.state.calls.length,0);
+ const expiry=v.connection.expiresAt;assert.equal(Date.parse(expiry),clock+2*86400000);
+ f.setTime(clock+86400000+60000);
+ assert.equal((await f.store().command(ref,command)).connection.expiresAt,expiry);
+ assert.equal((await f.store().read(ref)).connection.expiresAt,expiry);
+ assert.equal(v.room.operations[command.operationId].result.connectionRenewal.expiresAt,expiry);
+ assert.equal(JSON.stringify(v).includes(fingerprint),false);assert.equal(JSON.stringify(v).includes(secret),false);
+ assert.equal(JSON.parse(f.env.MASTERMIND_ROOM_API_POLICY).expiresAt,policy.expiresAt);
+ const other=await fixture({env:f.env,now:()=>clock+86400000});assert.equal((await other.store().read(ref)).providerQuote,null);
+});
+test('lost renewal acknowledgement recovers through the existing browser journal without extending expiry',async()=>{
+ const f=await renewableFixture(),command=await f.renewal();f.state.loseAt=f.state.writes+1;
+ await assert.rejects(f.store().command(ref,command));const expiry=f.state.document.room.connectionRenewal.expiresAt;
+ f.setTime(clock+86400000+120000);assert.equal((await f.store().command(ref,command)).connection.expiresAt,expiry);
+ assert.equal(f.state.calls.length,0);
+});
+test('renewal races and altered operation replay cannot overwrite one another',async()=>{
+ const f=await renewableFixture(),a=await f.renewal(),b={...a,operationId:randomUUID()};
+ const results=await Promise.allSettled([f.store().command(ref,a),f.store().command(ref,b)]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.state.calls.length,0);
+ await assert.rejects(f.store().command(ref,{...a,reviewConfirmed:false}),/OPERATION_CONFLICT/);
+});
+test('renewal requires unchanged server scope and explicit review, never enables foreign/paid/unconfigured providers',async()=>{
+ for(const mutation of [env=>{env.MASTERMIND_ROOM_RENEWAL_ENABLED='false';},env=>{env.MASTERMIND_ROOM_API_ENABLED='false';},
+  env=>{env.MASTERMIND_ROOM_ZAI_API_KEY='different-synthetic-credential';},
+  env=>{const p=JSON.parse(env.MASTERMIND_ROOM_API_POLICY);p.subject='user_foreign';env.MASTERMIND_ROOM_API_POLICY=JSON.stringify(p);},
+  env=>{const p=JSON.parse(env.MASTERMIND_ROOM_API_POLICY);p.allowPaid=true;env.MASTERMIND_ROOM_API_POLICY=JSON.stringify(p);},
+  env=>{const p=JSON.parse(env.MASTERMIND_ROOM_API_POLICY);p.catalogVersion='old';env.MASTERMIND_ROOM_API_POLICY=JSON.stringify(p);}]){
+  const f=await renewableFixture(),c=await f.renewal();mutation(f.env);
+  await assert.rejects(f.store().command(ref,c),/RENEWAL_UNAVAILABLE/);assert.equal(f.state.calls.length,0);
+ }
+ const f=await renewableFixture();const c=await f.renewal();
+ for(const changes of [{reviewConfirmed:false},{geminiFreeTierConfirmed:true},{scopeDigest:'changed'},{allowPaid:true}])await assert.rejects(f.store().command(ref,{...c,...changes}));
+ f.state.allowed=false;await assert.rejects(f.store().command(ref,c),/ACCESS_DENIED/);
+});
+test('fresh Gemini review is mandatory and renewal invalidates stale quotes',async()=>{
+ const f=await renewableFixture({model:'gemini/gemini-3.5-flash-lite'}),c=await f.renewal();
+ await assert.rejects(f.store().command(ref,{...c,geminiFreeTierConfirmed:false}),/REVIEW_REQUIRED/);
+ const v=await f.store().command(ref,c);assert.ok(v.providerQuote);const old=v.providerQuote;
+ f.setTime(clock+86400000+1000);await f.store().command(ref,await f.renewal());
+ await assert.rejects(f.store().command(ref,f.command('provider-send',{...f.binding,approval:{quote:old,shareApproved:true,paidApproved:false}})),/APPROVAL_REQUIRED/);
+ assert.equal(f.state.calls.length,0);
+});
+test('renewal expiry, invalid saved review and changed base fail closed; saved drafts remain recoverable',async()=>{
+ const f=await renewableFixture();await f.store().command(ref,await f.renewal());
+ f.setTime(clock+2*86400000);assert.equal((await f.store().read(ref)).providerQuote,null);
+ f.setTime(clock+86400000+1000);f.state.document.room.connectionRenewal.reviewConfirmed=false;
+ assert.equal((await f.store().read(ref)).providerQuote,null);
+ await f.store().command(ref,await f.renewal());
+ const v=await f.store().read(ref),send=f.command('provider-send',{...f.binding,approval:{quote:v.providerQuote,shareApproved:true,paidApproved:false}});
+ await f.store().command(ref,send);assert.equal(f.state.calls.length,1);
+ await assert.rejects(f.store().command(ref,await f.renewal()),/TURN_PENDING/);
+ f.env.MASTERMIND_ROOM_RENEWAL_ENABLED='false';
+ await f.store().command(ref,f.review());assert.equal((await f.store().read(ref)).room.completedTurns,1);
+ assert.equal(f.state.calls.length,1);
+});
+test('catalog review deadline clamps renewal and prevents indefinite reapproval',async()=>{
+ const f=await renewableFixture();f.setTime(Date.parse('2026-10-30T23:00:00Z'));
+ const v=await f.store().command(ref,await f.renewal());assert.equal(v.connection.expiresAt,'2026-10-31T00:00:00.000Z');
+ f.setTime(Date.parse('2026-10-31T00:00:00Z'));const expired=await f.store().read(ref);
+ assert.equal(expired.connection.renewal,null);assert.equal(expired.providerQuote,null);
+});
+test('browser recovery preserves a saved renewal and safely fences a stale unsaved renewal',async()=>{
+ const f=await renewableFixture(),items=new Map(),storage={get length(){return items.size;},key:n=>[...items.keys()][n],getItem:k=>items.get(k)??null,setItem:(k,v)=>items.set(k,v),removeItem:k=>items.delete(k)};
+ let lose=true,posts=0;
+ const request=async(_url,init)=>{
+  if(init?.method==='POST'){posts++;let view;try{view=await f.store().command(ref,JSON.parse(init.body));}catch(e){return Response.json({ok:false,error:e.code},{status:e.status});}
+   if(lose){lose=false;throw Error('lost web acknowledgement');}return Response.json(view);}
+  return Response.json(await f.store().read(ref));
+ };
+ const client=new RoomBrowserClient(storage,request);await assert.rejects(client.submit(ref,await f.renewal()));
+ const expiry=f.state.document.room.connectionRenewal.expiresAt;
+ const fresh=new RoomBrowserClient(storage,request);assert.equal((await fresh.recover(fresh.pending()[0])).state,'saved');assert.equal(posts,1);
+ assert.equal(f.state.document.room.connectionRenewal.expiresAt,expiry);
+ const stale=await f.renewal();stale.scopeDigest='stale';await assert.rejects(fresh.submit(ref,stale));
+ const fenced=await fresh.stopPendingConnection(fresh.pending()[0]);assert.equal(fenced.state,'superseded');assert.equal(fenced.view.room.paused,true);
+ await assert.rejects(f.store().command(ref,stale),/REVISION_CONFLICT/);assert.equal(f.state.calls.length,0);assert.equal(fresh.pending().length,0);
+});
 test('one official call creates a draft; exact review saves once and next participant sees it',async()=>{
  const f=await fixture();const received=await f.store().command(ref,f.send);
  assert.equal(f.state.calls.length,1);assert.equal(received.transcript.length,1);
@@ -139,7 +229,7 @@ test('paid model requires BOTH installation enrollment and exact per-turn paid a
 });
 test('Gemini free entitlement is credential-bound and requires explicit confirmation',async()=>{
  const env=environment();env.MASTERMIND_ROOM_API_POLICY=JSON.stringify({...policy,providers:{...policy.providers,gemini:{enabled:true,credentialSha256:fingerprint}}});
- const f=await fixture({model:'gemini/gemini-2.5-flash-lite',env});await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);assert.equal(f.state.calls.length,0);
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',env});await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);assert.equal(f.state.calls.length,0);
 });
 test('configuration fails closed and public metadata contains neither key nor fingerprint',()=>{
  for(const env of [{}, {...environment(),MASTERMIND_ROOM_API_POLICY:'invalid'}, {...environment(),MASTERMIND_ROOM_API_ENABLED:'false'}])assert.equal(providerConfiguration(env,owner,clock).entries.some(m=>m.ready),false);
@@ -153,11 +243,51 @@ test('official request shape has no tool, redirect, paid fallback or unselected 
  assert.equal(body.model,'glm-4.7-flash');assert.equal(body.request_id,f.send.operationId);
 });
 test('Gemini uses only visible text from the exact selected model family',async()=>{
- const f=await fixture({model:'gemini/gemini-2.5-flash-lite',request:async()=>Response.json({responseId:'google-request-1',modelVersion:'gemini-2.5-flash-lite',
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',request:async()=>Response.json({responseId:'google-request-1',modelVersion:'gemini-3.5-flash-lite',
  candidates:[{content:{role:'model',parts:[{text:'Visible'}]},finishReason:'STOP'}]})});
  const view=await f.store().command(ref,f.send);assert.equal(view.room.turns[f.binding.turnId].provider.text,'Visible');
- assert.match(f.state.calls[0][0],/^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-2.5-flash-lite:generateContent$/);
+ assert.match(f.state.calls[0][0],/^https:\/\/generativelanguage.googleapis.com\/v1beta\/models\/gemini-3.5-flash-lite:generateContent$/);
  assert.equal(f.state.calls[0][1].headers['x-goog-api-key'],secret);
+ const body=JSON.parse(f.state.calls[0][1].body);
+ assert.deepEqual(body.generationConfig,{candidateCount:1,maxOutputTokens:1024,thinkingConfig:{thinkingLevel:'MINIMAL',includeThoughts:false}});
+ assert.equal(body.tools,undefined);
+});
+
+test('old Gemini participants remain readable but never silently switch to the new model',async()=>{
+ const f=await fixture({model:'gemini/gemini-2.5-flash-lite'});
+ const before=await f.store().read(ref);
+ assert.equal(before.room.participants[0].model,'gemini/gemini-2.5-flash-lite');
+ assert.equal(before.providerQuote,null);
+ await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);
+ assert.equal(f.state.calls.length,0);
+ assert.deepEqual((await f.store().read(ref)).room,before.room);
+});
+
+test('prior catalog enrollment cannot authorize the new model',async()=>{
+ const env=environment();env.MASTERMIND_ROOM_API_POLICY=JSON.stringify({...policy,catalogVersion:'2026-09-30-v1'});
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',env});
+ await assert.rejects(f.store().command(ref,f.send),/ROOM_PROVIDER_UNAVAILABLE/);
+ assert.equal(f.state.calls.length,0);
+});
+
+test('Gemini text signatures are discarded, while thought output and malformed metadata are rejected',async()=>{
+ for(const [part,accepted] of [[{text:'Visible',thoughtSignature:'opaque-signature'},true],[{text:'Private',thought:true},false],[{text:'Visible',thoughtSignature:{}},false]]){
+  const f=await fixture({model:'gemini/gemini-3.5-flash-lite',request:async()=>Response.json({modelVersion:'gemini-3.5-flash-lite',candidates:[{content:{role:'model',parts:[part]},finishReason:'STOP'}]})});
+  const result=await f.store().command(ref,f.send),receipt=result.room.turns[f.binding.turnId].provider;
+  assert.equal(receipt.state,accepted?'draft':'unknown');
+  assert.equal(receipt.text,accepted?'Visible':undefined);
+  assert.ok(!JSON.stringify(result).includes('opaque-signature'));
+ }
+});
+
+test('Gemini 404 is preserved through recovery without another provider attempt',async()=>{
+ const f=await fixture({model:'gemini/gemini-3.5-flash-lite',request:async()=>new Response('',{status:404})});
+ const first=await f.store().command(ref,f.send);
+ const recovered=await f.store().command(ref,f.send);
+ assert.equal(recovered.room.turns[f.binding.turnId].provider.httpStatus,404);
+ assert.equal(recovered.room.turns[f.binding.turnId].provider.code,'PROVIDER_REJECTED');
+ assert.equal(f.state.calls.length,1);
+ assert.deepEqual(recovered.room,first.room);
 });
 test('altered model, tool calls, excessive output and invalid responses never become a reviewable draft',async()=>{
  const bad=[()=>output('text','stop','other-model'),()=>output('x'.repeat(48001)),()=>new Response('not-json'),()=>new Response('x'.repeat(131073)),
