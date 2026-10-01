@@ -4,7 +4,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import {createHash} from 'node:crypto';
-import {prepareEnrollment,enrollmentHandler} from './enrollment.mjs';
+import {prepareEnrollment,enrollmentHandler,resolveEnrollmentOwner} from './enrollment.mjs';
+import {createHostedGateway} from '../../../services/mastermind-context-gateway/src/hosted-adapter.mjs';
 import {providerConfiguration,CATALOG_VERSION} from './providers.mjs';
 import * as protocol from '../../../protocol/mastermind-node-exchange/contract.mjs';
 
@@ -12,6 +13,19 @@ const owner={householdId:'fixture',actorPlayerId:'20000000-1111-4111-8111-111111
 const env={MASTERMIND_ROOM_ZAI_API_KEY:'synthetic-zai-secret-value',MASTERMIND_ROOM_GEMINI_API_KEY:'synthetic-gemini-secret-value'};
 const now=Date.parse('2026-10-01T06:00:00Z');
 const input={providers:['zai','gemini'],geminiFreeTierConfirmed:true,catalogVersion:CATALOG_VERSION};
+test('real hosted gateway IDs resolve through active-parent authorization before preparing enrollment',async()=>{
+ let allowed=true,checks=0;
+ const identity={householdId:owner.householdId,actorPlayerId:owner.actorPlayerId};
+ const store={resolveClerkOperator:async()=>identity,authorizeOperator:async(household,actor)=>{checks++;assert.equal(household,owner.householdId);assert.equal(actor,owner.actorPlayerId);return allowed;}};
+ const gatewayFor=subject=>createHostedGateway({store,authenticatedSubject:subject,configuration:{ownerSubject:owner.subject,identity}});
+ assert.equal((await gatewayFor(owner.subject)).identity.role,undefined);
+ const resolved=await resolveEnrollmentOwner(gatewayFor,owner.subject);
+ assert.equal(checks,1);assert.equal(resolved.role,'parent');
+ assert.equal(prepareEnrollment(env,{...resolved,subject:owner.subject},input,now).activated,false);
+ allowed=false;
+ await assert.rejects(resolveEnrollmentOwner(gatewayFor,owner.subject),/active parent/);
+ await assert.rejects(resolveEnrollmentOwner(gatewayFor,'user_foreign'),/canonical owner/);
+});
 test('preparation binds exact keys and owner without activation or secret disclosure',()=>{
  const before=JSON.stringify(env),result=prepareEnrollment(env,owner,input,now);
  assert.equal(result.activated,false);assert.equal(result.providerRequests,0);assert.equal(result.policy.allowPaid,false);
@@ -41,10 +55,10 @@ test('unsupported models, keys, identity overrides, paid fields and stale catalo
  for(const role of ['child','guest',undefined])assert.throws(()=>prepareEnrollment(env,{...owner,role},input,now),/OWNER_REQUIRED/);
  for(const key of ['', 'short', 'x'.repeat(4097), 'synthetic-secret\nvalue',' leading-synthetic-secret','trailing-synthetic-secret ','synthetic-\ud800-value'])assert.throws(()=>prepareEnrollment({...env,MASTERMIND_ROOM_ZAI_API_KEY:key},owner,input,now),/KEY_UNAVAILABLE/);
 });
-function compiled(relative,imports){
+function compiled(relative,imports,globals={}){
  const source=fs.readFileSync(new URL(relative,import.meta.url),'utf8');
  const output=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
- const module={exports:{}};vm.runInNewContext(output,{module,exports:module.exports,Error,Object,Response,Request,URL,Set,Buffer,TextDecoder,
+ const module={exports:{}};vm.runInNewContext(output,{...globals,module,exports:module.exports,Error,Object,Response,Request,URL,Set,Buffer,TextDecoder,
   require:name=>{assert.ok(Object.hasOwn(imports,name),name);return imports[name];}});return module.exports;
 }
 const local=compiled('../memory/local-service-auth.ts',{'node:crypto':await import('node:crypto')});
@@ -55,6 +69,18 @@ const headers={origin:'https://mastermind-core.com','sec-fetch-site':'same-origi
 const request=(body=input,more={})=>new Request(url,{method:'POST',headers,body:JSON.stringify(body),...more});
 const deps={enabled:true,authorizeRequest:http.authorizeOwnerRequest,readJson:http.readNodeJson,
  authenticate:async()=>({ok:true,userId:owner.subject}),identityFor:async()=>owner,environment:()=>env,now:()=>now};
+test('actual Next route accepts canonical owner and denies a revoked operator with real gateway identity shape',async()=>{
+ let allowed=true;
+ const identity={householdId:owner.householdId,actorPlayerId:owner.actorPlayerId};
+ const route=compiled('../../app/api/chat/connections/prepare/route.ts',{
+  '@/lib/trading/auth':{requireOwner:deps.authenticate},
+  '@/lib/mastermind-context/gateway':{gatewayForAuthenticatedOwner:subject=>createHostedGateway({authenticatedSubject:subject,configuration:{ownerSubject:owner.subject,identity},store:{resolveClerkOperator:async()=>identity,authorizeOperator:async()=>allowed}})},
+  '@/lib/node-exchange/http':http,
+  '@/lib/chat-room/enrollment.mjs':{resolveEnrollmentOwner,enrollmentHandler:options=>enrollmentHandler({...options,environment:()=>env,now:()=>now})},
+ },{process:{env:{MASTERMIND_SHARED_ROOMS_ENABLED:'true'}}});
+ assert.equal((await route.POST(request())).status,200);
+ allowed=false;assert.equal((await route.POST(request())).status,403);
+});
 test('real request boundary denies origin/method/path, unauthenticated and disabled requests before secret access',async()=>{
  let reads=0;const privateEnv=()=>{reads++;return env;};
  for(const req of [request(input,{headers:{}}),request(input,{headers:{...headers,origin:'https://foreign.example'}}),

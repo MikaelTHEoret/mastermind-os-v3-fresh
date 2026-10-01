@@ -4,6 +4,12 @@ import {CATALOG_VERSION} from './providers.mjs';
 import {ROOM_HEADERS} from './http.mjs';
 
 const fail=(code,status=400)=>{throw new RoomError(code,status);};
+export async function resolveEnrollmentOwner(gatewayFor,subject){
+ const gateway=await gatewayFor(subject);
+ // The gateway identity contains IDs only. Its authorizer verifies active parent status.
+ await gateway.authorize();
+ return {...gateway.identity,role:'parent'};
+}
 // This is only a proposal for the existing server policy, never activation.
 export function prepareEnrollment(env,owner,input,now=Date.now()){
  if(!owner||owner.role!=='parent'||typeof owner.subject!=='string'||!/^user_[A-Za-z0-9]+$/.test(owner.subject)
