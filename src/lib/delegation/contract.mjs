@@ -1,4 +1,5 @@
 // Provider-neutral evidence attached to canonical tasks. No execution authority.
+import {validNexusProposal} from './nexus-proposal.mjs';
 export class ContributionError extends Error {
   constructor(code,status=400){super(code);this.code=code;this.status=status;}
 }
@@ -51,11 +52,20 @@ export function validateRecord(raw){
     need(exact(raw,[...common,'parentId','decision','assessment','evidenceRefs']));
     digestId(raw.parentId);need(['accepted-as-advice','needs-revision','rejected'].includes(raw.decision));
     text(raw.assessment,6000);strings(raw.evidenceRefs,12,512);
+  }else if(raw.kind==='nexus-proposal'){
+    need(validNexusProposal(raw,common));
   }else need(false);
   need(bytes(canonical(raw))<=65536,'CONTRIBUTION_TOO_LARGE',413);
   return structuredClone(raw);
 }
 export function validateParent(record,parent){
+  if(record.kind==='nexus-proposal'){
+    if(record.parentId===null){need(parent===null);return;}
+    need(parent&&parent.artifactId===record.parentId,'CONTRIBUTION_PARENT_REQUIRED');
+    const p=validateRecord(parent.record);
+    need(canonical(p.taskRef)===canonical(record.taskRef),'CONTRIBUTION_TASK_MISMATCH');
+    need(p.kind==='nexus-proposal'&&p.seriesId===record.seriesId,'CONTRIBUTION_PARENT_KIND');return;
+  }
   if(record.kind==='assignment'){need(parent===null);return;}
   need(parent&&parent.artifactId===record.parentId,'CONTRIBUTION_PARENT_REQUIRED');
   const p=validateRecord(parent.record);

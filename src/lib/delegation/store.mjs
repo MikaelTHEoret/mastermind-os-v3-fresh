@@ -43,6 +43,9 @@ export class ContributionStore{
  }
  async save(raw){
   const record=validateRecord(raw),ref=record.taskRef,id=digest(record);
+  // All existing callers are read-compatible but cannot create the new kind.
+  // Its guarded transaction is available only through NexusProposalStore.
+  if(record.kind==='nexus-proposal')fail('NEXUS_PROPOSAL_SAVE_DISABLED',409);
   await this.assertTask(ref,true);
   const parent=record.kind==='assignment'?null:await this.get(ref,record.parentId);
   validateParent(record,parent);
