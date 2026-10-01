@@ -7,7 +7,8 @@ import {pathToFileURL} from 'node:url';
 export function assertPublicEnvironment(root, env=process.env) {
 for(const name of ['NEON_MEMORY_URL','NEON_MEMORY_DSN','NEON_PRIMARY_URL','DATABASE_URL',
  'CLERK_SECRET_KEY','NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY','OWNER_CLERK_USER_ID',
- 'OPENAI_API_KEY','NEXUS_LLM_API_KEY','OLLAMA_EMBED_TOKEN','ENCRYPTION_KEY','SECRET_KEY']){
+ 'OPENAI_API_KEY','NEXUS_LLM_API_KEY','OLLAMA_EMBED_TOKEN','ENCRYPTION_KEY','SECRET_KEY',
+ 'MASTERMIND_ROOM_ZAI_API_KEY','MASTERMIND_ROOM_GEMINI_API_KEY','MASTERMIND_ROOM_API_POLICY']){
  if(env[name])throw Error('PUBLIC_SOURCE_CHECKS_REQUIRE_UNCONFIGURED_OPERATOR_ENVIRONMENT');
 }
 for(const name of ['.env','.env.local','.env.development','.env.development.local',

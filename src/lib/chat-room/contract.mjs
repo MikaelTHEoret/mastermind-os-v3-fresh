@@ -62,7 +62,7 @@ export function roomCommand(doc, command, stamp = () => new Date().toISOString()
       exact(participant,['id','label','model','transport']); identifier(participant.id);
       if (ids.has(participant.id)) fail('ROOM_PARTICIPANT_DUPLICATE'); ids.add(participant.id);
       text(participant.label,120); text(participant.model,160);
-      if (!['manual','browser','subscription-cli','local'].includes(participant.transport)) fail('ROOM_TRANSPORT_INVALID');
+      if (!['manual','browser','subscription-cli','local','api'].includes(participant.transport)) fail('ROOM_TRANSPORT_INVALID');
     }
     if (!Number.isSafeInteger(command.maxTurns) || command.maxTurns < 1 || command.maxTurns > 24) fail('ROOM_TURN_LIMIT');
     room = {format:'mastermind-room-v1',revision:0,participants:structuredClone(command.participants),

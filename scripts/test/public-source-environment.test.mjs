@@ -16,5 +16,8 @@ test('source checks refuse every standard Next dotenv variant before discovery',
       fs.unlinkSync(file);
     }
     assert.throws(()=>assertPublicEnvironment(root,{NEON_MEMORY_URL:'synthetic-configured'}),/UNCONFIGURED_OPERATOR_ENVIRONMENT/);
+    for(const name of ['MASTERMIND_ROOM_ZAI_API_KEY','MASTERMIND_ROOM_GEMINI_API_KEY','MASTERMIND_ROOM_API_POLICY']){
+      assert.throws(()=>assertPublicEnvironment(root,{[name]:'synthetic-configured'}),/UNCONFIGURED_OPERATOR_ENVIRONMENT/);
+    }
   } finally { fs.rmdirSync(root); }
 });
