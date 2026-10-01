@@ -7,15 +7,41 @@ import * as React from 'react';
 import * as jsx from 'react/jsx-runtime';
 import {renderToStaticMarkup} from 'react-dom/server';
 
-function load(){
+function load(component='DirectModelTurn'){
  const states=[];let index=0;
  const hooks={...React,useState(initial){const at=index++;if(at>=states.length)states[at]=initial;return [states[at],value=>states[at]=value];}};
- const source=fs.readFileSync(new URL('../../components/DirectModelTurn.tsx',import.meta.url),'utf8');
+ const source=fs.readFileSync(new URL('../../components/'+component+'.tsx',import.meta.url),'utf8');
  const compiled=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  const module={exports:{}};
  vm.runInNewContext(compiled,{module,exports:module.exports,Date,require(name){if(name==='react')return hooks;if(name==='react/jsx-runtime')return jsx;if(name.endsWith('.module.css'))return {default:{}};throw Error(name);}});
  return {render(props){index=0;return module.exports.default(props);},states};
 }
+
+test('room renewal requires a separate review and Gemini tier confirmation; only renewal action is sent',()=>{
+ const ui=load('RoomConnectionRenewal'),calls=[];
+ const props={connection:{expiresAt:null,checkedAt:'2026-10-01T00:00:00Z',renewal:{scopeDigest:'scope',providers:['gemini'],geminiFreeTierRequired:true,catalogReviewUntil:'2026-10-31T00:00:00Z'}},locked:false,
+  act:async(...args)=>calls.push(args),refresh:async()=>{}};
+ const tree=()=>flatten(ui.render(props));const renew=()=>tree().find(e=>e.type==='button'&&e.props.children==='Renew this room for 24 hours');
+ assert.equal(renew().props.disabled,true);
+ tree().filter(e=>e.type==='input')[0].props.onChange({target:{checked:true}});assert.equal(renew().props.disabled,true);
+ tree().filter(e=>e.type==='input')[1].props.onChange({target:{checked:true}});assert.equal(renew().props.disabled,false);
+ renew().props.onClick();assert.equal(calls.length,1);assert.equal(calls[0][0],'renew-connection');
+ assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])),{scopeDigest:'scope',reviewConfirmed:true,geminiFreeTierConfirmed:true});
+ props.locked=true;assert.equal(renew().props.disabled,true);
+ assert.match(renderToStaticMarkup(ui.render(props)),/Provider quota and availability are only known/);
+});
+test('connection status exposes no renewal when unavailable, and refresh never sends to a provider',()=>{
+ const ui=load('RoomConnectionRenewal');let refreshes=0;
+ const tree=ui.render({connection:{renewal:null},locked:false,act:async()=>assert.fail('mutation'),refresh:async()=>refreshes++});
+ const buttons=flatten(tree).filter(e=>e.type==='button');assert.equal(buttons.length,1);buttons[0].props.onClick();assert.equal(refreshes,1);
+ assert.match(renderToStaticMarkup(tree),/Renewing cannot resolve a provider rate limit/);
+});
+test('rate limit and timeout messages explain uncertain outcomes without a retry control',()=>{
+ for(const [code,phrase] of [['RATE_LIMITED',/rate or quota limit/],['PROVIDER_TIMEOUT',/may still have processed/],['PROVIDER_REJECTED',/Check model access/]]){
+  const ui=load(),tree=ui.render({...prepared,turn:{status:'unknown',provider:{state:'unknown',code}}});
+  assert.match(renderToStaticMarkup(tree),phrase);assert.equal(flatten(tree).filter(e=>e.type==='button').length,1);
+ }
+});
 function flatten(element,out=[]){
  if(element==null||typeof element!=='object')return out;
  if(Array.isArray(element)){element.forEach(x=>flatten(x,out));return out;}

@@ -58,6 +58,16 @@ For saved, unreadable Vercel secrets, the owner can use **Set up direct model co
 
 ## Send, recovery and review
 
+### Owner room renewal
+
+After compatible acceptance, `MASTERMIND_ROOM_RENEWAL_ENABLED=true` exposes **Connection status and renewal** for API rooms. The owner can renew that room for up to24hours without changing Vercel settings or deploying again. The initial server enrollment remains required; renewal cannot add a provider, change a credential, change the owner, bypass the API enable switch or enable a paid model. Gemini requires a new explicit Free-tier confirmation. Other rooms retain their own reviews.
+
+Renewal is a `renew-connection` command through the existing authenticated room endpoint, task authorization, compare-and-swap and browser journal. Its operation binds the exact server-policy digest and the room's supported free-model participants. The server records its timestamps, confirmation and original result in the room; replay recovers that original expiry and never extends it. No provider request occurs. Renewal is unavailable while a turn is in progress, unresolved or awaiting review. A prepared turn can remain, but an earlier send quote becomes invalid after renewal. No raw credentials or fingerprints are added to room responses.
+
+Changed base enrollment, credentials, owner, catalog or disabled renewal invalidates a saved room renewal; there is no fallback to older server consent. Disabling API calls remains a kill switch; saved draft review and receipts remain accessible. The October catalog's renewal ceiling is2026-10-31T00:00:00Z; this is an administrative review deadline, not a guarantee that provider prices or availability will remain unchanged. Renewal is clamped at that deadline and requires a reviewed catalog update afterwards. It is never automatic.
+
+The connection panel displays dated configuration status, not a claim that provider quota or capacity is available. Rate-limit, rejected-request and timeout observations explain the next diagnostic action without offering a resend. A rejected/uncertain renewal can be recovered with its original ID or stopped by a journaled pause that fences an unsaved operation; a committed renewal is recovered rather than repeated. This increment provides room renewal, not account-wide enrollment or unattended operation.
+
 1. The user prepares a turn from selected saved messages and reviews its immutable prompt. Only that prompt is sent; no filesystem, hidden history or provider tools are included.
 2. `provider-send` binds the prompt hash, selected model, exact policy/estimate, sharing consent, paid consent where relevant, expected revision and operation ID. A database compare-and-swap reserves the send in the existing room document.
 3. Only a confirmed reservation winner may proceed. A second owner-authorized compare-and-swap fences concurrent pause, steering and revocation before one fixed-endpoint request. A pause after that point cannot undo a send.

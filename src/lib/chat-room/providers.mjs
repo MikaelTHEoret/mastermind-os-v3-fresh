@@ -18,7 +18,7 @@ export function providerConfiguration(env,owner,now=Date.now()){
   &&policy.householdId===owner.householdId&&policy.actorPlayerId===owner.actorPlayerId&&policy.subject===owner.subject
   &&Number.isFinite(Date.parse(policy.reviewedAt))&&Number.isFinite(Date.parse(policy.expiresAt))
   &&Date.parse(policy.reviewedAt)<=now&&Date.parse(policy.expiresAt)>now
-  &&Date.parse(policy.expiresAt)-Date.parse(policy.reviewedAt)<=86400000;
+   &&Date.parse(policy.expiresAt)>Date.parse(policy.reviewedAt)&&Date.parse(policy.expiresAt)-Date.parse(policy.reviewedAt)<=86400000;
  const entries=MODELS.map(model=>{
   const key=env[model.provider==='zai'?'MASTERMIND_ROOM_ZAI_API_KEY':'MASTERMIND_ROOM_GEMINI_API_KEY'];
   const enrollment=policy?.providers?.[model.provider];
@@ -26,7 +26,7 @@ export function providerConfiguration(env,owner,now=Date.now()){
    &&enrollment?.credentialSha256===sha(key)&&enrollment?.enabled===true;
   const tier=model.provider!=='gemini'||enrollment?.freeTierConfirmed===true;
   const ready=!!(enrolled&&tier&&(!model.paid||policy.allowPaid===true));
-  return {...model,ready,reason:!valid?'Connection needs owner enrollment and a current price review.':!enrolled?'This provider needs a dedicated server credential.':!tier?'Confirm this credential uses Gemini’s free tier.':model.paid&&policy.allowPaid!==true?'Paid models are disabled on this installation.':'Ready',
+  return {...model,ready,reason:!valid?'Connection needs owner enrollment and a current price review.':!enrolled?'This provider needs a dedicated server credential.':!tier?'Confirm this credential uses Gemini’s free tier.':model.paid&&policy.allowPaid!==true?'Paid models are disabled on this installation.':'Configured; provider quota and availability are checked when you send.',
    privacy:model.provider==='gemini'?'Gemini free-tier inputs and outputs may be used to improve Google products.':'The selected prompt is sent to Z.ai under its API data terms.',
    ...(ready?{key,policyDigest:digest(policy)}:{})};
  });

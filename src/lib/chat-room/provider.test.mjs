@@ -17,7 +17,7 @@ const environment=()=>({MASTERMIND_ROOM_API_ENABLED:'true',MASTERMIND_ROOM_API_P
  MASTERMIND_ROOM_ZAI_API_KEY:secret,MASTERMIND_ROOM_GEMINI_API_KEY:secret});
 const output=(text='A visible answer',finish='stop',model='glm-4.7-flash')=>Response.json({id:'provider-request-1',model,
  choices:[{finish_reason:finish,message:{role:'assistant',content:text,reasoning_content:'PRIVATE_REASONING_NOT_RETAINED'}}],usage:{prompt_tokens:123,completion_tokens:8,total_tokens:131}});
-async function fixture({model='zai/glm-4.7-flash',request,env=environment()}={}){
+async function fixture({model='zai/glm-4.7-flash',request,env=environment(),now=()=>clock}={}){
  const state={document:null,allowed:true,taskState:'active',writes:0,calls:[],hook:null,loseAt:0};
  const query=async(sql,params)=>{
   if(state.hook)await state.hook(sql,params);
@@ -32,7 +32,7 @@ async function fixture({model='zai/glm-4.7-flash',request,env=environment()}={})
   if(state.loseAt===state.writes)throw Error('Lost acknowledgement after commit');
   return [{id:params[0]}];
  };
- const store=()=>new ProviderRoomStore(query,owner,{now:()=>clock,environment:()=>env,request:async(...args)=>{state.calls.push(args);return request?request(...args):output();}});
+ const store=()=>new ProviderRoomStore(query,owner,{now,environment:()=>env,request:async(...args)=>{state.calls.push(args);return request?request(...args):output();}});
  const command=(action,fields={})=>({operationId:randomUUID(),expectedRevision:state.document?.room.revision??0,action,...fields});
  const execute=(action,fields)=>store().command(ref,command(action,fields));
  await execute('create',{participants:[{id:'proposer_api',label:'Proposer',model,transport:'api'},{id:'manual_peer',label:'Manual',model:'Unspecified',transport:'manual'}],maxTurns:6});
@@ -43,6 +43,96 @@ async function fixture({model='zai/glm-4.7-flash',request,env=environment()}={})
  const review=()=>command('provider-review',{...binding,responseSha256:state.document.room.turns[turnId].provider?.textSha256,reviewed:true});
  return {state,store,command,execute,binding,send,review,env};
 }
+
+async function renewableFixture(options={}){
+ let time=clock+86400000;
+ const env={...environment(),MASTERMIND_ROOM_RENEWAL_ENABLED:'true'};
+ const f=await fixture({...options,env,now:()=>time});
+ const renewal=async()=>{const view=await f.store().read(ref);return f.command('renew-connection',{
+  scopeDigest:view.connection.renewal.scopeDigest,reviewConfirmed:true,geminiFreeTierConfirmed:view.connection.renewal.geminiFreeTierRequired});};
+ return {...f,renewal,setTime:t=>time=t};
+}
+test('expired server review renews in its own room; reload and replay preserve exact expiry without provider calls',async()=>{
+ const f=await renewableFixture();let v=await f.store().read(ref);assert.equal(v.providerQuote,null);
+ const command=await f.renewal();v=await f.store().command(ref,command);
+ assert.ok(v.providerQuote);assert.equal(f.state.calls.length,0);
+ const expiry=v.connection.expiresAt;assert.equal(Date.parse(expiry),clock+2*86400000);
+ f.setTime(clock+86400000+60000);
+ assert.equal((await f.store().command(ref,command)).connection.expiresAt,expiry);
+ assert.equal((await f.store().read(ref)).connection.expiresAt,expiry);
+ assert.equal(v.room.operations[command.operationId].result.connectionRenewal.expiresAt,expiry);
+ assert.equal(JSON.stringify(v).includes(fingerprint),false);assert.equal(JSON.stringify(v).includes(secret),false);
+ assert.equal(JSON.parse(f.env.MASTERMIND_ROOM_API_POLICY).expiresAt,policy.expiresAt);
+ const other=await fixture({env:f.env,now:()=>clock+86400000});assert.equal((await other.store().read(ref)).providerQuote,null);
+});
+test('lost renewal acknowledgement recovers through the existing browser journal without extending expiry',async()=>{
+ const f=await renewableFixture(),command=await f.renewal();f.state.loseAt=f.state.writes+1;
+ await assert.rejects(f.store().command(ref,command));const expiry=f.state.document.room.connectionRenewal.expiresAt;
+ f.setTime(clock+86400000+120000);assert.equal((await f.store().command(ref,command)).connection.expiresAt,expiry);
+ assert.equal(f.state.calls.length,0);
+});
+test('renewal races and altered operation replay cannot overwrite one another',async()=>{
+ const f=await renewableFixture(),a=await f.renewal(),b={...a,operationId:randomUUID()};
+ const results=await Promise.allSettled([f.store().command(ref,a),f.store().command(ref,b)]);
+ assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal(f.state.calls.length,0);
+ await assert.rejects(f.store().command(ref,{...a,reviewConfirmed:false}),/OPERATION_CONFLICT/);
+});
+test('renewal requires unchanged server scope and explicit review, never enables foreign/paid/unconfigured providers',async()=>{
+ for(const mutation of [env=>{env.MASTERMIND_ROOM_RENEWAL_ENABLED='false';},env=>{env.MASTERMIND_ROOM_API_ENABLED='false';},
+  env=>{env.MASTERMIND_ROOM_ZAI_API_KEY='different-synthetic-credential';},
+  env=>{const p=JSON.parse(env.MASTERMIND_ROOM_API_POLICY);p.subject='user_foreign';env.MASTERMIND_ROOM_API_POLICY=JSON.stringify(p);},
+  env=>{const p=JSON.parse(env.MASTERMIND_ROOM_API_POLICY);p.allowPaid=true;env.MASTERMIND_ROOM_API_POLICY=JSON.stringify(p);},
+  env=>{const p=JSON.parse(env.MASTERMIND_ROOM_API_POLICY);p.catalogVersion='old';env.MASTERMIND_ROOM_API_POLICY=JSON.stringify(p);}]){
+  const f=await renewableFixture(),c=await f.renewal();mutation(f.env);
+  await assert.rejects(f.store().command(ref,c),/RENEWAL_UNAVAILABLE/);assert.equal(f.state.calls.length,0);
+ }
+ const f=await renewableFixture();const c=await f.renewal();
+ for(const changes of [{reviewConfirmed:false},{geminiFreeTierConfirmed:true},{scopeDigest:'changed'},{allowPaid:true}])await assert.rejects(f.store().command(ref,{...c,...changes}));
+ f.state.allowed=false;await assert.rejects(f.store().command(ref,c),/ACCESS_DENIED/);
+});
+test('fresh Gemini review is mandatory and renewal invalidates stale quotes',async()=>{
+ const f=await renewableFixture({model:'gemini/gemini-3.5-flash-lite'}),c=await f.renewal();
+ await assert.rejects(f.store().command(ref,{...c,geminiFreeTierConfirmed:false}),/REVIEW_REQUIRED/);
+ const v=await f.store().command(ref,c);assert.ok(v.providerQuote);const old=v.providerQuote;
+ f.setTime(clock+86400000+1000);await f.store().command(ref,await f.renewal());
+ await assert.rejects(f.store().command(ref,f.command('provider-send',{...f.binding,approval:{quote:old,shareApproved:true,paidApproved:false}})),/APPROVAL_REQUIRED/);
+ assert.equal(f.state.calls.length,0);
+});
+test('renewal expiry, invalid saved review and changed base fail closed; saved drafts remain recoverable',async()=>{
+ const f=await renewableFixture();await f.store().command(ref,await f.renewal());
+ f.setTime(clock+2*86400000);assert.equal((await f.store().read(ref)).providerQuote,null);
+ f.setTime(clock+86400000+1000);f.state.document.room.connectionRenewal.reviewConfirmed=false;
+ assert.equal((await f.store().read(ref)).providerQuote,null);
+ await f.store().command(ref,await f.renewal());
+ const v=await f.store().read(ref),send=f.command('provider-send',{...f.binding,approval:{quote:v.providerQuote,shareApproved:true,paidApproved:false}});
+ await f.store().command(ref,send);assert.equal(f.state.calls.length,1);
+ await assert.rejects(f.store().command(ref,await f.renewal()),/TURN_PENDING/);
+ f.env.MASTERMIND_ROOM_RENEWAL_ENABLED='false';
+ await f.store().command(ref,f.review());assert.equal((await f.store().read(ref)).room.completedTurns,1);
+ assert.equal(f.state.calls.length,1);
+});
+test('catalog review deadline clamps renewal and prevents indefinite reapproval',async()=>{
+ const f=await renewableFixture();f.setTime(Date.parse('2026-10-30T23:00:00Z'));
+ const v=await f.store().command(ref,await f.renewal());assert.equal(v.connection.expiresAt,'2026-10-31T00:00:00.000Z');
+ f.setTime(Date.parse('2026-10-31T00:00:00Z'));const expired=await f.store().read(ref);
+ assert.equal(expired.connection.renewal,null);assert.equal(expired.providerQuote,null);
+});
+test('browser recovery preserves a saved renewal and safely fences a stale unsaved renewal',async()=>{
+ const f=await renewableFixture(),items=new Map(),storage={get length(){return items.size;},key:n=>[...items.keys()][n],getItem:k=>items.get(k)??null,setItem:(k,v)=>items.set(k,v),removeItem:k=>items.delete(k)};
+ let lose=true,posts=0;
+ const request=async(_url,init)=>{
+  if(init?.method==='POST'){posts++;let view;try{view=await f.store().command(ref,JSON.parse(init.body));}catch(e){return Response.json({ok:false,error:e.code},{status:e.status});}
+   if(lose){lose=false;throw Error('lost web acknowledgement');}return Response.json(view);}
+  return Response.json(await f.store().read(ref));
+ };
+ const client=new RoomBrowserClient(storage,request);await assert.rejects(client.submit(ref,await f.renewal()));
+ const expiry=f.state.document.room.connectionRenewal.expiresAt;
+ const fresh=new RoomBrowserClient(storage,request);assert.equal((await fresh.recover(fresh.pending()[0])).state,'saved');assert.equal(posts,1);
+ assert.equal(f.state.document.room.connectionRenewal.expiresAt,expiry);
+ const stale=await f.renewal();stale.scopeDigest='stale';await assert.rejects(fresh.submit(ref,stale));
+ const fenced=await fresh.stopPendingConnection(fresh.pending()[0]);assert.equal(fenced.state,'superseded');assert.equal(fenced.view.room.paused,true);
+ await assert.rejects(f.store().command(ref,stale),/REVISION_CONFLICT/);assert.equal(f.state.calls.length,0);assert.equal(fresh.pending().length,0);
+});
 test('one official call creates a draft; exact review saves once and next participant sees it',async()=>{
  const f=await fixture();const received=await f.store().command(ref,f.send);
  assert.equal(f.state.calls.length,1);assert.equal(received.transcript.length,1);

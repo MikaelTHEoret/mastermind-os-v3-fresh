@@ -2,6 +2,12 @@
 import {useState} from 'react';
 import styles from './SharedRoomConsole.module.css';
 
+const observations:Record<string,string>={
+ RATE_LIMITED:'The provider refused this attempt because of a rate or quota limit. Check the provider account; this request will not be retried.',
+ PROVIDER_REJECTED:'The provider rejected this request. Check model access and the account configuration before preparing a separate request.',
+ PROVIDER_TIMEOUT:'The reply did not arrive before the time limit. The provider may still have processed the prompt; do not resend this turn.',
+};
+
 export type ModelOption={id:string;label:string;paid:boolean;ready:boolean;reason:string;privacy:string};
 export default function DirectModelTurn({turn,quote,model,locked,paused,act,refresh}:{
  turn:any;quote:any;model?:ModelOption;locked:boolean;paused:boolean;
@@ -30,7 +36,7 @@ export default function DirectModelTurn({turn,quote,model,locked,paused,act,refr
   </>:<>
    <p role="status">{receipt?.state==='unknown'?'The request outcome needs reconciliation.':'The send is reserved or in progress.'}</p>
    <p>Refresh checks the saved result; it never sends again. If the request was interrupted and no result arrives, this turn stays unresolved.</p>
-   {receipt?.code&&<p>Observation: {receipt.code}</p>}
+   {receipt?.code&&<p>{observations[receipt.code]??`Observation: ${receipt.code}`}</p>}
    {receipt?.at&&<p>Started: {new Date(receipt.at).toLocaleString()}</p>}
    <button disabled={locked} onClick={()=>void refresh()}>Check saved result</button>
   </>}
