@@ -1,3 +1,4 @@
+import {NEXUS,sameNexusDisclosure} from './native-nexus.mjs';
 import {LIFECYCLE,sameLifecycleDisclosure} from './native-contribution-lifecycle.mjs';
 import {sameContributionDisclosure} from './native-contribution.mjs';
 // A read-only discovery view. Entries never authorize later execution.
@@ -79,6 +80,7 @@ function canonical(value) {
   return JSON.stringify(value);
 }
 export function sameNativeDisclosure(current,saved) {
+  if(saved?.kind===NEXUS)return sameNexusDisclosure(current,saved);
   if(saved?.kind===LIFECYCLE)return sameLifecycleDisclosure(current,saved);
   if(saved?.kind==='mastermind.native.contribution')return sameContributionDisclosure(current,saved);
   if(saved?.kind==='mastermind.native.review-build-dispatch') {
