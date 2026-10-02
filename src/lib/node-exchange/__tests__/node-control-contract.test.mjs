@@ -82,6 +82,13 @@ test('node inventory accepts only the exact redacted public status shape', () =>
   assert.equal(parseNodeInventory({ ok: true, nodes: [neverSeen] }).nodes[0].connectivity, 'never-seen');
 });
 
+test('Nexus worker advertisement remains visible to existing owner inventory without enabling unknown capabilities',()=>{
+ const ids=['family-ecosystem.ensure-running','mastermind.native.reuse','mastermind.native.catalog','mastermind.native.specification','mastermind.native.review','mastermind.native.review-reuse','mastermind.native.review-artifacts','mastermind.native.review-build-plan','mastermind.native.review-build-dispatch','mastermind.native.contribution','mastermind.native.contribution-lifecycle','mastermind.native.nexus'];
+ const worker={protocolVersion:2,capabilities:ids.map(id=>({id,version:id==='mastermind.native.review'?3:1}))};
+ assert.deepEqual(parseNodeInventory({ok:true,nodes:[node({worker})]}).nodes[0].worker,worker);
+ assert.throws(()=>parseNodeInventory({ok:true,nodes:[node({worker:{...worker,capabilities:[...worker.capabilities,{id:'arbitrary',version:1}]}})]}));
+});
+
 test('node inventory rejects injected fields, duplicate identities, and inconsistent connectivity', () => {
   assert.throws(
     () => parseNodeInventory({ ok: true, nodes: [node({ path: 'C:\\private' })] }),

@@ -109,4 +109,12 @@ export class NexusOwnerSession{
   if(row===null){this.state.message='No saved result was found. The exact proposal is retained; retrying uses the same operation.';return;}
   await this.complete(await checkedArtifact(row,this.ref));
  });}
+ async renewVerification(){return this.action(async()=>{
+  if(!this.state.pending||typeof this.transport?.renew!=='function')fail('No retained source check is available.');
+  this.state.message=await this.transport.renew(copy(this.state.pending));
+ });}
+ async restartPlans(){return this.action(async()=>{
+  if(this.state.pending||typeof this.transport?.restart!=='function')fail('Recover the proposal first.');
+  this.state.material=null;this.state.artifacts=[];this.state.message=await this.transport.restart();
+ });}
 }

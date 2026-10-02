@@ -1,3 +1,4 @@
+import * as nexus from '../../../../protocol/mastermind-node-exchange/native-nexus.mjs';
 import * as lifecycle from '../../../../protocol/mastermind-node-exchange/native-contribution-lifecycle.mjs';
 import * as contribution from '../../../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import * as coding from '../../../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
@@ -69,6 +70,7 @@ function loadStore() {
       if(identifier.includes("native-build-dispatch"))return coding;
       if(identifier.endsWith('/native-development-work.mjs'))return development;
       if (identifier === 'server-only') return {};
+      if(identifier.endsWith('/native-nexus.mjs'))return nexus;
       if (identifier === 'node:crypto') return awaitlessCrypto;
       if (identifier === '@/lib/db') return { getMemoryDb() { throw new Error('not called'); } };
       if (identifier === '@/lib/memory/local-family-profile.mjs') {
@@ -99,6 +101,21 @@ const LEASE_ID = '44444444-4444-4444-8444-444444444444';
 const EXCHANGE_ID = '55555555-5555-4555-8555-555555555555';
 const BOOT_ID = '66666666-6666-4666-8666-666666666666';
 const OLD_BOOT_ID = '77777777-7777-4777-8777-777777777777';
+
+test('Nexus enqueue and exact recovery bind the owner, node, task and original receipt hashes',async()=>{
+ const store=loadStore(),input={schemaVersion:1,operationId:JOB_ID,taskRef:{taskId:BOOT_ID,project:'mastermind'},action:'catalog',proposal:null,snapshotId:null,cursor:null};
+ const result={schemaVersion:1,kind:nexus.NEXUS,operationId:JOB_ID,taskRef:input.taskRef,action:'catalog',requestSha256:await nexus.nexusDigest(input),observedAt:'2026-10-02T20:00:00.000Z',executionAuthorized:false,data:{basis:{checkpointId:EXCHANGE_ID,revision:'1',permissionRevision:'1',permissionScopeSha256:'a'.repeat(64)},snapshotId:'b'.repeat(64),choice:null,nextCursor:null}};
+ const row={...jobRow(JOB_ID),capability:nexus.NEXUS,commandInput:input,state:'succeeded',terminalCode:'desired-state-reached',terminalResult:result,finishedAt:result.observedAt};
+ const auth=(query,values)=>{assert.match(query,/mastermind_nexus_authorized_v1/);assert.equal(values[2],NODE_ID);assert.deepEqual(JSON.parse(values[3]),input);return [{allowed:true}];};
+ const saved=await store.enqueueOwnerDevelopmentJob(scriptedSql([(q,v)=>{assert.match(q,/enqueue_mastermind_nexus_job_v1/);assert.deepEqual(JSON.parse(v[6]),input);return [{status:'duplicate',job_id:JOB_ID}];},q=>{assert.match(q,/mastermind.native.nexus.*job.created_by_player_id/);return [row];},auth]),NODE_ID,{operationId:JOB_ID,input},nexus.NEXUS);
+ assert.deepEqual(saved.job.terminal.result,result);
+ const recovered=await store.getOwnerNexusJob(scriptedSql([(q,v)=>{assert.match(q,/created_by_player_id/);assert.match(q,/command_input->'taskRef'/);assert.equal(v[4],BOOT_ID);return [{input}];},()=>[row],auth]),NODE_ID,JOB_ID,input.taskRef);
+ assert.deepEqual(recovered.input,input);
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[row],()=>[{allowed:false}]]),NODE_ID,JOB_ID),{code:'NODE_JOB_NOT_FOUND'});
+ await assert.rejects(store.getOwnerJob(scriptedSql([()=>[{...row,terminalResult:{...result,requestSha256:'f'.repeat(64)}}],auth]),NODE_ID,JOB_ID),{code:'NODE_STORE_INVALID'});
+ assert.equal(await store.getOwnerNexusJob(scriptedSql([()=>[]]),NODE_ID,JOB_ID,input.taskRef),null);
+ const invalid=scriptedSql([]);await assert.rejects(store.enqueueOwnerDevelopmentJob(invalid,NODE_ID,{operationId:JOB_ID,input:{...input,permission:'injected'}},nexus.NEXUS),{code:'NODE_REQUEST_INVALID'});assert.equal(invalid.calls(),0);
+});
 
 test('reuse link enqueue and recovery apply current authority before returning evidence',async()=>{
  const store=loadStore(),input=reuseInput(JOB_ID,'accept'),result=reuseReceipt(input);

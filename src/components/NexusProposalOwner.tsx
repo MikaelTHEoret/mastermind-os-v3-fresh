@@ -4,11 +4,11 @@ import {NexusOwnerSession} from '@/lib/delegation/nexus-owner-workflow.mjs';
 import {proposalHeads} from '@/lib/delegation/nexus-proposal.mjs';
 
 type Ref={taskId:string;project:string};
-type Transport={load:(ref:Ref)=>Promise<any>;save:(record:any)=>Promise<any>;recover:(ref:Ref,operationId:string)=>Promise<any>};
+type Transport={load:(ref:Ref)=>Promise<any>;save:(record:any)=>Promise<any>;recover:(ref:Ref,operationId:string)=>Promise<any>;renew?:(record:any)=>Promise<string>;restart?:()=>Promise<string>};
 type Props={ownerKey:string;task:Ref&{title:string};transport?:Transport};
 const field={background:'#122333',color:'#f5f8ff',border:'1px solid #6d8299',borderRadius:4,padding:8};
 
-// Deliberately unmounted until the authenticated worker/host transport is accepted.
+// Installed only by the authenticated owner composition; creation stays gated.
 export default function NexusProposalOwner(props:Props){
  if(!props.transport)return <section aria-label="Nexus proposals"><h2>Plan work with Nexus</h2><p>The saved-plan connection is being prepared. No proposal can be submitted yet.</p></section>;
  return <OwnerForm key={`${props.ownerKey}:${props.task.taskId}:${props.task.project}`} {...props} transport={props.transport}/>;
@@ -35,10 +35,12 @@ function OwnerForm({ownerKey,task,transport}:Props&{transport:Transport}){
   <p>Saved plans retain their original source review. A new proposal does not renew a plan’s permission to execute.</p>
   <p role="status" aria-live="polite">{state.message}</p>
   <button disabled={locked} onClick={()=>{clear();void act(()=>session.load());}}>Load saved plans and history</button>
+  {transport.restart?<button disabled={locked} onClick={()=>{clear();void act(()=>session.restartPlans());}}>Start a fresh plan read</button>:null}
   {state.pending?<div><h3>Unfinished proposal</h3><p>{state.pending.title}</p>
    <p>The exact proposal is retained across reloads. Neither reload nor checking a result sends it.</p>
    <button disabled={state.busy} onClick={()=>void act(()=>session.recover())}>Check existing save</button>{' '}
    <button disabled={state.busy} onClick={()=>void act(()=>session.save())}>Save the retained proposal</button>
+   {transport.renew?<button disabled={state.busy} onClick={()=>void act(()=>session.renewVerification())}>Prepare a fresh source check</button>:null}
   </div>:null}
   {state.material&&!state.pending?<form onSubmit={e=>{e.preventDefault();prepare();}}>
    <label>Proposal history <select style={field} value={parent} disabled={locked} onChange={e=>{clear();setParent(e.target.value);}}><option value="">Start a new proposal</option>
