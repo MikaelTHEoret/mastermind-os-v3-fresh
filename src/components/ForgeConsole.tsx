@@ -6,6 +6,7 @@ import {isLocalNodeControlOrigin} from './node-control-contract.mjs'
 import NativeDevelopment from './NativeDevelopment'
 import RemoteNativeWork from './RemoteNativeWork'
 import ExternalContributions from './ExternalContributions'
+import NexusHostedOwner from './NexusHostedOwner'
 
 const mono = 'Orbitron, monospace'
 const code = '"Cascadia Code", "Fira Code", ui-monospace, monospace'
@@ -60,6 +61,7 @@ export default function ForgeConsole() {
     <>
     <ExternalContributions/>
     <RemoteNativeWork/>
+    <NexusHostedOwner/>
     {localDevelopment&&<NativeDevelopment/>}
     <details style={{marginTop:16,color:'#adc6ce',fontFamily:'system-ui,sans-serif'}}>
     <summary>Existing analysis and pattern tools</summary>

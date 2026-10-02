@@ -1,3 +1,4 @@
+import {NEXUS} from './native-nexus.mjs';
 import {LIFECYCLE} from './native-contribution-lifecycle.mjs';
 import {CONTRIBUTION} from './native-contribution.mjs';
 import {BUILD_DISPATCH} from './native-build-dispatch.mjs';
@@ -53,3 +54,6 @@ export const CONTRIBUTION_CORE_WORKER=Object.freeze({protocolVersion:2,capabilit
 ])});
 
 export const LIFECYCLE_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([...CONTRIBUTION_CORE_WORKER.capabilities,Object.freeze({id:LIFECYCLE,version:1})])});
+
+// Explicit opt-in only after matching ledger, owner routes and local host acceptance.
+export const NEXUS_CORE_WORKER=Object.freeze({protocolVersion:2,capabilities:Object.freeze([...LIFECYCLE_CORE_WORKER.capabilities,Object.freeze({id:NEXUS,version:1})])});

@@ -30,11 +30,11 @@ function reject(status: number, code: string, message: string): never {
   throw new NodeExchangeHttpError(status, code, message);
 }
 
-function exactPath(request: Request, expectedPath: string): URL {
+function exactPath(request: Request, expectedPath: string, allowedQuery:readonly string[]=[]): URL {
   let url: URL;
   try { url = new URL(request.url); }
   catch { reject(400, 'NODE_REQUEST_INVALID', 'The request URL is invalid.'); }
-  if (url.pathname !== expectedPath || url.search || url.hash || url.username || url.password) {
+  if (url.pathname !== expectedPath || (!allowedQuery.length && url.search) || [...url.searchParams.keys()].some(k=>!allowedQuery.includes(k)||url.searchParams.getAll(k).length!==1) || url.hash || url.username || url.password) {
     reject(404, 'NODE_ROUTE_NOT_FOUND', 'The node exchange route was not found.');
   }
   return url;
@@ -52,8 +52,8 @@ export function authorizeMachineRequest(request: Request, expectedPath: string):
   return match[1];
 }
 
-export function authorizeOwnerRequest(request: Request, expectedPath: string, mutation: boolean): void {
-  const url = exactPath(request, expectedPath);
+export function authorizeOwnerRequest(request: Request, expectedPath: string, mutation: boolean, allowedQuery:readonly string[]=[]): void {
+  const url = exactPath(request, expectedPath, mutation?[]:allowedQuery);
   const fetchSite = request.headers.get('sec-fetch-site');
   if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
     reject(403, 'NODE_OWNER_ORIGIN_REQUIRED', 'The node control requires a same-origin request.');

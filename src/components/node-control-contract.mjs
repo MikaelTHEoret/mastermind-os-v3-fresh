@@ -1,3 +1,4 @@
+import {NEXUS} from '../../protocol/mastermind-node-exchange/native-nexus.mjs';
 import {LIFECYCLE,validateLifecycleInput,validateLifecycleReceipt} from '../../protocol/mastermind-node-exchange/native-contribution-lifecycle.mjs';
 import {CONTRIBUTION,validateContributionReceipt} from '../../protocol/mastermind-node-exchange/native-contribution.mjs';
 import {BUILD_DISPATCH,validateBuildDispatchReceipt} from '../../protocol/mastermind-node-exchange/native-build-dispatch.mjs';
@@ -164,10 +165,10 @@ function parseWorker(value) {
   const worker = objectOf(value, 'worker advertisement');
   exactKeys(worker, ['protocolVersion', 'capabilities'], 'worker advertisement');
   if (worker.protocolVersion !== 2 || !Array.isArray(worker.capabilities)
-    || worker.capabilities.length < 1 || worker.capabilities.length > 11) reject('worker advertisement is unsupported');
+    || worker.capabilities.length < 1 || worker.capabilities.length > 12) reject('worker advertisement is unsupported');
   const capabilities = worker.capabilities.map((item) => {
     objectOf(item, 'worker capability'); exactKeys(item, ['id', 'version'], 'worker capability');
-    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,LIFECYCLE,...DEVELOPMENT_CAPABILITIES].includes(item.id) || !(item.version===1||item.id===NATIVE_REVIEW_CAPABILITY&&[2,3].includes(item.version))) {
+    if (![NODE_ENSURE_RUNNING_CAPABILITY, NODE_CORE_STATUS_CAPABILITY, 'mastermind.native.reuse', 'mastermind.native.catalog',NATIVE_SPECIFICATION_CAPABILITY,NATIVE_REVIEW_CAPABILITY,REVIEW_REUSE,BUILD_DISPATCH,CONTRIBUTION,LIFECYCLE,NEXUS,...DEVELOPMENT_CAPABILITIES].includes(item.id) || !(item.version===1||item.id===NATIVE_REVIEW_CAPABILITY&&[2,3].includes(item.version))) {
       reject('worker capability is unsupported');
     }
     return { id: item.id, version: item.version };

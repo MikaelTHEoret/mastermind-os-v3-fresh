@@ -10,6 +10,7 @@ import { acquireMastermindNodeWorkerLifetime } from './worker-lifetime.mjs';
 
 const BUNDLE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 export function validateCoreWorkerEnvironment(environment) {
+  if(environment?.MASTERMIND_NODE_NEXUS_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_NEXUS_ENABLED)||environment?.MASTERMIND_NODE_NEXUS_ENABLED==='true'&&environment.MASTERMIND_NODE_LIFECYCLE_ENABLED!=='true')throw Object.assign(new Error('Nexus requires explicit lifecycle activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
   if(environment?.MASTERMIND_NODE_LIFECYCLE_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_LIFECYCLE_ENABLED)||environment?.MASTERMIND_NODE_LIFECYCLE_ENABLED==='true'&&environment.MASTERMIND_NODE_CONTRIBUTIONS_ENABLED!=='true')throw Object.assign(new Error('Lifecycle requires explicit contribution activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
   if(environment?.MASTERMIND_NODE_CONTRIBUTIONS_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_CONTRIBUTIONS_ENABLED)||environment?.MASTERMIND_NODE_CONTRIBUTIONS_ENABLED==='true'&&environment.MASTERMIND_NODE_REVIEW_RECOVERY_ENABLED!=='true')throw Object.assign(new Error('Contributions require explicit review recovery activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
   if(environment?.MASTERMIND_NODE_REVIEW_RECOVERY_ENABLED!==undefined&&!['true','false'].includes(environment.MASTERMIND_NODE_REVIEW_RECOVERY_ENABLED)||environment?.MASTERMIND_NODE_REVIEW_RECOVERY_ENABLED==='true'&&environment.MASTERMIND_NODE_BUILD_DISPATCH_ENABLED!=='true')throw Object.assign(new Error('Review recovery requires explicit coding profile activation'),{code:'NODE_NATIVE_PROFILE_INVALID'});
@@ -56,6 +57,7 @@ export function createMastermindCoreWorkerFromEnvironment(options = {}) {
     journalRoot: path.join(defaultDataRoot(environment), 'state', 'node-exchange', 'v1'),
     credentialStore, exchangeTransport,
     enableNativeTasks: environment.MASTERMIND_NODE_NATIVE_REUSE_ENABLED === 'true',
+    enableNexus:environment.MASTERMIND_NODE_NEXUS_ENABLED==='true',
     enableLifecycle:environment.MASTERMIND_NODE_LIFECYCLE_ENABLED==='true',
     enableContributions:environment.MASTERMIND_NODE_CONTRIBUTIONS_ENABLED==='true',
     enableReviewRecovery:environment.MASTERMIND_NODE_REVIEW_RECOVERY_ENABLED==='true',
