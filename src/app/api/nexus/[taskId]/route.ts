@@ -13,7 +13,7 @@ async function access(request:Request,id:string,write:boolean){
  const ref=taskRef({taskId:id,project:'mastermind'}),sql=getMemoryDb(),profile=OWNER_NODE_PROFILE;
  const service=new NexusHostedService((query:string,params:unknown[])=>sql.query(query,params),{
   householdId:profile.householdId,actorPlayerId:profile.parentPlayerId,clerkSubject:owner.userId},{
-  enabled:process.env.MASTERMIND_NEXUS_ENABLED==='1',ledger:{
+  enabled:process.env.MASTERMIND_NEXUS_ENABLED==='1',recoveryEnabled:process.env.MASTERMIND_NEXUS_RECOVERY_ENABLED==='1',ledger:{
    read:(nodeId:string,jobId:string,task:{taskId:string;project:string})=>getOwnerNexusJob(sql,nodeId,jobId,task,profile),
    enqueue:async(nodeId:string,input:any)=>{const {job}=await enqueueOwnerDevelopmentJob(sql,nodeId,{operationId:input.operationId,input},NEXUS,profile);return {input,job};}
   }});

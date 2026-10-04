@@ -1,5 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {randomUUID} from 'node:crypto';
 import {NexusHostedService} from './nexus-hosted-service.mjs';import {NexusHostedTransport} from './nexus-hosted-transport.mjs';
+import recoveryFixture from './nexus-recovery-fixture.json' with {type:'json'};
 import {NexusOwnerSession} from './nexus-owner-workflow.mjs';import {digest} from './store.mjs';
 const ref={taskId:randomUUID(),project:'mastermind'},node=randomUUID(),owner={householdId:'fixture',actorPlayerId:randomUUID()};
 const basis={checkpointId:randomUUID(),revision:'1',permissionRevision:'1',permissionScopeSha256:'a'.repeat(64)};
@@ -8,8 +9,8 @@ const choice={specificationId:'b'.repeat(64),planId:'c'.repeat(64),title:'Compar
 const row=r=>({artifactId:digest(r),record:structuredClone(r),recordedAt:'2026-10-02T20:00:00.000Z'});
 const proposal=()=>({schemaVersion:1,kind:'nexus-proposal',operationId:randomUUID(),taskRef:ref,seriesId:randomUUID(),parentId:null,basis,title:'Develop comparison',dependencyMeaning:'source-ready-for-review',nodes:[{specificationId:choice.specificationId,planId:choice.planId,dependsOn:[]}],sourceRefs:[choice.sourceRefs[1]],reviewIds:[digest(advice)]});
 const input=(p=null)=>({schemaVersion:1,operationId:randomUUID(),taskRef:ref,action:p?'verify':'catalog',proposal:p,snapshotId:null,cursor:null});
-function fixture(){
- const rows=[row(advice)],jobs=new Map(),calls=[],storageMap=new Map();let allowed=true,enabled=true,lost=null,now=Date.now(),writes=0;
+function fixture({catalogChoice=choice,catalogVersion=1}={}){
+ const rows=[row(advice)],jobs=new Map(),calls=[],storageMap=new Map();let recoveryEnabled=catalogVersion===2;let allowed=true,enabled=true,lost=null,now=Date.now(),writes=0;
  const query=async(sql,args)=>{
   if(sql.includes('SELECT t.task_id::text'))return allowed?[{taskId:ref.taskId}]:[];
   if(!allowed)return [];
@@ -17,17 +18,17 @@ function fixture(){
   if(sql.includes('a.artifact_id=$5'))return rows.filter(r=>r.artifactId===args[4]);return structuredClone(rows);
  };
  const ledger={async read(n,id,r){calls.push(['read',id]);assert.equal(n,node);assert.deepEqual(r,ref);return structuredClone(jobs.get(id)??null);},async enqueue(n,i){calls.push(['enqueue',i.operationId]);assert.equal(n,node);if(!jobs.has(i.operationId))jobs.set(i.operationId,{input:structuredClone(i),job:{jobId:i.operationId,nodeId:node,capability:'mastermind.native.nexus',state:'queued',terminal:null}});return structuredClone(jobs.get(i.operationId));}};
- const service=()=>new NexusHostedService(query,owner,{enabled,ledger,now:()=>now});
+ const service=()=>new NexusHostedService(query,owner,{enabled,recoveryEnabled,ledger,now:()=>now});
  const request=async(url,options={})=>{
   const u=new URL(url,'https://fixture.invalid');assert.equal(u.pathname,'/api/nexus/'+ref.taskId);
   if(options.method==='POST'){const body=JSON.parse(options.body);calls.push(['post',body.action]);const r=await service().write(ref,body);if(lost===body.action){lost=null;throw Error('Reply lost');}return {ok:true,...r};}
   return {ok:true,...await service().read(ref,{operationId:u.searchParams.get('operationId'),nodeId:u.searchParams.get('nodeId'),jobId:u.searchParams.get('jobId')})};
  };
  const storage={getItem:k=>storageMap.get(k)??null,setItem:(k,v)=>storageMap.set(k,v),removeItem:k=>storageMap.delete(k)};
- const transport=()=>new NexusHostedTransport({ownerKey:'fixture-owner',nodeId:node,ref,storage,request});
+ const transport=()=>new NexusHostedTransport({ownerKey:'fixture-owner',nodeId:node,ref,storage,request,catalogVersion});
  const session=()=>new NexusOwnerSession({ownerKey:'fixture-owner',ref,storage,transport:transport()});
- const complete=(id,data=null)=>{const t=jobs.get(id),i=t.input;t.job.state='succeeded';t.job.terminal={result:{schemaVersion:1,kind:'mastermind.native.nexus',operationId:id,taskRef:ref,action:i.action,requestSha256:digest(i),observedAt:new Date(now).toISOString(),executionAuthorized:false,data:data??(i.action==='verify'?{verified:true,proposalSha256:digest(i.proposal)}:{basis,snapshotId:'e'.repeat(64),choice,nextCursor:null})}};};
- return {rows,jobs,calls,storage,storageMap,transport,session,service,complete,lose:x=>lost=x,deny:()=>allowed=false,off:()=>enabled=false,age:()=>now+=61000,get writes(){return writes;}};
+ const complete=(id,data=null)=>{const t=jobs.get(id),i=t.input;t.job.state='succeeded';t.job.terminal={result:{schemaVersion:i.schemaVersion,kind:'mastermind.native.nexus',operationId:id,taskRef:ref,action:i.action,requestSha256:digest(i),observedAt:new Date(now).toISOString(),executionAuthorized:false,data:data??(i.action==='verify'?{verified:true,proposalSha256:digest(i.proposal)}:{basis,snapshotId:'e'.repeat(64),choice:catalogChoice,nextCursor:null})}};};
+ return {rows,jobs,calls,storage,storageMap,transport,session,service,complete,lose:x=>lost=x,deny:()=>allowed=false,off:()=>enabled=false,recoveryOff:()=>recoveryEnabled=false,age:()=>now+=61000,get writes(){return writes;}};
 }
 const latest=f=>[...f.jobs.keys()].at(-1);
 async function loaded(f){const s=f.session();await assert.rejects(s.load(),/Waiting/);f.complete(latest(f));await s.load();return s;}
@@ -80,4 +81,28 @@ test('corrupt recovery and storage failure cannot enqueue, other owners do not i
 });
 test('completed saved-plan read can reset explicitly; queued read cannot be replaced',async()=>{
  const f=fixture(),t=f.transport();await assert.rejects(t.load(ref));await assert.rejects(t.restart(),/unfinished/);f.complete(latest(f));await t.restart();assert.equal(t.read().catalog,null);assert.equal(f.jobs.size,1);
+});
+
+
+test('native-only catalog survives hosted verify, lost save and reload without inventing coding IDs',async()=>{
+ const native=recoveryFixture.material.plans.find(p=>p.kind==='native-candidate-v1');
+ const f=fixture({catalogChoice:native,catalogVersion:2}),s=await loaded(f);
+ const p=s.prepare({...draft,planIds:[native.recoveryId]});
+ assert.equal(p.nodes[0].candidateId,native.candidateId);assert.equal('planId' in p.nodes[0],false);
+ await assert.rejects(s.save(),/Waiting/);f.complete(latest(f));f.lose('save');await assert.rejects(s.save(),/Reply lost/);
+ const calls=f.calls.length,reload=f.session();assert.equal(f.calls.length,calls);await reload.recover();
+ assert.equal(reload.snapshot().pending,null);assert.equal(f.writes,1);
+ assert.deepEqual(f.rows.at(-1).record,p);
+ assert.equal(f.calls.filter(c=>c[0]==='enqueue').length,2);
+});
+
+
+test('recovery switch blocks new catalogs and verification but preserves completed saves',async()=>{
+ const native=recoveryFixture.material.plans.find(p=>p.kind==='native-candidate-v1');
+ const f=fixture({catalogChoice:native,catalogVersion:2}),s=await loaded(f);
+ const p=s.prepare({...draft,planIds:[native.recoveryId]});f.recoveryOff();
+ await assert.rejects(s.save(),/NEXUS_RECOVERY_DISABLED/);assert.equal(f.writes,0);
+ const fresh=fixture({catalogChoice:native,catalogVersion:2});fresh.recoveryOff();
+ await assert.rejects(fresh.session().load(),/NEXUS_RECOVERY_DISABLED/);assert.equal(fresh.jobs.size,0);
+ f.rows.push(row(p));await s.recover();assert.equal(s.snapshot().pending,null);
 });

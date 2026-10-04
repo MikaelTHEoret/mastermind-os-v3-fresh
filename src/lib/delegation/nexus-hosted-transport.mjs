@@ -1,5 +1,6 @@
 import {canonical,taskRef,validateRecord} from './contract.mjs';
 import {validateNexusInput,nexusReceipt} from '../../../protocol/mastermind-node-exchange/native-nexus.mjs';
+import {choiceId} from '../../../protocol/mastermind-node-exchange/nexus-proposal-record.mjs';
 const fail=text=>{throw Error(text);};
 const copy=v=>JSON.parse(JSON.stringify(v));
 const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(v);
@@ -15,8 +16,10 @@ export async function nexusJson(url,options={}){
 }
 /** Explicit owner actions only: construction and reload never send or poll. */
 export class NexusHostedTransport{
- constructor({ownerKey,nodeId,ref,storage,request=nexusJson}){
+ constructor({ownerKey,nodeId,ref,storage,request=nexusJson,catalogVersion=1}){
   taskRef(ref);if(!uuid(nodeId)||typeof ownerKey!=='string'||!ownerKey||ownerKey.length>200)fail('Choose an owner and computer.');
+  if(![1,2].includes(catalogVersion))fail('Unsupported catalog version.');
+  this.catalogVersion=catalogVersion;
   this.ref=copy(ref);this.nodeId=nodeId;this.storage=storage;this.request=request;
   this.key=`mastermind-nexus-transport-v1:${encodeURIComponent(ownerKey)}:${nodeId}:${ref.taskId}:${ref.project}`;
   this.url='/api/nexus/'+ref.taskId;this.busy=false;
@@ -41,7 +44,7 @@ export class NexusHostedTransport{
   if(transfer.job.state!=='succeeded')fail('The computer did not complete this read. The request is retained for inspection.');
   return nexusReceipt(transfer.job.terminal?.result,input);
  }
- newInput(action,proposal=null,snapshotId=null,cursor=null){return validateNexusInput({schemaVersion:1,operationId:crypto.randomUUID(),taskRef:this.ref,action,proposal,snapshotId,cursor});}
+ newInput(action,proposal=null,snapshotId=null,cursor=null){return validateNexusInput({schemaVersion:action==='catalog'?this.catalogVersion:1,operationId:crypto.randomUUID(),taskRef:this.ref,action,proposal,snapshotId,cursor});}
  async load(ref){return this.act(async()=>{
   if(canonical(ref)!==canonical(this.ref))fail('Task selection changed.');
   const s=this.read();if(s.catalog===null){s.catalog={input:this.newInput('catalog'),pages:[]};this.write(s);}
@@ -53,8 +56,8 @@ export class NexusHostedTransport{
   if(transfer===null)({transfer}=await this.post({action:'catalog',nodeId:this.nodeId,input:c.input}));
   const receipt=await this.checked(transfer,c.input),data=receipt.data;
   if(previous&&canonical(previous.basis)!==canonical(data.basis))fail('The task changed while loading plans. Start a new saved-plan read.');
-  if(data.choice){if(plans.some(p=>p.planId===data.choice.planId))fail('Repeated saved-plan page.');plans.push(data.choice);}
-  if(data.nextCursor!==null){if(plans.length>=32)fail('The saved-plan limit was exceeded.');c.pages.push({input:c.input,receipt});c.input=this.newInput('catalog',null,data.snapshotId,data.nextCursor);this.write(s);fail('More saved plans are available. Load again to continue from this page.');}
+  if(data.choice){if(plans.some(p=>choiceId(p)===choiceId(data.choice)))fail('Repeated saved-plan page.');plans.push(data.choice);}
+  if(data.nextCursor!==null){if(plans.length>=32)fail('The saved-plan limit was exceeded.');const version=c.input.schemaVersion;c.pages.push({input:c.input,receipt});c.input={...this.newInput('catalog',null,data.snapshotId,data.nextCursor),schemaVersion:version};this.write(s);fail('More saved plans are available. Load again to continue from this page.');}
   const history=await this.request(this.url);s.catalog=null;this.write(s);
   if(!plans.length)fail('This task has no saved build plans yet.');
   return {material:{ok:true,viewState:'available',executionAuthorized:false,taskRef:ref,basis:data.basis,plans},artifacts:history.artifacts,executionAuthorized:false};

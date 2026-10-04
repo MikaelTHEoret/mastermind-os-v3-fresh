@@ -1,0 +1,140 @@
+{
+  "material": {
+    "ok": true,
+    "viewState": "available",
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "basis": {
+      "checkpointId": "00000000-0000-4000-8000-000000000002",
+      "revision": "7",
+      "permissionRevision": "2",
+      "permissionScopeSha256": "8adb0a087d0ec6ac403b8ef97266c089899bb9f6a2c036e8a033a6027d68b6ea"
+    },
+    "plans": [
+      {
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "planId": "5d1a5ccd23bce89a9ffe42b8c2fea188ddf248a84bdb5380d8062fd534e105ca",
+        "title": "Add two supplied integers and reject missing inputs.",
+        "taskRevision": "7",
+        "historicalSnapshot": true,
+        "sourceRefs": [
+          "mastermind/build-plan/5d1a5ccd23bce89a9ffe42b8c2fea188ddf248a84bdb5380d8062fd534e105ca",
+          "mastermind/source-evidence/a18b5300e7bb7786626814e2a4ce1d31826025966090ded4cb676f58bca7e4f5"
+        ]
+      },
+      {
+        "kind": "native-candidate-v1",
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "candidateId": "ea330c5536d1c6aa4246e44434016ecb8d3b72245fc62e2b8ff921e50c2a10ee",
+        "importOperationId": "00000000-0000-4000-8000-000000000876",
+        "recoveryId": "7b262096c33883bbbd6bc77bcbcd22e5bcf7ec99a1257fb23585304138212291",
+        "observationSha256": "c42196fa58368eb0fa6754ea48f45455fa76a972db980c2cb64fa9ab2af1b228",
+        "title": "Add two supplied integers and reject missing inputs.",
+        "recovery": {
+          "moduleId": "fixture-calculator",
+          "version": "1.0.0",
+          "sourceState": "candidate_recorded",
+          "sourceVerifiedNow": true,
+          "recordedTestOutcome": "passed",
+          "recordedAccepted": true,
+          "hostReceiptsVerifiedNow": true,
+          "activeRevision": null,
+          "currentlyActive": false,
+          "activeProxyAvailable": false,
+          "holds": [],
+          "continuation": "inspect_existing_candidate"
+        },
+        "sourceRefs": [
+          "mastermind/native-candidate/ea330c5536d1c6aa4246e44434016ecb8d3b72245fc62e2b8ff921e50c2a10ee",
+          "mastermind/native-observation/c42196fa58368eb0fa6754ea48f45455fa76a972db980c2cb64fa9ab2af1b228"
+        ]
+      }
+    ],
+    "executionAuthorized": false
+  },
+  "proposal": {
+    "schemaVersion": 1,
+    "kind": "nexus-proposal",
+    "operationId": "4196249c-dcbd-41cc-9e6f-8b87b7b2cdda",
+    "seriesId": "4196249c-dcbd-41cc-9e6f-8b87b7b2cddb",
+    "parentId": null,
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "basis": {
+      "checkpointId": "00000000-0000-4000-8000-000000000002",
+      "revision": "7",
+      "permissionRevision": "2",
+      "permissionScopeSha256": "8adb0a087d0ec6ac403b8ef97266c089899bb9f6a2c036e8a033a6027d68b6ea"
+    },
+    "title": "Recover tested inactive native work",
+    "dependencyMeaning": "source-ready-for-review",
+    "nodes": [
+      {
+        "kind": "native-candidate-v1",
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "recoveryId": "7b262096c33883bbbd6bc77bcbcd22e5bcf7ec99a1257fb23585304138212291",
+        "candidateId": "ea330c5536d1c6aa4246e44434016ecb8d3b72245fc62e2b8ff921e50c2a10ee",
+        "importOperationId": "00000000-0000-4000-8000-000000000876",
+        "observationSha256": "c42196fa58368eb0fa6754ea48f45455fa76a972db980c2cb64fa9ab2af1b228",
+        "dependsOn": []
+      }
+    ],
+    "sourceRefs": [
+      "mastermind/native-candidate/ea330c5536d1c6aa4246e44434016ecb8d3b72245fc62e2b8ff921e50c2a10ee",
+      "mastermind/native-observation/c42196fa58368eb0fa6754ea48f45455fa76a972db980c2cb64fa9ab2af1b228"
+    ],
+    "reviewIds": [
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    ]
+  },
+  "request": {
+    "schemaVersion": 2,
+    "operationId": "33333333-3333-4333-8333-333333333333",
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "action": "catalog",
+    "proposal": null,
+    "snapshotId": null,
+    "cursor": null
+  },
+  "receipt": {
+    "schemaVersion": 2,
+    "kind": "mastermind.native.nexus",
+    "operationId": "33333333-3333-4333-8333-333333333333",
+    "taskRef": {
+      "taskId": "00000000-0000-4000-8000-000000000001",
+      "project": "fixture"
+    },
+    "action": "catalog",
+    "requestSha256": "b5e26964c8f8f59e9d70b419bde21c436a8b63991d4100a0eb5488bf746ecc96",
+    "observedAt": "2026-10-04T07:42:56.234Z",
+    "executionAuthorized": false,
+    "data": {
+      "basis": {
+        "checkpointId": "00000000-0000-4000-8000-000000000002",
+        "revision": "7",
+        "permissionRevision": "2",
+        "permissionScopeSha256": "8adb0a087d0ec6ac403b8ef97266c089899bb9f6a2c036e8a033a6027d68b6ea"
+      },
+      "snapshotId": "ca548c12bc3fec258c4da85e3c13764c6416ba1b605302ead084ec7e42bf18de",
+      "choice": {
+        "specificationId": "36a10a6bf6003df2ffb20940f450d666c7e587dfceb8d8f103dbea97e35ba212",
+        "planId": "5d1a5ccd23bce89a9ffe42b8c2fea188ddf248a84bdb5380d8062fd534e105ca",
+        "title": "Add two supplied integers and reject missing inputs.",
+        "taskRevision": "7",
+        "historicalSnapshot": true,
+        "sourceRefs": [
+          "mastermind/build-plan/5d1a5ccd23bce89a9ffe42b8c2fea188ddf248a84bdb5380d8062fd534e105ca",
+          "mastermind/source-evidence/a18b5300e7bb7786626814e2a4ce1d31826025966090ded4cb676f58bca7e4f5"
+        ]
+      },
+      "nextCursor": "5d1a5ccd23bce89a9ffe42b8c2fea188ddf248a84bdb5380d8062fd534e105ca"
+    }
+  }
+}

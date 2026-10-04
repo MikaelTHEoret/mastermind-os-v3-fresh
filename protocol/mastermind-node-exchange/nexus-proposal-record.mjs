@@ -5,6 +5,12 @@ const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[8
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
 const revision=v=>typeof v==='string'&&/^(0|[1-9][0-9]{0,14})$/.test(v);
 const list=(v,max,valid,min=1)=>Array.isArray(v)&&v.length>=min&&v.length<=max&&v.every(valid)&&new Set(v).size===v.length;
+export const choiceId=n=>n?.kind==='native-candidate-v1'?n.recoveryId:n?.planId;
+export function validNativeNode(n){
+ return exact(n,['kind','specificationId','recoveryId','candidateId','importOperationId','observationSha256','dependsOn'])
+  &&n.kind==='native-candidate-v1'&&['specificationId','recoveryId','candidateId','observationSha256'].every(k=>sha(n[k]))
+  &&uuid(n.importOperationId)&&Array.isArray(n.dependsOn)&&n.dependsOn.length===0;
+}
 export function validNexusProposal(r,common){
  if(!object(r)||r.schemaVersion!==1||r.kind!=='nexus-proposal'||!uuid(r.operationId)
   ||!exact(r.taskRef,['taskId','project'])||!uuid(r.taskRef.taskId)||typeof r.taskRef.project!=='string'||!/^[a-z0-9][a-z0-9._:-]{0,127}$/.test(r.taskRef.project))return false;
@@ -17,11 +23,16 @@ export function validNexusProposal(r,common){
  if(!Array.isArray(r.nodes)||r.nodes.length<1||r.nodes.length>32)return false;
  const plans=new Set();
  for(const n of r.nodes){
+  if(n?.kind==='native-candidate-v1'){
+   if(!validNativeNode(n)||plans.has(n.recoveryId))return false;
+   plans.add(n.recoveryId);continue;
+  }
   if(!exact(n,['specificationId','planId','dependsOn'])||!sha(n.specificationId)||!sha(n.planId)||plans.has(n.planId)||!list(n.dependsOn,32,sha,0))return false;
   plans.add(n.planId);
  }
  // Cycles remain valid *proposals*: the readiness assessor holds them.
- return r.nodes.every(n=>n.dependsOn.every(p=>plans.has(p)));
+ const codingPlans=new Set(r.nodes.filter(n=>!n.kind).map(n=>n.planId));
+ return r.nodes.every(n=>n.dependsOn.every(p=>codingPlans.has(p)));
 }
 
 export function proposalHeads(rows){
@@ -33,6 +44,7 @@ export function proposalHeads(rows){
 // Lossless projection to the accepted advisory runtime contract; never a worker request.
 export function readinessInput(record){
  if(!validNexusProposal(record,['schemaVersion','kind','operationId','taskRef']))throw new Error('NEXUS_PROPOSAL_INVALID');
+ if(record.nodes.some(n=>n.kind==='native-candidate-v1'))throw new Error('NEXUS_NATIVE_OBSERVATION_NOT_CODING_READINESS');
  return {proposal:{schemaVersion:1,kind:'mastermind.nexus-build-dependency-proposal',
   taskRef:{...record.taskRef,checkpointId:record.basis.checkpointId,revision:record.basis.revision},
   dependencyMeaning:record.dependencyMeaning,nodes:record.nodes.map(({planId,dependsOn})=>({planId,dependsOn:[...dependsOn]}))},

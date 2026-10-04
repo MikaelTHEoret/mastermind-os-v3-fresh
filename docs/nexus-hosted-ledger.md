@@ -58,3 +58,12 @@ under exactly one owner, deploy with Nexus creation off, verify ordinary clients
 then enable the exact profile and accept one new read-only owner proposal flow.
 Keep migration rollback history-aware and retain the preceding website/runtime.
 Never replay prior provider, coding, candidate or lifecycle operations.
+# Recovered native work: compatible connection
+
+The opt-in catalog request schemaVersion2 adds `native-candidate-v1` choices alongside original coding-plan choices. A native choice pins the existing specification, import operation, candidate and current observation. It has no coding plan ID. The owner form keeps source verification, recorded tests, historical acceptance, current receipt verification and active status separate. Native observations have no dependency edges and cannot satisfy coding readiness.
+
+`MASTERMIND_NEXUS_RECOVERY_ENABLED=1` selects the new catalog and permits new native verification/saves on the server. It defaults off. General `MASTERMIND_NEXUS_ENABLED` is still required. Old catalog requests remain schemaVersion1 and receive only supported plan rows. Retained requests continue with their original version and operation ID; no automatic retry with another version occurs. Existing completed saves can be recovered when creation is disabled.
+
+Install migration040 and the exact compatible runtime/worker package before enabling the recovery flag. The existing proposal table, ownership, permission checks and ledger are reused; no new execution capability or data rewrite is introduced. Native observations are an explicitly versioned node variant within advisory proposal schemaVersion1. Old readers reject that variant rather than interpreting it as a coding plan. Once new history exists, rollback must keep compatible readers with creation disabled; migration040 rollback refuses to remove readers needed by retained jobs/proposals. Its prehistory rollback restores the exact previous three validator functions.
+
+Acceptance requires the real owner catalog, verification, save and reload after coupled installation. Disposable tests and source publication alone are not live acceptance. Preserve accepted candidate tests and lifecycle history; never repeat them to populate this catalog.

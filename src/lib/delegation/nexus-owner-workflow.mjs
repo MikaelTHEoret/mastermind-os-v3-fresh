@@ -1,6 +1,27 @@
 import {canonical,taskRef,validateRecord} from './contract.mjs';
 import {checkedArtifact,checkedAcknowledgement} from './browser-workflow.mjs';
 import {proposalHeads} from './nexus-proposal.mjs';
+import {choiceId} from '../../../protocol/mastermind-node-exchange/nexus-proposal-record.mjs';
+import {validNativeChoice} from '../../../protocol/mastermind-node-exchange/native-nexus.mjs';
+
+export {choiceId};
+export function proposalNode(p,dependencies={}){
+ if(p.kind==='native-candidate-v1'){
+  const {kind,specificationId,recoveryId,candidateId,importOperationId,observationSha256}=p;
+  if((dependencies[recoveryId]??[]).length)throw Error('Recovered work cannot be a coding dependency.');
+  return {kind,specificationId,recoveryId,candidateId,importOperationId,observationSha256,dependsOn:[]};
+ }
+ return {specificationId:p.specificationId,planId:p.planId,dependsOn:dependencies[p.planId]??[]};
+}
+export function recoveryDescription(p){
+ if(p.kind!=='native-candidate-v1')return '';
+ const r=p.recovery;
+ return `Version ${r.version}. Source ${r.sourceVerifiedNow?'verified now':'needs reconciliation'}. `+
+  `Recorded tests: ${r.recordedTestOutcome??'no result'}. Historical acceptance: ${r.recordedAccepted?'recorded':'not recorded'}. `+
+  `Receipt verification now: ${r.hostReceiptsVerifiedNow?'verified':'not verified'}. `+
+  `Currently ${r.currentlyActive?'active':'inactive'}. ${r.activeProxyAvailable?'Active capability available.':''}`+
+  (r.holds.length?' Some evidence still needs inspection before further action.':'');
+}
 
 const copy=v=>JSON.parse(JSON.stringify(v));
 const fail=message=>{throw Error(message);};
@@ -11,6 +32,10 @@ export function checkedMaterial(value,ref){
   ||canonical(value.taskRef)!==canonical(ref)||!Array.isArray(value.plans)||value.plans.length<1||value.plans.length>32)fail('Saved plan choices are unavailable.');
  const ids=new Set();
  for(const plan of value.plans){
+  if(plan.kind==='native-candidate-v1'){
+   if(!validNativeChoice(plan)||ids.has(choiceId(plan)))fail('Invalid recovered work choice.');
+   ids.add(choiceId(plan));continue;
+  }
   if(!sha(plan.specificationId)||!sha(plan.planId)||ids.has(plan.planId)||typeof plan.title!=='string'||!plan.title.trim()||plan.title.length>240
    ||!Array.isArray(plan.sourceRefs)||plan.sourceRefs.length!==2||plan.sourceRefs[0]!==`mastermind/build-plan/${plan.planId}`
    ||!/^mastermind\/source-evidence\/[a-f0-9]{64}$/.test(plan.sourceRefs[1]))fail('Invalid saved plan choice.');
@@ -19,7 +44,7 @@ export function checkedMaterial(value,ref){
  // Reuse the authoritative proposal validator for the checkpoint/permission basis.
  validateRecord({schemaVersion:1,kind:'nexus-proposal',operationId:'4196249c-dcbd-41cc-9e6f-8b87b7b2cdda',seriesId:'4196249c-dcbd-41cc-9e6f-8b87b7b2cddb',parentId:null,
   taskRef:ref,basis:value.basis,title:'Validate basis',dependencyMeaning:'source-ready-for-review',
-  nodes:[{specificationId:value.plans[0].specificationId,planId:value.plans[0].planId,dependsOn:[]}],sourceRefs:value.plans[0].sourceRefs,reviewIds:['a'.repeat(64)]});
+  nodes:[proposalNode(value.plans[0])],sourceRefs:value.plans[0].sourceRefs,reviewIds:['a'.repeat(64)]});
  return copy(value);
 }
 
@@ -73,7 +98,7 @@ export class NexusOwnerSession{
   if(this.invalid||this.state.busy||this.state.pending)fail('Recover the existing save first.');
   const {material,artifacts}=this.state;if(!material)fail('Load current saved plans first.');
   if(!Array.isArray(planIds)||new Set(planIds).size!==planIds.length)fail('Choose unique plans.');
-  const selected=planIds.map(id=>material.plans.find(p=>p.planId===id)??fail('Plan is not in the current choices.'));
+  const selected=planIds.map(id=>material.plans.find(p=>choiceId(p)===id)??fail('Work is not in the current choices.'));
   const accepted=new Set(artifacts.filter(a=>a.record.kind==='review'&&a.record.decision==='accepted-as-advice').map(a=>a.artifactId));
   if(!Array.isArray(reviewIds)||reviewIds.some(id=>!accepted.has(id)))fail('Choose saved accepted advice.');
   const parent=parentId===null?null:proposalHeads(artifacts).find(a=>a.artifactId===parentId)??fail('Reload the current proposal before revising it.');
@@ -81,7 +106,7 @@ export class NexusOwnerSession{
   if(sourceRefs.length>12)fail('This proposal can cite up to 12 distinct source sets. Split the selection into smaller proposals.');
   const record=validateRecord({schemaVersion:1,kind:'nexus-proposal',operationId:crypto.randomUUID(),taskRef:this.ref,
    seriesId:parent?.record.seriesId??crypto.randomUUID(),parentId,basis:material.basis,title,
-   dependencyMeaning:'source-ready-for-review',nodes:selected.map(p=>({specificationId:p.specificationId,planId:p.planId,dependsOn:dependencies[p.planId]??[]})),
+   dependencyMeaning:'source-ready-for-review',nodes:selected.map(p=>proposalNode(p,dependencies)),
    sourceRefs,reviewIds});
   // Persist before the first possible send. A storage error leaves no operation in flight.
   if(this.storage.getItem(this.key)!==null)fail('Another unfinished save is retained. Reload to recover it.');
