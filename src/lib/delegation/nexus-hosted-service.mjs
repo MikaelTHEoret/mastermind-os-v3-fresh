@@ -9,8 +9,8 @@ const uuid=v=>typeof v==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[8
  * owner, never a client-supplied owner or receipt. Save rechecks current task
  * basis transactionally in the existing immutable contribution aggregate. */
 export class NexusHostedService{
- /** @param {any} query @param {any} owner @param {{enabled?:boolean,ledger?:any,now?:()=>number}} options */
- constructor(query,owner,{enabled=false,ledger,now=Date.now}={}){this.enabled=enabled===true;this.ledger=ledger;this.now=now;this.query=query;this.owner=owner;this.store=new NexusProposalStore(query,owner);}
+ /** @param {any} query @param {any} owner @param {{enabled?:boolean,recoveryEnabled?:boolean,ledger?:any,now?:()=>number}} options */
+ constructor(query,owner,{enabled=false,recoveryEnabled=false,ledger,now=Date.now}={}){this.enabled=enabled===true;this.recoveryEnabled=recoveryEnabled===true;this.ledger=ledger;this.now=now;this.query=query;this.owner=owner;this.store=new NexusProposalStore(query,owner);}
  /** @param {any} rawRef @param {{operationId?:string|null,nodeId?:string|null,jobId?:string|null}} selection */
  async read(rawRef,{operationId=null,nodeId=null,jobId=null}={}){
   const ref=taskRef(rawRef);await this.store.assertTask(ref);
@@ -25,6 +25,7 @@ export class NexusHostedService{
    if(!exact(body,['action','nodeId','input']))deny('NEXUS_REQUEST_INVALID',400);
    let input;try{input=validateNexusInput(body.input);}catch{deny('NEXUS_REQUEST_INVALID',400);}
    if(input.action!=='catalog'||canonical(input.taskRef)!==canonical(ref))deny('NEXUS_REQUEST_INVALID',400);
+   if(input.schemaVersion===2&&!this.recoveryEnabled)deny('NEXUS_RECOVERY_DISABLED');
    if(!this.enabled)deny('NEXUS_PROPOSAL_SAVE_DISABLED');await this.store.assertTask(ref,true);
    return {transfer:await this.ledger.enqueue(body.nodeId,input),executionAuthorized:false};
   }
@@ -35,6 +36,7 @@ export class NexusHostedService{
   // Completed saves remain recoverable with creation disabled and no worker.
   const existing=await this.store.recover(ref,record.operationId);
   if(existing){if(canonical(existing.record)!==canonical(record))deny('CONTRIBUTION_OPERATION_CONFLICT');return {status:'duplicate',artifact:existing,executionAuthorized:false};}
+  if(record.nodes.some(n=>n.kind==='native-candidate-v1')&&!this.recoveryEnabled)deny('NEXUS_RECOVERY_DISABLED');
   if(!this.enabled)deny('NEXUS_PROPOSAL_SAVE_DISABLED');await this.store.assertTask(ref,true);
   if(body.action==='verify')return {transfer:await this.ledger.enqueue(body.nodeId,input),executionAuthorized:false};
   const store=new NexusProposalStore(this.query,this.owner,{enabled:true,verifyReferences:async()=>{
